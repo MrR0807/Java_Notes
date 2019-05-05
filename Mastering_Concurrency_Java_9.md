@@ -119,16 +119,116 @@ This design pattern explains how to implement the situation where a task has to 
 See the following example:
 
     public void task1() { 
-      section1(); 
-      commonObject.notify(); 
+        section1(); 
+        commonObject.notify(); 
     } 
  
     public void task2() { 
-      commonObject.wait(); 
-      section2(); 
+        commonObject.wait(); 
+        section2(); 
     } 
 
 Under these circumstances, the section2() method will always be executed after the section1() method.
+
+### Rendezvous
+
+This design pattern is a generalization of the Signaling pattern. In this case, the first task waits for an event of the second task and the second task waits for an event of the first task. The solution is similar to that of Signaling, but in this case, you must use two objects instead of one.
+
+See the following example:
+
+    public void task1() { 
+        section1_1(); 
+        commonObject1.notify(); 
+        commonObject2.wait(); 
+        section1_2(); 
+    } 
+
+    public void task2() { 
+        section2_1(); 
+        commonObject2.notify(); 
+        commonObject1.wait(); 
+        section2_2(); 
+    } 
+
+Under these circumstances, section2_2() will always be executed after section1_1() and section1_2() after section2_1().
+
+### Mutex
+
+A mutex is a mechanism that you can use to implement a critical section, ensuring the mutual exclusion. That is to say, only one task can execute the portion of code protected by the mutex at once. In Java, you can implement a critical section using the _synchronized_ keyword (that allows you to protect a portion of code or a full method), the _ReentrantLock_ class, or the _Semaphore_ class.
+
+Look at the following example:
+
+    public void task() { 
+        preCriticalSection(); 
+        try { 
+            lockObject.lock() // The critical section begins 
+            criticalSection(); 
+        } catch (Exception e) { 
+ 
+        } finally { 
+            lockObject.unlock(); // The critical section ends 
+            postCriticalSection(); 
+        }
+
+### Multiplex
+
+The Multiplex design pattern is a generalization of the Mutex. In this case, a determined number of tasks can execute the critical section at once. It is useful, for example, when you have multiple copies of a resource. The easiest way to implement this design pattern in Java is using the Semaphore class initialized to the number of tasks that can execute the critical section at once.
+
+Look at the following example:
+
+    public void task() { 
+        preCriticalSection(); 
+        semaphoreObject.acquire(); 
+        criticalSection(); 
+        semaphoreObject.release(); 
+        postCriticalSection(); 
+    } 
+
+
+### Barrier
+
+This design pattern explains how to implement the situation where you need to synchronize some tasks at a common point. None of the tasks can continue with their execution until all the tasks have arrived at the synchronization point. Java Concurrency API provides the CyclicBarrier class, which is an implementation of this design pattern.
+
+Look at the following example:
+
+    public void task() {
+        preSyncPoint();
+        barrierObject.await();
+        postSyncPoint();
+    }
+
+### Read-write lock
+
+When you protect access to a shared variable with a lock, only one task can access that variable, independently of the operation you are going to perform on it. Sometimes, you will have variables that you modify a few times but you read many times. To solve this problem, we can use the read-write lock design pattern. This pattern defines a special kind of lock with two internal locks: one for read operations and another for write operations. The behavior of this lock is as follows:
+
+* If one task is doing a read operation and another task wants to do another read operation, it can do it
+* If one task is doing a read operation and another task wants to do a write operation, it's blocked until all the readers finish
+* If one task is doing a write operation and another task wants to do an operation (read or write), it's blocked until the writer finishes
+
+The Java Concurrency API includes the class __ReentrantReadWriteLock__ that implements this design pattern.
+
+### Thread pool
+
+This design pattern tries to remove the overhead introduced by creating a thread per task you want to execute. It's formed by a set of threads and a queue of tasks you want to execute. The set of threads usually has a fixed size. When a thread finishes the execution of a task, it doesn't finish its execution. It looks for another task in the queue. If there is another task, it executes it. If not, the thread waits until a task is inserted in the queue, but it's not destroyed.
+
+The Java Concurrency API includes some classes that implement the __ExecutorService__ interface that internally uses a pool of threads.
+
+
+### Thread local storage
+
+This design pattern defines how to use global or static variables locally to tasks. When you have a static attribute in a class, all the objects of a class access the same occurrences of the attribute. If you use thread local storage, each thread accesses a different instance of the variable.
+
+The Java Concurrency API includes the __ThreadLocal__ class to implement this design pattern.
+
+
+
+
+
+
+
+
+
+
 
 
 
