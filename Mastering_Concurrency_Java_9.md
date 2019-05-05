@@ -47,6 +47,99 @@ Finally, when you implement a concurrent application (from scratch or based on a
 * __Simplicity__: When you implement an algorithm (parallel or not), you must keep it as simple as possible. It will be easier to implement, test, debug, and maintain, and it will have less errors.
 
 ## Java Concurrency API
+### Basic concurrency classes
+
+The basic classes of the Concurrency API are:
+
+* The __Thread__ class: This class represents all the threads that execute a concurrent Java application
+* The __Runnable__ interface: This is another way to create concurrent applications in Java
+* The __ThreadLocal__ class: This is a class to store variables locally to a thread
+* The __ThreadFactory__ interface: This is the base of the Factory design pattern, that you can use to create customized threads 
+
+### Synchronization mechanisms
+
+The Java Concurrency API includes different synchronization mechanisms that allow you to:
+
+* Define a critical section to access a shared resource
+* Synchronize different tasks at a common point
+
+The following mechanisms are the most important synchronization mechanisms:
+
+* The __synchronized__ keyword: The synchronized keyword allows you to define a critical section in a block of code or in an entire method.
+* The __Lock__ interface: Lock provides a more flexible synchronization operation than the _synchronized_ keyword. There are different kinds of Locks: ReentrantLock, to implement a Lock that can be associated with a condition; ReentrantReadWriteLock that separates the read and write operations; and StampedLock, a new feature of Java 8 that includes three modes for controlling read/write access.
+* The __Semaphore__ class: The class that implements the classical semaphore to implement the synchronization. Java supports binary and general semaphores.
+* The __CountDownLatch__ class: A class that allows a task to wait for the finalization of multiple operations.
+* The __CyclicBarrier__ class: A class that allows the synchronization of multiple threads at a common point.
+* The __Phaser__ class: A class that allows you to control the execution of tasks divided into phases. None of the tasks advance to the next phase until all of the tasks have finished the current phase.
+
+### Executors
+
+The executor framework is a mechanism that allows you to separate thread creation and management for the implementation of concurrent tasks. You don't have to worry about the creation and management of threads, only to create tasks and send them to the executor. The main classes involved in this framework are:
+
+* The __Executor__ and __ExecutorService__ interface: This includes the execute() method common to all executors
+* __ThreadPoolExecutor__: This is a class that allows you to get an executor with a pool of threads and, optionally, define a maximum number of parallel tasks
+* __ScheduledThreadPoolExecutor__: This is a special kind of executor to allow you to execute tasks after a delay or periodically
+* __Executors__: This is a class that facilitates the creation of executors
+* The __Callable__ interface: This is an alternative to the Runnable interface - a separate task that can return a value
+* The __Future__ interface: This is an interface that includes the methods to obtain the value returned by a Callable interface and to control its status
+
+### The fork/join framework
+
+The fork/join framework defines a special kind of executor specialized in the resolution of problems with the divide and conquer technique. It includes a mechanism to optimize the execution of the concurrent tasks that solve these kinds of problems. Fork/Join is specially tailored for fine-grained parallelism, as it has very low overhead in order to place the new tasks into the queue and take queued tasks for execution. The main classes and interfaces involved in this framework are:
+
+* __ForkJoinPool__: This is a class that implements the executor that is going to run the tasks
+* __ForkJoinTask__: This is a task that can be executed in the ForkJoinPool class
+* __ForkJoinWorkerThread__: This is a thread that is going to execute tasks in the ForkJoinPool class
+
+### Concurrent data structures
+
+The Java Concurrency API includes a lot of data structures that can be used in concurrent applications without risk. We can classify them into two groups:
+
+* __Blocking data structures__: These include methods that block the calling task when, for example, the data structure is empty and you want to get a value.
+* __Non-blocking data structures__: If the operation can be made immediately, it won't block the calling tasks. It returns a null value or throws an exception.
+
+These are some of the data structures:
+
+* __ConcurrentLinkedDeque__: This is a non-blocking list
+* __ConcurrentLinkedQueue__: This is a non-blocking queue
+* __LinkedBlockingDeque__: This is a blocking list
+* __LinkedBlockingQueue__: This is a blocking queue
+* __PriorityBlockingQueue__: This is a blocking queue that orders its elements based on their priority
+* __ConcurrentSkipListMap__: This is a non-blocking navigable map
+* __ConcurrentHashMap__: This is a non-blocking hash map
+* __AtomicBoolean, AtomicInteger, AtomicLong, and AtomicReference__: These are atomic implementations of the basic Java data types
+
+
+## Concurrency design patterns
+
+### Signaling
+
+This design pattern explains how to implement the situation where a task has to notify an event to another task. The easiest way to implement this pattern is with a semaphore or a mutex, using the ReentrantLock or Semaphore classes of the Java language or even the wait() and notify() methods included in the Object class.
+
+See the following example:
+
+    public void task1() { 
+      section1(); 
+      commonObject.notify(); 
+    } 
+ 
+    public void task2() { 
+      commonObject.wait(); 
+      section2(); 
+    } 
+
+Under these circumstances, the section2() method will always be executed after the section1() method.
+
+
+
+
+
+
+
+
+
+
+
 
 
 
