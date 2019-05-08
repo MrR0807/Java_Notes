@@ -1,3 +1,33 @@
+Chapter 1: The First Step - Concurrency Design Principles:
+        Concurrency versus parallelism
+        Synchronization
+        Possible problems in concurrent applications
+    A methodology to design concurrent algorithms
+        The starting point - a sequential version of the algorithm
+        Step 1 - analysis
+        Step 2 - design
+        Step 3 - implementation
+        Step 4 - testing
+        Step 5 - tuning
+        Conclusion
+    Java Concurrency API
+        Basic concurrency classes
+        Synchronization mechanisms
+        Executors
+        The fork/join framework
+        Concurrent data structures
+    Concurrency design patterns
+        Signaling
+        Rendezvous
+        Mutex
+        Multiplex
+        Barrier
+        Read-write lock
+        Thread pool
+        Thread local storage
+
+----------------------------
+
 # Chapter 1: The First Step - Concurrency Design Principles
 
 ### Concurrency versus parallelism
