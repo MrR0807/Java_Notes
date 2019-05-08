@@ -34,11 +34,7 @@
     - A thread per element
     - A thread per row
     - The number of threads is determined by the processors
-  - Second example: file search
-    - Serial version
-    - A thread per directory
-    - A thread per group of directories
-    - The number of threads is determined by the processors
+- Chapter 3: Managing Lots of Threads - Executors
 
 ----------------------------
 
@@ -342,7 +338,7 @@ during its entire life and it can't be changed.
     }
 
 
-## Serial version
+### Serial version
 
     public class SerialVersion {
 
@@ -389,7 +385,7 @@ during its entire life and it can't be changed.
     }
 
 
-## A thread per element
+### A thread per element
 
     public class IndividualMultiplierTask implements Runnable {
 
@@ -476,7 +472,7 @@ during its entire life and it can't be changed.
         System.out.printf("Parallel Individual: %d%n", Duration.between(before, after).toMillis());
     }
 
-## A thread per row
+### A thread per row
 
     public class RowMultiplierTask implements Runnable {
 
@@ -569,7 +565,7 @@ during its entire life and it can't be changed.
         System.out.printf("Parallel Row (seconds): %d%n", Duration.between(before, after).toSeconds());
     }
     
-## The number of threads is determined by the processors
+### The number of threads is determined by the processors
 
 Finally, in the last version, we only create as many threads as there are cores or processors available to the JVM. We use the availableProcessors() method of the Runtime class to calculate that number.
 
@@ -689,16 +685,18 @@ Finally, in the last version, we only create as many threads as there are cores 
     }
 
 
+Naive results:
+Serial (millis): 148919
+Serial (seconds): 148
+Parallel Individual (millis): 1150177
+Parallel Individual (seconds): 1150
+Parallel Row (millis): 73986
+Parallel Row (seconds): 73
+Group (millis): 77757
+Group (seconds): 77
 
 
-
-
-
-
-
-
-
-
+# Chapter 3: Managing Lots of Threads - Executors
 
 
 
