@@ -32,6 +32,13 @@
   - First example: matrix multiplication
     - Serial version
     - A thread per element
+    - A thread per row
+    - The number of threads is determined by the processors
+  - Second example: file search
+    - Serial version
+    - A thread per directory
+    - A thread per group of directories
+    - The number of threads is determined by the processors
 
 ----------------------------
 
@@ -466,24 +473,220 @@ during its entire life and it can't be changed.
         var before = Instant.now();
         ParallelIndividualMultiplier.multiply(matrix1, matrix2, 10);
         var after = Instant.now();
-        System.out.printf("Serial: %d%n", Duration.between(before, after).toMillis());
+        System.out.printf("Parallel Individual: %d%n", Duration.between(before, after).toMillis());
+    }
+
+## A thread per row
+
+    public class RowMultiplierTask implements Runnable {
+
+        private final double[][] matrix1;
+        private final double[][] matrix2;
+        private final double[][] result;
+        private final int row;
+
+        public RowMultiplierTask(double[][] matrix1, double[][] matrix2, double[][] result, int row) {
+            this.matrix1 = matrix1;
+            this.matrix2 = matrix2;
+            this.result = result;
+            this.row = row;
+        }
+
+        @Override
+        public void run() {
+            var columns1 = matrix1[0].length;
+            var columns2 = matrix2[0].length;
+
+            for (int j = 0; j < columns2; j++) {
+                result[row][j] = 0;
+                for (int k = 0; k < columns1; k++) {
+                    result[row][j] += matrix1[row][k] * matrix2[k][j];
+                }
+            }
+        }
+    }
+    
+    
+
+    public class ParallelIndividualMultiplier {
+
+        public static double[][] multiply(double[][] matrix1, double[][] matrix2, int threadCount) {
+            var rows1 = matrix1.length;
+            var columns2 = matrix2[0].length;
+
+            var result = new double[rows1][columns2];
+
+            List<Thread> threads = new ArrayList<>(threadCount);
+
+            for (int row = 0; row < rows1; row++) {
+                for (int column2 = 0; column2 < columns2; column2++) {
+                    IndividualMultiplierTask task = new IndividualMultiplierTask(matrix1, matrix2, result, row, column2);
+                    Thread t = new Thread(task);
+                    t.start();
+                    threads.add(t);
+
+                    if (threads.size() % threadCount == 0) {
+                        waitForThreads(threads);
+                    }
+                }
+            }
+            waitForThreads(threads);
+            return result;
+        }
+
+        private static void waitForThreads(List<Thread> threads) {
+            for (Thread t : threads) {
+                try {
+                    t.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            threads.clear();
+        }
+    }
+
+    @Test
+    public void multiplyParallelRow() {
+        final double[][] expected = new double[][] {{14, 32}, {32,77}};
+        var matrix1 = new double[][]{{1, 2, 3}, {4, 5, 6}};
+        var matrix2 = new double[][]{{1, 4}, {2, 5}, {3, 6}};
+
+        var result = ParallelRowMultiplier.multiply(matrix1, matrix2, 10);
+
+        assertArrayEquals(expected, result);
+    }
+
+    @Test
+    public void multiplyParallelRow__measure() {
+        var matrix1 = MatrixGenerator.generate(2000, 2000);
+        var matrix2 = MatrixGenerator.generate(2000, 2000);
+
+        var before = Instant.now();
+        ParallelRowMultiplier.multiply(matrix1, matrix2, 10);
+        var after = Instant.now();
+        System.out.printf("Parallel Row (millis): %d%n", Duration.between(before, after).toMillis());
+        System.out.printf("Parallel Row (seconds): %d%n", Duration.between(before, after).toSeconds());
+    }
+    
+## The number of threads is determined by the processors
+
+Finally, in the last version, we only create as many threads as there are cores or processors available to the JVM. We use the availableProcessors() method of the Runtime class to calculate that number.
+
+    public class GroupMultiplierTask implements Runnable {
+
+        private final double[][] matrix1;
+        private final double[][] matrix2;
+        private final double[][] result;
+
+        private final int startIndex;
+        private final int endIndex;
+
+        public GroupMultiplierTask(double[][] matrix1, double[][] matrix2, double[][] result, int startIndex, int endIndex) {
+            this.matrix1 = matrix1;
+            this.matrix2 = matrix2;
+            this.result = result;
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+        }
+
+        @Override
+        public void run() {
+            var columns1 = matrix1[0].length;
+            var columns2 = matrix2[0].length;
+
+            for (int i = startIndex; i < endIndex; i++) {
+                for (int j = 0; j < columns2; j++) {
+                    result[i][j] = 0;
+                    for (int k = 0; k < columns1; k++) {
+                        result[i][j] += matrix1[i][k] * matrix2[k][j];
+                    }
+                }
+            }
+        }
     }
 
 
 
+    public class GroupMultiplier {
+
+        public static double[][] multiply(double[][] matrix1, double[][] matrix2) {
+            var rows1 = matrix1.length;
+            var columns2 = matrix2[0].length;
+
+            var result = new double[rows1][columns2];
+
+            List<Thread> threads = new ArrayList<>();
+
+            var threadCount = Runtime.getRuntime().availableProcessors();
+            int startIndex, endIndex, step;
+            step = rows1 / threadCount == 0
+                    ? rows1
+                    : rows1 / threadCount;
+            startIndex = 0;
+            endIndex = step;
+
+            ThreadCountLoop:
+            for (int i = 0; i < threadCount; i++) {
+                GroupMultiplierTask task = new GroupMultiplierTask(matrix1, matrix2, result, startIndex, endIndex);
+                var t = new Thread(task);
+                threads.add(t);
+                t.start();
+
+                startIndex = endIndex;
+                endIndex = i == (threadCount - 2) //Last thread takes the remaining part of rows
+                        ? rows1
+                        : (endIndex + step) > rows1 //Avoid index out of bounds with endIndex
+                            ? rows1
+                            : endIndex + step;
+
+                if (isLast(startIndex, endIndex)) {
+                    break ThreadCountLoop;
+                }
+            }
+
+            waitForThreads(threads);
+            return result;
+        }
+
+        private static boolean isLast(int startIndex, int lastIndex) {
+            return startIndex == lastIndex;
+        }
+
+        private static void waitForThreads(List<Thread> threads) {
+            for (Thread thread: threads) {
+                try {
+                    thread.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
 
+    @Test
+    public void multiplyGroup() {
+        final double[][] expected = new double[][] {{14, 32}, {32,77}};
+        var matrix1 = new double[][]{{1, 2, 3}, {4, 5, 6}};
+        var matrix2 = new double[][]{{1, 4}, {2, 5}, {3, 6}};
 
+        var result = GroupMultiplier.multiply(matrix1, matrix2);
 
+        assertArrayEquals(expected, result);
+    }
 
+    @Test
+    public void multiplyGroup__measure() {
+        var matrix1 = MatrixGenerator.generate(21, 21);
+        var matrix2 = MatrixGenerator.generate(21, 21);
 
-
-
-
-
-
-
-
+        var before = Instant.now();
+        GroupMultiplier.multiply(matrix1, matrix2);
+        var after = Instant.now();
+        System.out.printf("Group (millis): %d%n", Duration.between(before, after).toMillis());
+        System.out.printf("Group (seconds): %d%n", Duration.between(before, after).toSeconds());
+    }
 
 
 
