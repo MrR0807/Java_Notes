@@ -686,14 +686,14 @@ Finally, in the last version, we only create as many threads as there are cores 
 
 
 Naive results:
-Serial (millis): 148919
-Serial (seconds): 148
-Parallel Individual (millis): 1150177
-Parallel Individual (seconds): 1150
-Parallel Row (millis): 73986
-Parallel Row (seconds): 73
-Group (millis): 77757
-Group (seconds): 77
+* Serial (millis): 148919
+* Serial (seconds): 148
+* Parallel Individual (millis): 1150177
+* Parallel Individual (seconds): 1150
+* Parallel Row (millis): 73986
+* Parallel Row (seconds): 73
+* Group (millis): 77757
+* Group (seconds): 77
 
 
 # Chapter 3: Managing Lots of Threads - Executors
