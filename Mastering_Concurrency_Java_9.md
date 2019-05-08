@@ -31,7 +31,7 @@
   - The Thread class and the Runnable interface
   - First example: matrix multiplication
     - Serial version
-    - First concurrent version - a thread per element
+    - A thread per element
 
 ----------------------------
 
@@ -316,6 +316,139 @@ during its entire life and it can't be changed.
 * __join()__: This method suspends the execution of the thread that makes the call until the end of the execution of the thread used to call the method.
 * __setUncaughtExceptionHandler()__: This method is used to establish the controller of unchecked exceptions that can occur while you're executing the threads.
 * __currentThread()__
+
+## First example: matrix multiplication
+
+    public class MatrixGenerator {
+
+        public static double[][] generate(int rows, int columns) {
+            var result = new double[rows][columns];
+
+            Random random = new Random();
+            for (int i=0; i< rows; i++) {
+                for (int j = 0; j < columns; j++) {
+                    result[i][j] = random.nextDouble()*10;
+                }
+            }
+            return result;
+        }
+    }
+
+
+## Serial version
+
+    public class SerialVersion {
+
+        public static double[][] multiply(double[][] matrix1, double[][] matrix2) {
+            var rows1 = matrix1.length;
+            var columns1 = matrix1[0].length;
+            var columns2 = matrix2[0].length;
+
+            var result = new double[rows1][columns2];
+
+            for (int i = 0; i < rows1; i++) {
+                for (int j = 0; j < columns2; j++) {
+                    result[i][j] = 0;
+                    for (int k = 0; k < columns1; k++) {
+                        result[i][j] += matrix1[i][k] * matrix2[k][j];
+                    }
+                }
+            }
+            return result;
+        }
+    }
+
+
+    @Test
+    public void multiplySerial() {
+        final double[][] expected = new double[][] {{14, 32}, {32,77}};
+        var matrix1 = new double[][]{{1, 2, 3}, {4, 5, 6}};
+        var matrix2 = new double[][]{{1, 4}, {2, 5}, {3, 6}};
+
+        var result = SerialVersion.multiply(matrix1, matrix2);
+
+        assertArrayEquals(expected, result);
+    }
+    
+    @Test
+    public void multiplySerial__measure() {
+        var matrix1 = MatrixGenerator.generate(200, 200);
+        var matrix2 = MatrixGenerator.generate(200, 200);
+
+        var before = Instant.now();
+        SerialVersion.multiply(matrix1, matrix2);
+        var after = Instant.now();
+        System.out.printf("Serial: %d%n", Duration.between(before, after).toMillis());
+    }
+
+
+## A thread per element
+
+    public static double[][] multiply(double[][] matrix1, double[][] matrix2, int threadCount) {
+        var rows1 = matrix1.length;
+        var columns2 = matrix2[0].length;
+
+        var result = new double[rows1][columns2];
+
+        List<Thread> threads = new ArrayList<>(threadCount);
+
+        for (int row = 0; row < rows1; row++) {
+            for (int column2 = 0; column2 < columns2; column2++) {
+                IndividualMultiplierTask task = new IndividualMultiplierTask(matrix1, matrix2, result, row, column2);
+                Thread t = new Thread(task);
+                t.start();
+                threads.add(t);
+
+                if (threads.size() % threadCount == 0) {
+                    waitForThreads(threads);
+                }
+            }
+        }
+        waitForThreads(threads);
+        return result;
+    }
+
+    private static void waitForThreads(List<Thread> threads) {
+        for (Thread t : threads) {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        threads.clear();
+    }
+
+
+    @Test
+    public void multiplyParallelIndividual() {
+        final double[][] expected = new double[][] {{14, 32}, {32,77}};
+        var matrix1 = new double[][]{{1, 2, 3}, {4, 5, 6}};
+        var matrix2 = new double[][]{{1, 4}, {2, 5}, {3, 6}};
+
+        var result = ParallelIndividualMultiplier.multiply(matrix1, matrix2, 10);
+
+        assertArrayEquals(expected, result);
+    }
+
+    @Test
+    public void multiplyParallelIndividual__measure() {
+        var matrix1 = MatrixGenerator.generate(2000, 2000);
+        var matrix2 = MatrixGenerator.generate(2000, 2000);
+
+        var before = Instant.now();
+        ParallelIndividualMultiplier.multiply(matrix1, matrix2, 10);
+        var after = Instant.now();
+        System.out.printf("Serial: %d%n", Duration.between(before, after).toMillis());
+    }
+
+
+
+
+
+
+
+
 
 
 
