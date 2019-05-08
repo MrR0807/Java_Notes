@@ -25,6 +25,13 @@
     - Read-write lock
     - Thread pool
     - Thread local storage
+- Chapter 2: Working with Basic Elements - Threads and Runnables
+  - Threads in Java
+  - Threads in Java - characteristics and states
+  - The Thread class and the Runnable interface
+  - First example: matrix multiplication
+    - Serial version
+    - First concurrent version - a thread per element
 
 ----------------------------
 
@@ -250,9 +257,65 @@ This design pattern defines how to use global or static variables locally to tas
 
 The Java Concurrency API includes the __ThreadLocal__ class to implement this design pattern.
 
+-------------------------------------------
 
+# Chapter 2: Working with Basic Elements - Threads and Runnables
 
+When you implement a concurrent application, no matter the language, you have to create different execution threads that run in parallel in a non-deterministic order unless you use a synchronization element (such as a semaphore).
 
+In Java you can create execution threads in two ways:
+* Extending the __Thread__ class
+* Implementing the __Runnable__ interface
+
+## Threads in Java
+
+Java implements execution threads using the Thread class. You can create an execution thread in your application using the following mechanisms:
+* You can __extend the Thread__ class and override the run() method
+* You can __implement the Runnable__ interface and pass an object of that class to the constructor of a Thread object
+
+In both cases, you will have a Thread object, but the __second approach is recommended__ over the first one. Its main advantages are:
+* Runnable is an interface: You can implement other interfaces and extend other classes. With the Thread class you can only extend that class.
+* Runnable objects can be executed with threads, but also in other Java concurrency objects as executors. This gives you more flexibility to change your concurrent applications.
+* You can use the same Runnable object with different threads.
+
+Once you have a __Thread object, you must use the start() method to create a new execution thread and execute the run() method of the Thread__. If you call the run() method directly, you will be calling a normal Java method and no new execution thread will be created.
+
+## Threads in Java - characteristics and states
+
+* All threads in Java have a priority, an integer value that can be between the values Thread.MIN_PRIORITY and Thread.MAX_PRIORITY (Actually, their values are 1 and 10.)
+* By default, all threads are created with the priority Thread.NORM_PRIORITY (actually, its value is 5).
+* This priority is a hint to the Java Virtual Machine and to the underlying operating system about which threads are preferred, but it's not a contract. There's no guarantee about the order of execution of the threads.
+
+You can create two kinds of threads in Java:
+* Daemon threads
+* Non-daemon threads
+
+The difference between them is in how they affect the end of a program. A Java program ends its execution when one of the following circumstances occurs:
+* The program executes the exit() method of the Runtime class and the user has authorization to execute that method
+* All the non-daemon threads of the application have ended its execution, no matter if there are daemon threads running or not
+
+With these characteristics, daemon threads are usually used to execute auxiliary tasks in the applications as garbage collectors or cache managers.
+
+Finally, threads can pass through different states depending on the situation. These are the possible statuses of a thread:
+* __NEW__: The Thread has been created but it hasn't started its execution yet
+* __RUNNABLE__: The Thread is running in the Java Virtual Machine
+* __BLOCKED__: The Thread is waiting for a lock
+* __WAITING__: The Thread is waiting for the action of another thread
+* __TIME_WAITING__: The Thread is waiting for the action of another thread but has a time limit
+* __THREAD__: The Thread has finished its execution
+
+## The Thread class and the Runnable interface
+
+Interesting methods of the Thread class:
+* __getId()__: This method returns the identifier of the Thread. It is a positive integer number assigned when it's created. It is unique
+during its entire life and it can't be changed.
+* __getName()/setName()__: This method allows you to get or set the name of the Thread.
+* __getPriority()/setPriority()__
+* __isDaemon()/setDaemon()__
+* __getState()__
+* __join()__: This method suspends the execution of the thread that makes the call until the end of the execution of the thread used to call the method.
+* __setUncaughtExceptionHandler()__: This method is used to establish the controller of unchecked exceptions that can occur while you're executing the threads.
+* __currentThread()__
 
 
 
