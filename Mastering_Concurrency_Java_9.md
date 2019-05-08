@@ -698,6 +698,56 @@ Naive results:
 
 # Chapter 3: Managing Lots of Threads - Executors
 
+With low level (Threads and implementing Runnable) approach, you're responsible for creating and manning the thread objects and implementing the mechanisms of synchronization between the threads. However, it can create some problems, especially with those applications with a lot of concurrent tasks. If you create too many threads, you can degrade the performance of your application or even hang the entire system.
+
+Java version 5 included the Executor framework to solve these problems and provide an efficient solution that is easier to use for programmers than the traditional concurrency mechanisms.
+
+
+### Basic characteristics of executors
+
+The main characteristics of executors are:
+* You don't need to create any Thread objects. If you want to execute a concurrent task, you only create an instance of the task (for example, a class that implements the Runnable interface) and send it to the executor. It will manage the thread that will execute the task.
+* Executors reduce the overhead introduced by thread creation reusing the threads. Internally, it manages a pool of threads named worker-threads. If you send a task to the executor and a __worker-thread__ is idle, the executor uses that thread to execute the task.
+* It's easy to control the resources used by the executor. You can limit the maximum number of worker-threads of your executor. If you send more tasks than worker-threads, the executor stores them in a queue. When a worker-thread finishes the execution of a task, they take another from the queue.
+* __You have to finish the execution of an executor explicitly. You have to indicate to the executor that it has to finish its execution and kill the created threads. If you don't do this, it won't finish its execution and your application won't end__.
+
+## Basic components of the Executor framework
+
+The basic components of the framework are:
+* __The Executor interface__: This is the basic interface of the Executor framework. It only defines a method that allows the programmer to send a __Runnable__ object to an executor.
+* __The ExecutorService interface__: This interface extends the Executor interface and includes more methods to increase the functionality of the framework, such as the following:
+  * Execute tasks that return a result: The run() method provided by the Runnable interface doesn't return a result, but with executors, you can have tasks that return a result 
+  * Execute a list of tasks with a single method call
+  * Finish the execution of an executor and wait for its termination
+* __The ThreadPoolExecutor class__: This class implements the __ExecutorService__ interfaces. In addition, it includes some additional methods to get the status of the executor (the number of worker-threads, number of executed tasks, and so on), methods to establish the parameters of the executor (minimum and maximum number of worker-threads, time that idle threads will wait for new tasks, and so on), and methods that allow programmers to extend and adapt functionality.
+* __The Executors class__: This class provides utility methods to create Executor objects and other related classes.
+
+## First example - the k-nearest neighbors algorithm
+
+The k-nearest neighbors algorithm is a simple machine learning algorithm used for supervised classification. The main components of this algorithm are:
+* __A train dataset__: This dataset is formed by instances with one or more attributes that define every instance and a special attribute that determines the label of the instance
+* __A distance metric__: This metric is used to determine the distance (or similarity) between the instances of the train dataset and the new instances you want to classify
+* __A test dataset__: This dataset is used to measure the behavior of the algorithm
+
+When it has to classify an instance, it calculates the distance against this instance and all the instances of the train dataset. Then, it takes the k-nearest instances and looks at the tag of those instances. The tag with most instances is the tag assigned to the input instance.
+In this chapter, we are going to work with the Bank Marketing dataset of the UCI Machine Learning Repository, which you can download from http://archive.ics.uci.edu/ml/datasets/Bank+Marketing. To measure the distance between instances, we are going to use the __Euclidean__ distance.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
