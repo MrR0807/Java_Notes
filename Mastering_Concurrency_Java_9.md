@@ -408,7 +408,7 @@ during its entire life and it can't be changed.
               result[row][column] += matrix1[row][k] * matrix2[k][column];
           }
       }
-   }
+    }
 
 
     public static double[][] multiply(double[][] matrix1, double[][] matrix2, int threadCount) {
