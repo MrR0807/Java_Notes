@@ -384,6 +384,33 @@ during its entire life and it can't be changed.
 
 ## A thread per element
 
+    public class IndividualMultiplierTask implements Runnable {
+
+      private final double[][] matrix1;
+      private final double[][] matrix2;
+      private final double[][] result;
+      private final int row;
+      private final int column;
+
+      public IndividualMultiplierTask(double[][] matrix1, double[][] matrix2, double[][] result, int row, int column) {
+          this.matrix1 = matrix1;
+          this.matrix2 = matrix2;
+          this.result = result;
+          this.row = row;
+          this.column = column;
+      }
+
+      @Override
+      public void run() {
+          var columns1 = matrix1[0].length;
+          result[row][column] = 0;
+          for (int k = 0; k < columns1; k++) {
+              result[row][column] += matrix1[row][k] * matrix2[k][column];
+          }
+      }
+   }
+
+
     public static double[][] multiply(double[][] matrix1, double[][] matrix2, int threadCount) {
         var rows1 = matrix1.length;
         var columns2 = matrix2[0].length;
