@@ -721,33 +721,3 @@ The basic components of the framework are:
   * Finish the execution of an executor and wait for its termination
 * __The ThreadPoolExecutor class__: This class implements the __ExecutorService__ interfaces. In addition, it includes some additional methods to get the status of the executor (the number of worker-threads, number of executed tasks, and so on), methods to establish the parameters of the executor (minimum and maximum number of worker-threads, time that idle threads will wait for new tasks, and so on), and methods that allow programmers to extend and adapt functionality.
 * __The Executors class__: This class provides utility methods to create Executor objects and other related classes.
-
-## First example - the k-nearest neighbors algorithm
-
-The k-nearest neighbors algorithm is a simple machine learning algorithm used for supervised classification. The main components of this algorithm are:
-* __A train dataset__: This dataset is formed by instances with one or more attributes that define every instance and a special attribute that determines the label of the instance
-* __A distance metric__: This metric is used to determine the distance (or similarity) between the instances of the train dataset and the new instances you want to classify
-* __A test dataset__: This dataset is used to measure the behavior of the algorithm
-
-When it has to classify an instance, it calculates the distance against this instance and all the instances of the train dataset. Then, it takes the k-nearest instances and looks at the tag of those instances. The tag with most instances is the tag assigned to the input instance.
-In this chapter, we are going to work with the Bank Marketing dataset of the UCI Machine Learning Repository, which you can download from http://archive.ics.uci.edu/ml/datasets/Bank+Marketing. To measure the distance between instances, we are going to use the __Euclidean__ distance.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
