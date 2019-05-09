@@ -58,10 +58,14 @@ Set path to the location where the recording should be saved. If you specify a d
 ## Creating a Recording Using Triggers
 You can use the Console in Java Mission Control to set triggers. A trigger is a rule that executes an action whenever a condition specified by the rule is true. For example, you can create a rule that triggers a flight recording to commence whenever the heap size exceeds 100 MB. Triggers in Java Mission Control can use any property exposed through a JMX MBean as the input to the rule. They can launch many other actions than just Flight Recorder dumps.
 
-
 ## Actions in short
 * Start JVM with -XX:StartFlightRecording=,filename=hello.jfr,disk=true,dumponexit=true,settings=profile,path-to-gc-roots=true
   * Use **jcmd** to identify running application id
-  * Use JFR.start, JFR.stop, JFR.dump to control recording
+  * Use JFR.start, JFR.stop, JFR.dump to control recording 
   * Use Mission Control to load up the file and analyze
 * -XX:StartFlightRecording=duration=60s,filename=myrecording.jfr MyApp to start recording immediately 
+
+
+* jcmd 3828 JFR.start name=helloworld
+* jcmd 3828 JFR.dump name=helloworld filename=helloworldfile.jfr (**dump does not stop recording!**)
+* find dumped file and load to MC
