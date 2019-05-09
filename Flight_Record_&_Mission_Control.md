@@ -65,6 +65,7 @@ You can use the Console in Java Mission Control to set triggers. A trigger is a 
   * Use Mission Control to load up the file and analyze
 * -XX:StartFlightRecording=duration=60s,filename=myrecording.jfr MyApp to start recording immediately 
 
+### Example
 
 * jcmd 3828 JFR.start name=helloworld
 * jcmd 3828 JFR.dump name=helloworld filename=helloworldfile.jfr (**dump does not stop recording!**)
