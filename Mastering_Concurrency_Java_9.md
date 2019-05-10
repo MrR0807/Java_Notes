@@ -721,3 +721,89 @@ The basic components of the framework are:
   * Finish the execution of an executor and wait for its termination
 * __The ThreadPoolExecutor class__: This class implements the __ExecutorService__ interfaces. In addition, it includes some additional methods to get the status of the executor (the number of worker-threads, number of executed tasks, and so on), methods to establish the parameters of the executor (minimum and maximum number of worker-threads, time that idle threads will wait for new tasks, and so on), and methods that allow programmers to extend and adapt functionality.
 * __The Executors class__: This class provides utility methods to create Executor objects and other related classes.
+
+## Other methods of interest
+
+The Executors class provides other methods to create ThreadPoolExecutor objects. These methods are:
+* __newCachedThreadPool()__: This method creates a ThreadPoolExecutor object that reuses a worker-thread if it's idle, but it creates a new one if it's necessary. There is no maximum number of worker-threads.
+* __newSingleThreadExecutor()__: This method creates a ThreadPoolExecutor object that uses only a single worker-thread. The tasks you send to the executor are stored in a queue until the worker-thread can execute them.
+
+
+There are two types of concurrent data structures in Java:
+* __Blocking data structures__: When you call a method and the library can't do that operation (for example, you try to obtain an element, and the data structure is empty), they block the thread until the operation can be done.
+* __Non-blocking data structures__: When you call a method and the library can't do that operation (because the structure is empty or full), the method returns a special value or throws an exception.
+
+## Cancellation of tasks
+
+You can cancel the execution of a task after you send it to an executor. When you send a Runnable object to an executor using the submit() method, it returns an implementation of the Future interface. This class allows you to control the execution of the task. It has the cancel() method that attempts to cancel the execution of the task. 
+It receives a Boolean value as a parameter. If it takes the true value and the executor is executing this task, the thread executing the task will be interrupted. These are the situations when the task you want to cancel can't be canceled:
+* The task has already been canceled
+* The task has finished its execution
+* The task is running and you supplied false as a parameter to the cancel() method
+* Other reasons not specified in the API documentation
+
+The cancel() method returns a Boolean value to indicate whether the task has been canceled or not.
+
+## Scheduling the execution of tasks
+
+The ThreadPoolExecutor class is a basic implementation of the Executor and ExecutorService interfaces. But the Java concurrency API provides an extension of this class to allow the execution of scheduled tasks. This is the ScheduledThreadPoolExeuctor class, and you can:
+* Execute a task after a delay
+* Execute a task periodically; this includes the execution of tasks at a fixed rate or with a fixed delay
+
+
+## Overriding the executor methods
+The executor framework is a very flexible mechanism. You can implement your own executor extending one of the existing classes (ThreadPoolExecutor or ScheduledThreadPoolExecutor) to get the desired behavior. These classes include methods that make it easy to change how the executor works. If you override ThreadPoolExecutor, you can override the following methods:
+
+* beforeExecute(): This method is invoked before the execution of concurrent tasks in an executor. It receives the Runnable object that is going to be executed and the Thread object that will execute it. The Runnable object that this method receives is an instance of the FutureTask class and not the Runnable object you sent to the executor using the submit() method.
+* afterExecute(): This method is invoked after the execution of a concurrent task in the executor. It receives the Runnable object that has been executed and a Throwable object that stores a possible exception thrown inside the task. As in the beforeExecute() method, the Runnable object is an instance of the FutureTask class.
+* newTaskFor(): This method creates the task that is going to execute the Runnable object you sent using the submit() method. It must return an implementation of the RunnableFuture interface. By default, Open JDK 9 and Oracle JDK 9 returns an instance of the FutureTask class, but this might change in future implementations.
+
+If you extend the ScheduledThreadPoolExecutor class, you can override the decorateTask() method. This method is like the newTaskFor() method for scheduled tasks. It allows you to override the tasks executed by the executor.
+
+
+## Additional information about executors
+
+These are some methods you can override:
+* shutdown(): You must explicitly call this method to end the execution of the executor. You can override it to add some code to free additional resources used by your own executor.
+* shutdownNow(): The difference between shutdown() and shutdownNow() is that the shutdown() method waits for the finalization of all the tasks that are waiting in the executor.
+* submit(), invokeall(), or invokeany(): You call these methods to send concurrent tasks to the executor. You can override them if you need to do some actions before or after a task is inserted in the task queue of the executor. Note that adding a custom action before or after the task is enqueued is different from adding a custom action before or after it's executed, which we did when overriding beforeExecute() and afterExecute() methods.
+
+ScheduledThreadPoolExecutor class has other methods to execute periodic tasks or tasks after a delay:
+* schedule(): This method executes a task after the given delay. The task is executed only once.
+* scheduleAtFixedRate(): This method executes a periodic task with the given period. The difference with the ScheduleWithFixedDelay() method is that in the last one, the delay between two executions goes from the end of the first one to the start of the second one, and in the first one, the delay between two executions goes between the start of both.
+
+# Getting Data from Tasks - The Callable and Future Interfaces
+
+## Introducing the Callable and Future interfaces
+
+In an executor, you can execute two kinds of tasks:
+* Tasks based on the __Runnable__ interface: These tasks implement the run() method that doesn't return any results.
+* Tasks based on the __Callable__ interface: These tasks implement the call() interface that returns an object as a result.
+
+**The call() method can throw any checked exception. You can process the exceptions implementing your own executor and overriding the afterExecute() method**.
+
+## The Future interface
+
+When you send a Callable task to an executor, it will return an implementation of the **Future** interface that allows you to control the execution and the status of the task and to get the result. The main characteristics of this interface are:
+* You can **cancel the execution** of the task using the cancel() method. This method has a Boolean parameter to specify whether you want to interrupt the task whether it's running or not.
+* You can check whether the task has been cancelled (with the isCancelled() method) or has finished (with the isDone() method).
+* You can get the value returned by the task using the get() method. There are two variants of this method. The first one doesn't have parameters and returns the value returned by the task if it has finished its execution. **If the task hasn't finished its execution, it suspends the execution thread until the tasks finish.** The second variant admits two parameters: a period of time and TimeUnit of that period. The main difference with the first one is that the thread waits for the period of time passed as a parameter. **If the period ends and the task hasn't finished its execution, the method throws a TimeoutException exception.**
+
+
+
+
+144
+
+
+
+
+
+
+
+
+
+
+
+
+
+
