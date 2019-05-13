@@ -1039,13 +1039,13 @@ The main objective of a best-matching algorithm for words is to find the words m
     }
 
 
+## The second example - creating an inverted index for a collection of documents
+
+## Common classes
 
 
 
-
-
-
-
+165
 
     
 
