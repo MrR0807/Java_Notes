@@ -790,11 +790,264 @@ When you send a Callable task to an executor, it will return an implementation o
 * You can get the value returned by the task using the get() method. There are two variants of this method. The first one doesn't have parameters and returns the value returned by the task if it has finished its execution. **If the task hasn't finished its execution, it suspends the execution thread until the tasks finish.** The second variant admits two parameters: a period of time and TimeUnit of that period. The main difference with the first one is that the thread waits for the period of time passed as a parameter. **If the period ends and the task hasn't finished its execution, the method throws a TimeoutException exception.**
 
 
+## First example - a best-matching algorithm for words
+
+The main objective of a best-matching algorithm for words is to find the words most similar to a string passed as a parameter.
+
+## The common classes
 
 
-144
+    public class WordsLoader {
+
+      public static List<String> load(String path) {
+          try {
+              return Files.readAllLines(Path.of(path));
+          } catch (IOException e) {
+              e.printStackTrace();
+              return Collections.emptyList();
+          }
+      }
+    }
+    
+    public class LevenshteinDistance {
+
+    public static int calculate(String s1, String s2) {
+
+        var s1L = s1.length() + 1;
+        var s2L = s2.length() + 1;
+        int[][] distances = new int[s1L][s2L];
+
+        for (int i = 1; i < s1L; i++) {
+            distances[i][0] = i;
+        }
+
+        for (int i = 1; i < s2L; i++) {
+            distances[0][i] = i;
+        }
+
+        for (int row = 1; row < s1L; row++) {
+            for (int column = 1; column < s2L; column++) {
+                if (s1.charAt(row - 1) == s2.charAt(column - 1)) {
+                    distances[row][column] = distances[row - 1][column - 1];
+                } else {
+                    distances[row][column] = Math.min(Math.min(distances[row - 1][column - 1], distances[row - 1][column]),
+                            distances[row][column - 1]) + 1;
+                }
+            }
+        }
+        return distances[s1.length()][s2.length()];
+    }
+    }
+    
+    
+    public class BestMatchingData {
+
+    private int minDistance;
+
+    private List<String> words;
+
+    public int getMinDistance() {
+        return minDistance;
+    }
+
+    public void setMinDistance(int minDistance) {
+        this.minDistance = minDistance;
+    }
+
+    public List<String> getWords() {
+        return words;
+    }
+
+    public void setWords(List<String> words) {
+        this.words = words;
+    }
+
+    @Override
+    public String toString() {
+        return "BestMatchingData{" +
+                "minDistance=" + minDistance +
+                ", words=" + words +
+                '}';
+    }
+    }
+    
+    
+    
+## Serial version
 
 
+    public class BestMatchingSerialCalculation {
+
+    public static BestMatchingData bestMatchingData(String word, List<String> dictionary) {
+
+        List<String> closestWords = new ArrayList<>();
+        int minDistance = Integer.MAX_VALUE;
+
+        for (var w : dictionary) {
+            var distance = LevenshteinDistance.calculate(word, w);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestWords.clear();
+                closestWords.add(w);
+            } else if (minDistance == distance) {
+                closestWords.add(w);
+            }
+        }
+
+        BestMatchingData data = new BestMatchingData();
+        data.setWords(closestWords);
+        data.setMinDistance(minDistance);
+        return data;
+    }
+    }
+    
+    
+## Concurrent version
+
+
+
+    public class BestMatchingTask implements Callable<BestMatchingData> {
+
+        private final int startIndex;
+        private final int lastIndex;
+        private final String word;
+        private final List<String> dictionary;
+
+        public BestMatchingTask(int startIndex, int lastIndex, String word, List<String> dictionary) {
+            this.startIndex = startIndex;
+            this.lastIndex = lastIndex;
+            this.word = Objects.requireNonNullElse(word, "empty");
+            this.dictionary = Objects.requireNonNullElse(dictionary, Collections.emptyList());
+        }
+
+        @Override
+        public BestMatchingData call() {
+            List<String> closestWords = new ArrayList<>();
+            int minDistance = Integer.MAX_VALUE;
+
+            for (var w : dictionary.subList(startIndex, lastIndex)) {
+                var distance = LevenshteinDistance.calculate(word, w);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestWords.clear();
+                    closestWords.add(w);
+                } else if (minDistance == distance) {
+                    closestWords.add(w);
+                }
+            }
+
+            BestMatchingData data = new BestMatchingData();
+            data.setWords(closestWords);
+            data.setMinDistance(minDistance);
+            return data;
+        }
+      }
+
+
+    public class BestMatchingConcurrentCalculation {
+
+
+        public static BestMatchingData bestMatchingData(String word, List<String> dictionary) throws ExecutionException, InterruptedException {
+
+            int startIndex = 0;
+            int endIndex = 0;
+            int threadCount = Runtime.getRuntime().availableProcessors();
+            int step = dictionary.size() / threadCount;
+
+            ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+            List<Future<BestMatchingData>> results = new ArrayList<>();
+
+            for (int thread = 0; thread < threadCount; thread++) {
+                startIndex = endIndex;
+                //Last thread's endIndex up to the end
+                endIndex = (thread + 1) == threadCount
+                        ? dictionary.size()
+                        : endIndex + step;
+
+                var task = new BestMatchingTask(startIndex, endIndex, word, dictionary);
+                Future<BestMatchingData> future = executor.submit(task);
+                results.add(future);
+            }
+
+            executor.shutdown();
+            List<String> words = new ArrayList<>();
+            int minDistance = Integer.MAX_VALUE;
+
+            for (var f : results) {
+                BestMatchingData data = f.get();
+                if (data.getMinDistance() < minDistance) {
+                    words.clear();
+                    minDistance = data.getMinDistance();
+                    words.addAll(data.getWords());
+                } else if (data.getMinDistance() == minDistance) {
+                    words.addAll(data.getWords());
+                }
+            }
+
+            BestMatchingData result = new BestMatchingData();
+            result.setMinDistance(minDistance);
+            result.setWords(words);
+            return result;
+        }
+     }
+
+
+
+## Calculations
+
+
+    @Test
+    public void LevenshteinDistance__calculate() {
+        var result = LevenshteinDistance.calculate("Good", "Evening");
+
+        assertThat(result).isEqualTo(7);
+    }
+
+    @Test
+    public void LevenshteinDistance__calculate2() {
+        var result = LevenshteinDistance.calculate("belekokisaofajgi", "fkajfjfjafuufufufufuauuasdlkljfajdfilarjailnfma");
+
+        assertThat(result).isEqualTo(41);
+    }
+
+    @Test
+    public void serial__calculation() {
+        List<String> dictionary = WordsLoader.load("C:\\Users\\BC6250\\IdeaProjects\\test\\src\\main\\resources\\words.data");
+
+        var now = Instant.now();
+        BestMatchingData bestMatchingData = BestMatchingSerialCalculation.bestMatchingData("stitter", dictionary);
+        var later = Instant.now();
+
+        System.out.println("Dictionary size: " + dictionary.size());
+        System.out.println(bestMatchingData);
+        System.out.printf("Serial time (millis): %d%n", Duration.between(now, later).toMillis());
+        System.out.printf("Serial time (sec): %d%n", Duration.between(now, later).toSeconds());
+    }
+
+    @Test
+    public void concurrent__calculation() throws ExecutionException, InterruptedException {
+        List<String> dictionary = WordsLoader.load("C:\\Users\\BC6250\\IdeaProjects\\test\\src\\main\\resources\\words.data");
+
+        var now = Instant.now();
+        BestMatchingData bestMatchingData = BestMatchingConcurrentCalculation.bestMatchingData("stitter", dictionary);
+        var later = Instant.now();
+
+        System.out.println("Dictionary size: " + dictionary.size());
+        System.out.println(bestMatchingData);
+        System.out.printf("Serial time (millis): %d%n", Duration.between(now, later).toMillis());
+        System.out.printf("Serial time (sec): %d%n", Duration.between(now, later).toSeconds());
+    }
+
+
+
+
+
+
+
+
+
+
+    
 
 
 
