@@ -70,3 +70,16 @@ You can use the Console in Java Mission Control to set triggers. A trigger is a 
 * jcmd 3828 JFR.start name=helloworld
 * jcmd 3828 JFR.dump name=helloworld filename=helloworldfile.jfr (**dump does not stop recording!**)
 * find dumped file and load to MC
+
+### Azul Mission Control
+
+6. [Windows Only] Switching the JVM installation for Mission Control
+On Windows, zmc.exe will use the default JVM installation configured in the registry. Zulu Mission Control needs to be launched from a full JDK to be able to detect local JVM instances automatically. If this is a JRE, you will see the warning below:
+
+To change the JVM used by Mission Control, follow these steps:
+
+Open zmc.ini configuration file, located in the same directory as the zmc.exe
+Before the line -vmargs, add two lines:
+On the first line, write –vm
+On the second line, write the path to your JDK installation (e.g., C:\Program Files\Java\jdk1.6.0_31\bin\javaw.exe)
+
