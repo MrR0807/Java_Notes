@@ -1044,10 +1044,105 @@ The main objective of a best-matching algorithm for words is to find the words m
 ## Common classes
 
 
+    public class Document {
 
-165
+        private String fileName;
+        private Map<String, Integer> wordFreq = new HashMap<>();
 
+        public String getFileName() {
+            return fileName;
+        }
+
+        public void setFileName(String fileName) {
+            this.fileName = fileName;
+        }
+
+        public Map<String, Integer> getWordFreq() {
+            return wordFreq;
+        }
+
+        public void setWordFreq(Map<String, Integer> wordFreq) {
+            this.wordFreq = wordFreq;
+        }
+
+        @Override
+        public String toString() {
+            return "Document{" +
+                    "fileName='" + fileName + '\'' +
+                    ", wordFreq=" + wordFreq +
+                    '}';
+        }
+    }
     
+
+    public class DocumentParse {
+
+        private final static Pattern PATTERN = Pattern.compile("\\P{IsAlphabetic}+");
+
+        public static Map<String, Integer> parse(String path) {
+            try {
+                return Files.lines(Path.of(path))
+                        .flatMap(PATTERN::splitAsStream)
+                        .filter(not(String::isBlank))
+                        .map(word -> Normalizer.normalize(word, Normalizer.Form.NFKD))
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toMap(Function.identity(), word -> 1, Integer::sum));
+            } catch (IOException e) {
+                e.printStackTrace();
+                return Collections.emptyMap();
+            }
+        }
+    }
+
+
+## Serial version
+
+
+    public class SerialIndexing {
+
+        public static Map<String, List<String>> createIndex(Path folderPath) {
+            Objects.requireNonNull(folderPath);
+
+            if (not(Files.isDirectory(folderPath))) {
+                throw new IllegalArgumentException("Invalid directory path");
+            }
+
+            File[] files = folderPath.toFile().listFiles();
+            Map<String, List<String>> invertedIndex = new HashMap<>();
+
+            for (File f : files) {
+                if (f.getName().strip().endsWith(".txt")) {
+                    Map<String, Integer> vocabulary = DocumentParse.parse(f.getAbsolutePath());
+                    updateInvertedIndex(vocabulary, invertedIndex, f.getName());
+                }
+            }
+
+            return invertedIndex;
+        }
+
+        private static void updateInvertedIndex(Map<String, Integer> vocabulary, Map<String, List<String>> invertedIndex, String fileName) {
+            for (String word : vocabulary.keySet())
+                if (word.length() >= 3) {
+                    invertedIndex
+                            .computeIfAbsent(word, k -> new ArrayList<>())
+                            .add(fileName);
+                }
+        }
+    }
+
+
+## Concurrent version - a task per document
+
+A **CompletionService** object is a mechanism that has an executor and allows you to decouple the production of tasks and the consumption of the results of those tasks. You can send tasks to the executor using the submit() method and get the results of the tasks when they finish using the poll() or take() methods.
+
+
+
+
+
+
+
+
+
 
 
 
