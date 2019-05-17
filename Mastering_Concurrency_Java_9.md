@@ -1136,6 +1136,47 @@ The main objective of a best-matching algorithm for words is to find the words m
 A **CompletionService** object is a mechanism that has an executor and allows you to decouple the production of tasks and the consumption of the results of those tasks. You can send tasks to the executor using the submit() method and get the results of the tasks when they finish using the poll() or take() methods.
 
 
+**AbstractExecutorService** interface:
+
+* **invokeAll** (Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit): This method returns a list of Future objects associated with the list of Callable tasks passed as parameters when all the tasks have finished their execution or the timeout specified by the second and third parameters expires.
+
+* **invokeAny** (Collection<? Extends Callable<T>> tasks, long timeout, TimeUnit unit): This method returns the result of the first task of the list of Callable tasks passed as a parameter that finishes their execution without throwing an exception if they finish before the timeout specified by the second and third parameters expires. If the timeout expires, the method throws a TimeoutException exception.
+
+Let's discuss the following methods about the **CompletionService** interface:
+
+* The **poll()** method: We have used a version of this method with two parameters, but there is also a version without parameters. From the internal data structures, this version retrieves and removes the Future object of the next task that has finished since the last call to the poll() or take() methods. If no tasks have finished, its execution returns a null value.
+* The **take()** method: This method is similar to the previous one, but if no tasks have finished, it sleeps the thread until one task finishes its execution.
+
+# Chapter 6. Running Tasks Divided into Phases - The Phaser Class
+
+The most important element in a concurrent API is the **synchronization mechanism** it offers to the programmer. **Synchronization is the coordination of two or more tasks to get the desired result. You can synchronize the execution of two or more tasks, when they have to be executed in a predefined order, or synchronize the access to a shared resource, when only one thread at a time can execute a fragment of code or modify a block of memory.** The Java 9 concurrency API provides a lot of synchronization mechanisms, from the basic
+synchronized keyword and the Lock interface and their implementations, to protect a critical section, to the more advanced CyclicBarrier or CountDownLatch classes, which allow you to synchronize the order of execution of different tasks. In Java 7, the concurrency API introduces the **Phaser** class. **This class provides a powerful mechanism (phaser) to execute tasks divided into phases. The task can ask the Phaser class to wait until all other participants finish the phase**.
+
+
+## An introduction to the Phaser class
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
