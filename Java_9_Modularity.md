@@ -172,16 +172,31 @@ Java 9 can be used like previous versions of Java, **without moving your code in
 
 The layout of the sources on the filesystem looks as follows:
 
-* src
-  * helloworld
-    * com
-      * modules
-        * hello
-          * HelloWorld
-  * module-info.java
+    \---src
+        \---helloworld
+            |   module-info.java
+            |
+            \---com
+                \---modules
+                    \---hello
 
 
+Compared to the traditional layout of Java source files, there are two major differences:
+* There is an extra level of indirection: below src we introduce another directory, helloworld. **The directory is named after the name of the module we’re creating.** 
+* Inside this module directory we find both the source file (nested in its package structure as usual) and a module descriptor.
 
+Our Modular Hello World example is quite minimalistic:
+
+    module helloworld {
+    }
+
+**The name must match the name of the directory containing the module descriptor.**
+
+## Naming Modules
+
+In Java it’s customary to make package names globally unique by using reverse DNS notation.
+
+## Compilation
 
 
 
