@@ -129,14 +129,33 @@ In general, avoid using qualified exports between modules in an application.
 
 ## Module Resolution and the Module Path
 
+Modules are resolved from the module path, as opposed to the classpath. Whereas the classpath is a flat list of types (even when using JAR files), the module path contains only modules.
+
+When you want to run an application packaged as a module, you need all of its dependencies as well. Module resolution is the process of computing a minimal required set of modules given a dependency graph and a root module chosen from that graph. Every module reachable from the root module ends up in the set of resolved modules. It contains these steps:
+
+* Start with a single root module and add it to the resolved set.
+* Add each required module ( requires or requires transitive in module-info.java) to the resolved set.
+* Repeat previous step for each new module added to the resolved set.
+
+### Example
+
+    module app {
+        requires java.sql;
+    }
+
+Steps of module resolution:
+* Add app to the resolved set; observe that it requires java.sql.
+* Add java.sql to the resolved set; observe that it requires java.xml and java.logging.
+* Add java.xml to the resolved set; observe that it requires nothing else.
+* Add java.logging to the resolved set; observe that it requires nothing else.
+* No new modules have been added; resolution is complete.
+
+## Using the Modular JDK Without Modules
+
+Java 9 can be used like previous versions of Java, **without moving your code into modules**. Code compiled and loaded outside a module ends up in the unnamed module. In contrast, all modules you’ve seen so far are explicit modules, defining their name in module-info.java. The unnamed module is special: it reads all other modules, including the java.logging module in this case.
 
 
-
-
-
-
-
-
+# Chapter 3
 
 
 
