@@ -19,24 +19,25 @@ JAR files seem to be the closest we can get to modules pre-Java 9.
 The classpath is used by the Java runtime to locate classes. In our example, we run Main, and all classes that are directly or indirectly referenced from this class need to be loaded at some point. You can **view the classpath as a list of all classes that may be loaded at runtime**.
 
 A condensed view of the resulting classpath could looks like this:
-java.lang.Object
-java.lang.String
-...
-sun.misc.BASE64Encoder
-sun.misc.Unsafe
-...
-javax.crypto.Cypher
-javax.crypto.SecretKey
-...
-com.myapp.Main
-...
-com.google.common.base.Joiner
-...
-com.google.common.base.internal.Joiner
-org.hibernate.validator.HibernateValidator
-org.hibernate.validator.constraints.NotEmpty
-...
-org.hibernate.validator.internal.engine.ConfigurationImpl
+
+    java.lang.Object
+    java.lang.String
+    ...
+    sun.misc.BASE64Encoder
+    sun.misc.Unsafe
+    ...
+    javax.crypto.Cypher
+    javax.crypto.SecretKey
+    ...
+    com.myapp.Main
+    ...
+    com.google.common.base.Joiner
+    ...
+    com.google.common.base.internal.Joiner
+    org.hibernate.validator.HibernateValidator
+    org.hibernate.validator.constraints.NotEmpty
+    ...
+    org.hibernate.validator.internal.engine.ConfigurationImpl
 
 There’s no notion of JARs or logical grouping anymore. **All classes are sequenced into a flat list**, in the order defined by the -classpath argument. When the JVM loads a class, it reads the classpath in sequential order to find the right one. As soon as the class is found, the search ends and the class is loaded.
 
