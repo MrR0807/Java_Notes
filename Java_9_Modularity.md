@@ -154,8 +154,40 @@ Steps of module resolution:
 
 Java 9 can be used like previous versions of Java, **without moving your code into modules**. Code compiled and loaded outside a module ends up in the unnamed module. In contrast, all modules you’ve seen so far are explicit modules, defining their name in module-info.java. The unnamed module is special: it reads all other modules, including the java.logging module in this case.
 
-
 # Chapter 3
+
+## Working with Modules
+
+### Example:
+
+    package com.modules.hello;
+
+    public class HelloWorld {
+
+        public static void main(String[] args){
+            System.out.println("Hello world");
+        }
+    }
+
+
+The layout of the sources on the filesystem looks as follows:
+
+* src
+  * helloworld
+    * com
+      * modules
+        * hello
+          * HelloWorld
+  * module-info.java
+
+
+
+
+
+
+
+
+
 
 
 
