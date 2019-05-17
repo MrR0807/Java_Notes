@@ -1,6 +1,6 @@
-**JFR (Java Flight Recorder)** can record a whole lot of events—from your applications to your JVM to the OS. It is a high performance, but low overhead profiler.
+**JFR (Java Flight Recorder)** can record a whole lot of events - from your applications to your JVM to the OS. It is a high performance, but low overhead profiler.
 
-**MC (Mission Control)** displays the application profiling data collected by JFR in a visual environment. You can select the category you want to analyze—from class loading to JVM internals (such as garbage collection), application threads, memory allocation, to complete application data analysis.
+**MC (Mission Control)** displays the application profiling data collected by JFR in a visual environment. You can select the category you want to analyze - from class loading to JVM internals (such as garbage collection), application threads, memory allocation, to complete application data analysis.
 
 ## Using the Command Line
 You can start and configure a recording from the command line using the -XX:StartFlightRecording option of the java command, when starting the application. The following example illustrates how to run the MyApp application and immediately start a 60-second recording which will be saved to a file named myrecording.jfr:
