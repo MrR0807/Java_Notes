@@ -53,19 +53,19 @@ The most essential platform module in the modular JDK is **java.base**. It expos
 
 These are the most important benefits of the Java Platform Module System:
 
-**Reliable configuration**
+**Reliable configuration**.
 The module system checks whether a given combination of modules satisfies all dependencies before compiling or running code. This leads to fewer run-time errors.
 
-**Strong encapsulation**
+**Strong encapsulation**.
 Modules explicitly choose what to expose to other modules. Accidental dependencies on internal implementation details are prevented.
 
-**Scalable development**
+**Scalable development**.
 Explicit boundaries enable teams to work in parallel while still creating maintainable codebases. Only explicitly exported public types are shared, creating boundaries that are automatically enforced by the module system.
 
-**Security**
+**Security**.
 Strong encapsulation is enforced at the deepest layers inside the JVM. This limits the attack surface of the Java runtime. Gaining reflective access to sensitive internal classes is not possible anymore.
 
-**Optimization**
+**Optimization**.
 Because the module system knows which modules belong together, including platform modules, no other code needs to be considered during JVM startup. It also opens up the possibility to create a minimal configuration of modules for distribution.
 
 # Chapter 2
