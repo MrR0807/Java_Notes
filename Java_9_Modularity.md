@@ -198,6 +198,15 @@ In Java it’s customary to make package names globally unique by using reverse 
 
 ## Compilation
 
+Prior to Java 9, the Java compiler is invoked with a destination directory and a set of sources to compile:
+
+    javac -d . com/modules/hello/Hello.java
+    java com.modules.hello.Hello
+
+After modules:
+
+    javac -d out src/helloworld/com/modules/hello/Hello.java src/helloworld/module-info.java
+
 
 
 
