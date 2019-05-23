@@ -1147,24 +1147,48 @@ Let's discuss the following methods about the **CompletionService** interface:
 * The **poll()** method: We have used a version of this method with two parameters, but there is also a version without parameters. From the internal data structures, this version retrieves and removes the Future object of the next task that has finished since the last call to the poll() or take() methods. If no tasks have finished, its execution returns a null value.
 * The **take()** method: This method is similar to the previous one, but if no tasks have finished, it sleeps the thread until one task finishes its execution.
 
-# Chapter 6. Running Tasks Divided into Phases - The Phaser Class
+# Optimizing Divide and Conquer Solutions - The Fork/Join Framework
 
-The most important element in a concurrent API is the **synchronization mechanism** it offers to the programmer. **Synchronization is the coordination of two or more tasks to get the desired result. You can synchronize the execution of two or more tasks, when they have to be executed in a predefined order, or synchronize the access to a shared resource, when only one thread at a time can execute a fragment of code or modify a block of memory.** The Java 9 concurrency API provides a lot of synchronization mechanisms, from the basic
-synchronized keyword and the Lock interface and their implementations, to protect a critical section, to the more advanced CyclicBarrier or CountDownLatch classes, which allow you to synchronize the order of execution of different tasks. In Java 7, the concurrency API introduces the **Phaser** class. **This class provides a powerful mechanism (phaser) to execute tasks divided into phases. The task can ask the Phaser class to wait until all other participants finish the phase**.
+**Fork/join framework** uses a pool of threads that executes the tasks you send to the executor, reusing them for multiple tasks.
 
+The divide and conquer algorithm is a very popular design technique. To solve a problem using this technique, you divide it into smaller problems. You repeat the process in a recursive way until the problems you have to solve are small enough to be solved directly. You have to be very careful selecting the base case that is resolved directly. **A bad choice of the size of that problem can give you poor performance.**
 
-## An introduction to the Phaser class
+This framework is based on the **ForkJoinPool class**, which is a special kind of executor, two operations, the **fork()** and **join()** methods (and their different variants), and an internal algorithm named the **work-stealing** algorithm.
 
+## Basic characteristics of the fork/join framework
 
+With this framework, you will implement tasks whose main method will be something like this:
 
+    if (problem.size() > DEFAULT_SIZE) {
+      divideTasks();
+      executeTask();
+      taskResults=joinTasksResult();
+      return taskResults;
+    } else {
+      taskResults=solveBasicProblem();
+      return taskResults;
+    }
 
+* The **fork()** method: This method allows you to send a child task to the fork/join executor
+* The **join()** method: This method allows you to wait for the finalization of a child task and returns its result
 
+Critical feature: **the work-stealing algorithm**, which determines which tasks are to be executed. When a task is waiting for the finalization of a child task using the join() method, the thread that is executing that task takes another task from the pool of tasks that are waiting and starts its execution. In this way, the threads of the fork/join executor are always executing a task by improving the performance of the application.
 
+**Default fork/join executor will automatically use the number of threads determined by the available processors of your computer.**
 
+## Limitations of the fork/join framework
 
+* The basic problems that you're not going to subdivide have to be not very large, but also not very small. According to the Java API documentation, it should have between 100 and 10,000 basic computational steps.
+* You should not use blocking I/O operations, such as reading user input or data from a network socket that is waiting until the data is available. Such operations will cause your CPU cores to idle, thereby reducing the level of parallelism, so you will not achieve full performance.
+* You can't throw checked exceptions inside a task. You have to include the code to handle them (for example, wrapping into unchecked RuntimeException).
 
+## Components of the fork/join framework
 
-
+* **The ForkJoinPool class**: This class implements the Executor and ExecutorService interfaces, and it is the Executor interface you're going to use to execute your fork/join tasks.
+* **The ForkJoinTask class**: This is the base abstract class of all of the fork/join tasks. It's an abstract class, and it provides the fork() and join() methods and some variants of them. It also implements the Future interface and provides methods to know whether the task finished in a normal way, whether it was cancelled, or if it threw an unchecked exception.
+* **The RecursiveTask class**: This class extends the ForkJoinTask class. It's also an abstract class, and it should be your starting point to implement fork/join tasks that **return results**.
+* **The RecursiveAction class**: This class extends the ForkJoinTask class. It's also an abstract class, and it should be your starting point to implement fork/join tasks that **don't return results**.
+* **The CountedCompleter class**: This class extends the ForkJoinTask class. It should be your starting point to implement tasks that **trigger other tasks when they're completed**.
 
 
 
