@@ -1190,8 +1190,16 @@ Critical feature: **the work-stealing algorithm**, which determines which tasks 
 * **The RecursiveAction class**: This class extends the ForkJoinTask class. It's also an abstract class, and it should be your starting point to implement fork/join tasks that **don't return results**.
 * **The CountedCompleter class**: This class extends the ForkJoinTask class. It should be your starting point to implement tasks that **trigger other tasks when they're completed**.
 
+# Processing Massive Datasets with Parallel Streams - The Map and Reduce Model
 
+## MapReduce versus MapCollect
 
+**MapReduce** is a programming model to process very large datasets in distributed environments with a lot of machines working in a cluster. It has two steps, generally implemented by two methods:
+
+* Map: This filters and transforms the data
+* Reduce: This applies a summary operation in the data
+
+Hadoop project is an open source implementation of this model.
 
 
 
