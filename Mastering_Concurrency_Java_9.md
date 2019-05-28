@@ -1201,10 +1201,58 @@ Critical feature: **the work-stealing algorithm**, which determines which tasks 
 
 Hadoop project is an open source implementation of this model.
 
+The **reduce() method** has a limitation. As we mentioned before, it must return a single value. You shouldn't use the reduce() method to generate a collection or a complex object. The first problem is performance. As the documentation of the stream API specifies, the
+**accumulator function returns a new value every time it processes an element. If your accumulator function works with collections, it processes an element and creates a new collection every time, which is very inefficient.** Another problem is that, if you work with **parallel streams, all the threads will share the identity value**.
 
 
+If you want to make a reduction that generates a collection or a complex object, you have the following two options:
+* Apply a mutable reduction with the collect() method.
+* Create the collection and use the forEach() method to fill the collection with the required values.
 
 
+      public static void basicSearch(String query[]) throws IOException {
+        Path path = Paths.get("index", "invertedIndex.txt");
+        HashSet<String> set = new HashSet<>(Arrays.asList(query));
+        QueryResult results = new QueryResult(new ConcurrentHashMap<>());
+        try (Stream<String> invertedIndex = Files.lines(path)) {
+          invertedIndex.parallel()
+                      .filter(line -> set
+                      .contains(Utils.getWord(line)))
+                      .flatMap(ConcurrentSearch::basicMapper)
+                      .forEach(results::append);
+    
+          results.getAsList()
+                      .stream()
+                      .sorted()
+                      .limit(100)
+                      .forEach(System.out::println);
+        }
+      }
+
+# Processing Massive Datasets with Parallel Streams - The Map and Collect Model
+
+## The collect() method
+
+There are two different versions of the collect() method. The first version accepts the following three functional parameters:
+* Supplier: This is a function that creates an object of the intermediate data type. **If you use a sequential stream, this method will be called once. If you use a parallel stream, this method may be called many times and must produce a fresh object every time.**
+* Accumulator: This function is called to process an input element and store it in the intermediate data structure.
+* Combiner: This function is called to merge two intermediate data structures into one. **This function will be only called with parallel streams.**
+
+# Parallel data processing and performance
+
+
+Note
+that you might think that you could achieve finer-grained control over which operations you
+want to perform in parallel and which one sequentially while traversing the stream by
+combining these two methods. For example, you could do something like the following:
+stream.parallel()
+.filter(...)
+.sequential()
+.map(...)
+.parallel()
+.reduce();
+But the last call to parallel or sequential wins and affects the pipeline globally. In this example,
+the pipeline will be executed in parallel because that’s the last call in the pipeline.
 
 
 
