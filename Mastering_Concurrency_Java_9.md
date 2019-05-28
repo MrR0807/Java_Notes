@@ -1254,6 +1254,48 @@ stream.parallel()
 But the last call to parallel or sequential wins and affects the pipeline globally. In this example,
 the pipeline will be executed in parallel because that’s the last call in the pipeline.
 
+# Asynchronous Stream Processing - Reactive Streams
+
+The biggest problem with these kinds of systems is resource consumption. **A fast producer can overload a slower consumer.** The queue of data between those components can increase its size in excess and affects the behavior of the whole system. The back pressure mechanism ensures that the queue which mediates between the producer and a consumer has a limited number of elements.
+
+Reactive streams define three main elements:
+* A publisher of information: **Flow.Publisher interface**
+* One or more subscribers of that information: **Flow.Subscriber interface**
+* A subscription between the publisher and a consumer: **Flow.Subscription interface**
+
+Java 9 has included three interfaces, the Flow.Publisher, the Flow.Subscriber, and the Flow.Subscription.
+
+## The Flow.Publisher interface
+
+* subscribe(): This method receives as a parameter an implementation of the Flow.Subscriber interface and adds that subscriber to its internal list of subscribers. This method doesn't return any results.
+
+## The Flow.Subscriber interface
+
+* onSubscribe(): This method is invoked by the publisher to complete the subscription of a subscriber. It sends to the subscriber the Flow.Subscription object that manages the communication between the publisher and the subscriber.
+* onNext(): This method is invoked by the publisher when it wants to send a new item to the subscriber. In this method, the subscriber has to process that item. It doesn't return any results.
+* onError(): This method is invoked by the publisher when an unrecoverable error has occurred and no other methods of the subscriber will be called. It receives as a parameter a Throwable object with the error that has occurred.
+* onComplete(): This method is invoked by the publisher when it's not going to send any more items. It doesn't receive parameters and it doesn't return a result.
+
+## The Flow.Subscription interface
+
+* cancel(): This method is invoked by the subscriber to tell the publisher it doesn't want any more items.
+* request(): This method is invoked by the subscriber to tell the publisher it wants more items. It receives the number of items the subscriber wants as a parameter.
+
+## The SubmissionPublisher class
+
+This class implements the Flow.Publisher interface.
+
+* subscribe(): This method is provided by the Flow.Publisher interface. It's used to subscribe a Flow.Subscriber object to this publisher
+* offer(): This method publishes an item to each subscriber by asynchronously invoking its onNext() method
+* submit(): This method publishes an item to each subscriber by asynchronously invoking its onNext() method, blocking uninterruptedly while resources for any subscriber are unavailable
+* close(): This method calls the onComplete() method of all the subscribers of this publisher
+
+
+
+
+
+
+
 
 
 
