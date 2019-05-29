@@ -1699,7 +1699,26 @@ This class allows you to synchronize some tasks at a common point. All tasks wil
 
 ## The CompletableFuture class
 
+It allows you to implement an event-driven model, linking tasks that will only be executed when others have finished. As with the Future interface, CompletableFuture must be parameterized with the type of the result that will be returned by the operation.
 
+First, you can create CompletableFuture using its constructor. You have to establish the result of the task using the **complete()** method or you can create one using the runAsync() or supplyAsync() methods. The runAsync() method executes a Runnable object and returns CompletableFuture<Void> so that computation can't return any results. The supplyAsync() method executes an implementation of the Supplier interface parametrized with the type that will be returned by this computation.
+  
+This class provides a lot of methods that allow you to organize the order of execution of tasks implementing an event-driven model, where one task doesn't start its execution until the previous one has finished. These are some of those methods:
+
+* thenApplyAsync(): This method receives an implementation of the Function interface that can be represented as a lambda expression as a parameter. This function will be executed when the calling CompletableFuture has been completed. This method will return CompletableFuture to get the result of the Function.
+* thenComposeAsync(): This method is analogue to thenApplyAsync, but is useful when the supplied function returns CompletableFuture too. 
+* thenAcceptAsync(): This method is similar to the previous one, but the parameter is an implementation of the Consumer interface that can also be specified as a lambda expression; in this case, the computation won't return a result.
+* thenRunAsync(): This method is equivalent to the previous one, but in this case receives a Runnable object as a parameter. 
+* thenCombineAsync(): This method receives two parameters. The first one is another CompletableFuture instance. The other is an implementation of the BiFunction interfaces that can be specified as a lambda function. This BiFunction will be executed when both CompletableFuture (the calling one and the parameter) have been completed. This method will returnCompletableFuture to get the result of the BiFunction.
+* runAfterBothAsync(): This method receives two parameters. The first one is another CompletableFuture. The other one is an implementation of the Runnable interface that will be executed when both CompletableFuture (the calling one and the parameter) have been completed.
+* runAfterEitherAsync(): This method is equivalent to the previous one, but the Runnable task is executed when one of the CompletableFuture objects is completed.
+* allOf(): This method receives a variable list of CompletableFuture objects as a parameter. It will return a CompletableFuture<Void> object that will return its result when all the CompletableFuture objects have been completed.
+* anyOf(): This method is equivalent to the previous one, but the returned CompletableFuture returns its result when one of the CompletableFuture is completed.
+
+
+Finally, **if you want to obtain the result returned by CompletableFuture, you can use the get() or join() methods.** Both methods block the calling thread until CompletableFuture has been completed and then returns its result. **The main difference between both methods is that get() throws ExecutionException, which is a checked exception, but join() throws RuntimeException (which is an unchecked exception).** Thus, it's easier to use join() inside non-throwing lambdas (like Supplier, Consumer, or Runnable).
+
+Most of the methods explained before have the Async suffix. **This means that these methods will be executed in a concurrent way using the ForkJoinPool.commonPool instance. Those methods that have versions without the Async suffix will be executed in a serial way (that is to say, in the same thread where CompletableFuture is executed).**
 
 
 
