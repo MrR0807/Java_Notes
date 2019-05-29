@@ -1417,38 +1417,38 @@ This class implements the Flow.Publisher interface.
 
 -----
 
-        @Test
-        public void name() {
-            SubmissionPublisher<Event> publisher = new SubmissionPublisher<>();
+    @Test
+    public void name() {
+        SubmissionPublisher<Event> publisher = new SubmissionPublisher<>();
 
-            for (int i = 0; i < 5; i++) {
-                Consumer consumer = new Consumer("Consumer "+i);
-                publisher.subscribe(consumer);
+        for (int i = 0; i < 5; i++) {
+            Consumer consumer = new Consumer("Consumer "+i);
+            publisher.subscribe(consumer);
+        }
+
+        Producer system1 = new Producer(publisher, "System 1");
+        Producer system2 = new Producer(publisher, "System 2");
+
+        ForkJoinTask<?> task1 = ForkJoinPool.commonPool().submit(system1);
+        ForkJoinTask<?> task2 = ForkJoinPool.commonPool().submit(system2);
+
+        do {
+            System.out.println("Main: Task 1: "+task1.isDone());
+            System.out.println("Main: Task 2: "+task2.isDone());
+
+            System.out.println("Publisher: MaximunLag: "+publisher.estimateMaximumLag());
+            System.out.println("Publisher: Max Buffer Capacity: "+publisher.getMaxBufferCapacity());
+
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
 
-            Producer system1 = new Producer(publisher, "System 1");
-            Producer system2 = new Producer(publisher, "System 2");
+        } while ((!task1.isDone()) || (!task2.isDone()) || (publisher.estimateMaximumLag() > 0));
 
-            ForkJoinTask<?> task1 = ForkJoinPool.commonPool().submit(system1);
-            ForkJoinTask<?> task2 = ForkJoinPool.commonPool().submit(system2);
-
-            do {
-                System.out.println("Main: Task 1: "+task1.isDone());
-                System.out.println("Main: Task 2: "+task2.isDone());
-
-                System.out.println("Publisher: MaximunLag: "+publisher.estimateMaximumLag());
-                System.out.println("Publisher: Max Buffer Capacity: "+publisher.getMaxBufferCapacity());
-
-                try {
-                    TimeUnit.SECONDS.sleep(1);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-            } while ((!task1.isDone()) || (!task2.isDone()) || (publisher.estimateMaximumLag() > 0));
-
-            publisher.close();
-        }
+        publisher.close();
+    }
 
 
 
