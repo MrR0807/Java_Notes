@@ -1685,16 +1685,16 @@ This class allows you to synchronize some tasks at a common point. All tasks wil
 
 **Result:**
 
-pool-1-thread-1: Phase 1
-pool-1-thread-2: Phase 1
-pool-1-thread-3: Phase 1
-2019-05-29T18:34:06.574084200-pool-1-thread-1: Working 0 seconds
-2019-05-29T18:34:06.574084200-pool-1-thread-3: Working 0 seconds
-2019-05-29T18:34:06.574084200-pool-1-thread-2: Working 0 seconds
-FinishBarrierTask: All the tasks have finished
-pool-1-thread-2: Phase 2
-pool-1-thread-3: Phase 2
-pool-1-thread-1: Phase 2
+    pool-1-thread-1: Phase 1
+    pool-1-thread-2: Phase 1
+    pool-1-thread-3: Phase 1
+    2019-05-29T18:34:06.574084200-pool-1-thread-1: Working 0 seconds
+    2019-05-29T18:34:06.574084200-pool-1-thread-3: Working 0 seconds
+    2019-05-29T18:34:06.574084200-pool-1-thread-2: Working 0 seconds
+    FinishBarrierTask: All the tasks have finished
+    pool-1-thread-2: Phase 2
+    pool-1-thread-3: Phase 2
+    pool-1-thread-1: Phase 2
 
 
 ## The CompletableFuture class
