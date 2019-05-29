@@ -1451,6 +1451,256 @@ This class implements the Flow.Publisher interface.
     }
 
 
+# Concurrent Data Structures and Synchronization Utilities
+
+## Concurrent data structures
+
+**If different threads can modify the data stored in a unique data structure, you have to use a synchronization mechanism to protect the modifications over that data structure.**
+
+## Blocking and non-blocking data structures
+
+* **Blocking data structures**: This kind of data structure provides methods to insert and delete data on it that, when the operation cannot be done immediately (for example, you want to take an element and the data structure is empty), the thread that made the call will be blocked until the operation can be done
+* **Non-blocking data structures**: This kind of data structure provides methods to insert and delete data on it that, when the operation cannot be done immediately, returns a special value or throws an exception
+
+## Interfaces
+
+### BlockingQueue
+
+The BlockingDeque interface extends the Queue interface, adding methods that block the calling thread if the operation cannot be done. Methods:
+* Insert: put()
+* Retrieve and remove: take()
+* Retrieve but don't remove: N/A
+
+### BlockingDeque
+
+The BlockingDeque interface extends the Deque interface adding the methods that block the calling threads when the operation can't be done:
+
+* Insert: putFirst(), putLast()
+* Retrieve and remove: takeFirst(), takeLast()
+* Retrieve but don't remove: N/A
+
+### ConcurrentMap
+
+ConcurrentMap extends the Map interface to provide the same methods to concurrent applications.
+
+## Classes
+
+### LinkedBlockingQueue
+This class implements the **BlockingQueue** interface to provide a queue with blocking methods that optionally can have a limited number of elements.
+
+### ConcurrentLinkedQueue
+This class implements the **Queue** interface to provide a thread-save unlimited queue. Internally, it uses a **non-blocking algorithm**.
+
+### LinkedBlockingDeque
+
+This class implements the **BlockingDeque** interface to provide a deque with blocking methods that optionally can have a limited number of elements.
+
+### ConcurrentLinkedDeque
+
+This class implements the Deque interface to provide a thread-save unlimited deque.
+
+### ArrayBlockingQueue
+
+This class implements the BlockingQueue interface to provide an implementation of a blocking queue with a limited number of elements based on an array. Unlike non-concurrent, array-based data structures (ArrayList and ArrayDeque), **ArrayBlockingQueue allocates the array of a fixed size specified in the constructor and never resizes it**.
+
+### ConcurrentHashMap
+
+This class provides an implementation of the **ConcurrentMap interface**.
+
+In addition to the methods added in the Map interface in the Java 8 version, this class has added other ones:
+
+* search(), searchEntries(), searchKeys(), and searchValues(): These methods allow you to apply a search function over the key-value pairs, over the keys, or over the values.
+* reduce(), reduceEntries(), reduceKeys(), and reduceValues(): These methods allows you to apply a reduce() operation to transform the key-value pairs, the keys, or the entries.
+* forEach(), forEachEntry(), forEachKey(), forEachValue(): forEach(parallelismThreshold, action): This is the version of the method
+you have to use in concurrent applications. If the map has more elements than the number specified in the first parameter, this method will be executed in parallel.
+
+
+## Atomic variables
+
+Atomic variables provide atomic operations over integer, long, boolean, reference, and Array objects. They provide some methods to increment, decrement, establish the value, return the value, or establish the value if its current value is equal to a predefined one.
+
+In Java 8, four new classes were added. These are DoubleAccumulator, DoubleAdder, LongAccumulator, and LongAdder.
+
+Provides similar functionality but has better performance when you frequently update the cumulative sum from different threads and request the result only at the end of the operation.
+
+## Synchronization mechanisms
+
+In concurrent applications, we can have two kinds of synchronizations:
+
+* **Process synchronization**: We use this kind of synchronization when we want to control the order of execution of tasks.
+* **Data synchronization**: We use this kind of synchronization when two or more tasks access the same memory object.
+
+The most basic synchronization mechanism provided by the Java language is the **synchronized keyword**.
+
+Java also provides other synchronization mechanisms:
+
+* Lock
+* Semaphore
+* CountDownLatch
+* CyclicBarrier
+* Phaser
+* CompletableFuture: You can specify tasks to be executed after the result is generated, so you can control the order of the execution of tasks.
+
+### The CommonTask class
+
+    public class CommonTask {
+      public static void doTask() {
+        long duration = ThreadLocalRandom.current().nextLong(10);
+        System.out.printf("%s-%s: Working %d seconds\n", new Date(),Thread.currentThread().getName(), duration);
+        try {
+          TimeUnit.SECONDS.sleep(duration);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+    
+### The Lock interface
+
+The basic implementation class is the ReentrantLock class.
+
+    public class LockTask implements Runnable {
+        private static ReentrantLock lock = new ReentrantLock();
+        private String name;
+        public LockTask(String name) {
+            this.name=name;
+        }
+        @Override
+        public void run() {
+            try {
+                lock.lock();
+                System.out.println("Task: " + name + "; Date: " + LocalDateTime.now() + ": Running the task");
+                CommonTask.doTask();
+                System.out.println("Task: " + name + "; Date: " + LocalDateTime.now() + ": The execution has finished");
+            } finally {
+                lock.unlock();
+            }
+        }
+    }
+
+### The Semaphore class
+
+When a thread calls the acquire() method, if the internal counter has a value bigger than 0, then the semaphore decrements the internal counter and the thread gets access to the shared resource. If the internal counter has a value of 0, the thread is blocked until a thread calls the release() method. When a thread calls the release() method, the semaphore looks whether there are some threads waiting in the waiting state (they have called the acquire() method). If there are no threads waiting, it increments the internal counter. If there are threads waiting for the semaphore, it gets one of those threads that will return for the acquire() method and access the shared resource. The other threads that were waiting continue waiting for their turn.
+
+
+    public class SemaphoreTask implements Runnable {
+        private Semaphore semaphore;
+
+        public SemaphoreTask(Semaphore semaphore) {
+            this.semaphore = semaphore;
+        }
+
+        @Override
+        public void run() {
+            try {
+                semaphore.acquire();
+                CommonTask.doTask();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                semaphore.release();
+            }
+        }
+    }
+
+In the main program, we execute 10 tasks that share a Semaphore class initialized with two shared resources, so we will have two tasks running at the same time:
+
+     public static void main(String[] args) {
+            Semaphore semaphore=new Semaphore(2);
+            ThreadPoolExecutor executor=(ThreadPoolExecutor) Executors.newCachedThreadPool();
+            for (int i=0; i<10; i++) {
+                executor.execute(new SemaphoreTask(semaphore));
+            }
+            executor.shutdown();
+            try {
+                executor.awaitTermination(1, TimeUnit.DAYS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+### The CountDownLatch class
+
+This class provides a mechanism to wait for the finalization of one or more concurrent tasks. It has an internal counter that must be initialized with the number of tasks we are going to wait for. Then, the await() method sleeps the calling thread until the internal counter arrives at zero and the countDown() method decrements that internal counter.
+
+    public class CountDownTask implements Runnable {
+        private CountDownLatch countDownLatch;
+        public CountDownTask(CountDownLatch countDownLatch) {
+            this.countDownLatch=countDownLatch;
+        }
+        @Override
+        public void run() {
+            CommonTask.doTask();
+            countDownLatch.countDown();
+        }
+    }
+
+
+### The CyclicBarrier class
+
+This class allows you to synchronize some tasks at a common point. All tasks will wait at that point until all have arrived. Internally, it also manages an internal counter with the tasks that haven't arrived at that point yet. When a task arrives at the determined point, it has to execute the await() method to wait for the rest of the tasks. When all the tasks have arrived, the CyclicBarrier object wakes them up so they continue with their execution. 
+
+**This class allows you to execute another task when all the parties have arrived. To configure this, you have to specify a Runnable object in the constructor of the object.**
+
+    public class BarrierTask implements Runnable {
+        private CyclicBarrier barrier;
+        public BarrierTask(CyclicBarrier barrier) {
+            this.barrier=barrier;
+        }
+        @Override
+        public void run() {
+            System.out.println(Thread.currentThread().getName()+": Phase 1");
+            CommonTask.doTask();
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                e.printStackTrace();
+            }
+            System.out.println(Thread.currentThread().getName()+": Phase 2");
+        }
+    }
+
+    public class FinishBarrierTask implements Runnable {
+        @Override
+        public void run() {
+            System.out.println("FinishBarrierTask: All the tasks have finished");
+        }
+    }
+
+
+    public static void main(String[] args) {
+        CyclicBarrier barrier = new CyclicBarrier(10, new FinishBarrierTask());
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+        for (int i = 0; i < 10; i++) {
+            executor.execute(new BarrierTask(barrier));
+        }
+        executor.shutdown();
+        try {
+            executor.awaitTermination(1, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+**Result:**
+
+pool-1-thread-1: Phase 1
+pool-1-thread-2: Phase 1
+pool-1-thread-3: Phase 1
+2019-05-29T18:34:06.574084200-pool-1-thread-1: Working 0 seconds
+2019-05-29T18:34:06.574084200-pool-1-thread-3: Working 0 seconds
+2019-05-29T18:34:06.574084200-pool-1-thread-2: Working 0 seconds
+FinishBarrierTask: All the tasks have finished
+pool-1-thread-2: Phase 2
+pool-1-thread-3: Phase 2
+pool-1-thread-1: Phase 2
+
+
+## The CompletableFuture class
+
+
+
 
 
 
