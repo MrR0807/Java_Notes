@@ -1290,16 +1290,164 @@ This class implements the Flow.Publisher interface.
 * submit(): This method publishes an item to each subscriber by asynchronously invoking its onNext() method, blocking uninterruptedly while resources for any subscriber are unavailable
 * close(): This method calls the onComplete() method of all the subscribers of this publisher
 
+# Example
+
+    public class Consumer implements Flow.Subscriber<Event> {
+
+        private String name;
+        private Flow.Subscription subscription;
+
+        public Consumer(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            this.subscription = subscription;
+            this.subscription.request(1);
+            this.showMessage("Subscription OK");
+        }
+
+        @Override
+        public void onNext(Event item) {
+            this.showMessage(format("An event has arrived: %s; Date: %s; Message: %s\n", item.getSource(), item.getDate().toString(), item.getMsg()));
+            this.subscription.request(1);
+
+            processEvent(item);
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+            this.showMessage("An error has occurred");
+            throwable.printStackTrace();
+        }
+
+        @Override
+        public void onComplete() {
+            this.showMessage("No more events");
+        }
+
+        private void processEvent(Event event) {
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void showMessage(String txt) {
+            System.out.println(Thread.currentThread().getName() + ": " + this.name + ": " + txt);
+        }
+    }
 
 
 
+    public class Event {
+
+        private String msg;
+        private String source;
+        private LocalDateTime date;
+
+        public Event() {
+        }
+
+        public Event(String msg, String source) {
+            this.msg = msg;
+            this.source = source;
+            this.date = LocalDateTime.now();
+        }
+
+        public String getMsg() {
+            return msg;
+        }
+
+        public void setMsg(String msg) {
+            this.msg = msg;
+        }
+
+        public String getSource() {
+            return source;
+        }
+
+        public void setSource(String source) {
+            this.source = source;
+        }
+
+        public LocalDateTime getDate() {
+            return date;
+        }
+
+        public void setDate(LocalDateTime date) {
+            this.date = date;
+        }
+    }
 
 
+    public class Producer implements Runnable{
+
+        private SubmissionPublisher<Event> publisher;
+        private String name;
+
+        public Producer(SubmissionPublisher<Event> publisher, String name) {
+            this.publisher = publisher;
+            this.name = name;
+        }
+
+        @Override
+        public void run() {
+            Random random = new Random();
+
+            for (int i=0 ; i < 10; i++) {
+                Event event = new Event();
+                event.setMsg("Event number "+i);
+                event.setSource(this.name);
+                event.setDate(LocalDateTime.now());
+
+                publisher.submit(event);
+
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        }
+    }
 
 
+        @Test
+        public void name() {
+            SubmissionPublisher<Event> publisher = new SubmissionPublisher<>();
 
+            for (int i = 0; i < 5; i++) {
+                Consumer consumer = new Consumer("Consumer "+i);
+                publisher.subscribe(consumer);
+            }
 
+            Producer system1 = new Producer(publisher, "System 1");
+            Producer system2 = new Producer(publisher, "System 2");
 
+            ForkJoinTask<?> task1 = ForkJoinPool.commonPool().submit(system1);
+            ForkJoinTask<?> task2 = ForkJoinPool.commonPool().submit(system2);
+
+            do {
+                System.out.println("Main: Task 1: "+task1.isDone());
+                System.out.println("Main: Task 2: "+task2.isDone());
+
+                System.out.println("Publisher: MaximunLag: "+publisher.estimateMaximumLag());
+                System.out.println("Publisher: Max Buffer Capacity: "+publisher.getMaxBufferCapacity());
+
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+            } while ((!task1.isDone()) || (!task2.isDone()) || (publisher.estimateMaximumLag() > 0));
+
+            publisher.close();
+        }
 
 
 
