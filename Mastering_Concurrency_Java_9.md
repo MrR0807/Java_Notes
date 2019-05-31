@@ -152,46 +152,6 @@ These are some of the data structures:
 
 ## Concurrency design patterns
 
-### Signaling
-
-This design pattern explains how to implement the situation where a task has to notify an event to another task. The easiest way to implement this pattern is with a semaphore or a mutex, using the ReentrantLock or Semaphore classes of the Java language or even the wait() and notify() methods included in the Object class.
-
-See the following example:
-
-    public void task1() { 
-        section1(); 
-        commonObject.notify(); 
-    } 
- 
-    public void task2() { 
-        commonObject.wait(); 
-        section2(); 
-    } 
-
-Under these circumstances, the section2() method will always be executed after the section1() method.
-
-### Rendezvous
-
-This design pattern is a generalization of the Signaling pattern. In this case, the first task waits for an event of the second task and the second task waits for an event of the first task. The solution is similar to that of Signaling, but in this case, you must use two objects instead of one.
-
-See the following example:
-
-    public void task1() { 
-        section1_1(); 
-        commonObject1.notify(); 
-        commonObject2.wait(); 
-        section1_2(); 
-    } 
-
-    public void task2() { 
-        section2_1(); 
-        commonObject2.notify(); 
-        commonObject1.wait(); 
-        section2_2(); 
-    } 
-
-Under these circumstances, section2_2() will always be executed after section1_1() and section1_2() after section2_1().
-
 ### Mutex
 
 A mutex is a mechanism that you can use to implement a critical section, ensuring the mutual exclusion. That is to say, only one task can execute the portion of code protected by the mutex at once. In Java, you can implement a critical section using the _synchronized_ keyword (that allows you to protect a portion of code or a full method), the _ReentrantLock_ class, or the _Semaphore_ class.
