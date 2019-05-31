@@ -1,44 +1,4 @@
-- Chapter 1: The First Step - Concurrency Design Principles:
-  - Concurrency versus parallelism
-  - Synchronization
-  - Possible problems in concurrent applications
-  - A methodology to design concurrent algorithms
-    - The starting point - a sequential version of the algorithm
-    - Step 1 - analysis
-    - Step 2 - design
-    - Step 3 - implementation
-    - Step 4 - testing
-    - Step 5 - tuning
-    - Conclusion
-  - Java Concurrency API
-    - Basic concurrency classes
-    - Synchronization mechanisms
-    - Executors
-    - The fork/join framework
-    - Concurrent data structures
-  - Concurrency design patterns
-    - Signaling
-    - Rendezvous
-    - Mutex
-    - Multiplex
-    - Barrier
-    - Read-write lock
-    - Thread pool
-    - Thread local storage
-- Chapter 2: Working with Basic Elements - Threads and Runnables
-  - Threads in Java
-  - Threads in Java - characteristics and states
-  - The Thread class and the Runnable interface
-  - First example: matrix multiplication
-    - Serial version
-    - A thread per element
-    - A thread per row
-    - The number of threads is determined by the processors
-- Chapter 3: Managing Lots of Threads - Executors
-
-----------------------------
-
-# Chapter 1: The First Step - Concurrency Design Principles
+# The First Step - Concurrency Design Principles
 
 ### Concurrency versus parallelism
 
@@ -220,9 +180,7 @@ This design pattern defines how to use global or static variables locally to tas
 
 The Java Concurrency API includes the __ThreadLocal__ class to implement this design pattern.
 
--------------------------------------------
-
-# Chapter 2: Working with Basic Elements - Threads and Runnables
+# Working with Basic Elements - Threads and Runnables
 
 When you implement a concurrent application, no matter the language, you have to create different execution threads that run in parallel in a non-deterministic order unless you use a synchronization element (such as a semaphore).
 
