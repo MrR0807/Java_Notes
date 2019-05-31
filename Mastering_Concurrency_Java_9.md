@@ -173,7 +173,6 @@ This design pattern tries to remove the overhead introduced by creating a thread
 
 The Java Concurrency API includes some classes that implement the __ExecutorService__ interface that internally uses a pool of threads.
 
-
 ### Thread local storage
 
 This design pattern defines how to use global or static variables locally to tasks. When you have a static attribute in a class, all the objects of a class access the same occurrences of the attribute. If you use thread local storage, each thread accesses a different instance of the variable.
@@ -613,13 +612,11 @@ Naive results:
 * Group (millis): 77757
 * Group (seconds): 77
 
-
-# Chapter 3: Managing Lots of Threads - Executors
+# Managing Lots of Threads - Executors
 
 With low level (Threads and implementing Runnable) approach, you're responsible for creating and manning the thread objects and implementing the mechanisms of synchronization between the threads. However, it can create some problems, especially with those applications with a lot of concurrent tasks. If you create too many threads, you can degrade the performance of your application or even hang the entire system.
 
 Java version 5 included the Executor framework to solve these problems and provide an efficient solution that is easier to use for programmers than the traditional concurrency mechanisms.
-
 
 ### Basic characteristics of executors
 
