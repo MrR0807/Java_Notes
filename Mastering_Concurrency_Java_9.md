@@ -1720,6 +1720,156 @@ Finally, **if you want to obtain the result returned by CompletableFuture, you c
 
 Most of the methods explained before have the Async suffix. **This means that these methods will be executed in a concurrent way using the ForkJoinPool.commonPool instance. Those methods that have versions without the Async suffix will be executed in a serial way (that is to say, in the same thread where CompletableFuture is executed).**
 
+# Using the CompletableFuture class
+
+We will execute four concurrent tasks. The first one will make a search of products. When the search finishes, we will write the results to a file. The second one will obtain the best-rated product. The third one will obtain the bestselling product. When these both finish, we will concatenate their information using another task. Finally, the fourth task will get a list with the users who have purchased a product. The main() program will wait for the finalization of all the tasks and then will write the results.
+
+
+    @Test
+    public void runCompletable() {
+        System.out.println(LocalTime.now() + ": Main: Loading products after three seconds");
+
+        LoadTask loadTask = new LoadTask();
+        var loadProductsCompletable = CompletableFuture.supplyAsync(loadTask, CompletableFuture.delayedExecutor(3, TimeUnit.SECONDS));
+
+        System.out.println(LocalTime.now() + ": Main: Then Search and Write");
+
+        var writesCompletable = loadProductsCompletable
+                .thenApplyAsync(new SearchTask("love"))
+                .thenAcceptAsync(new WriteTask())
+                .exceptionally(ex -> {
+                    System.out.println(ex);
+                    return null;
+                });
+
+        System.out.println(LocalTime.now() + ": Main: Then Get the Users");
+
+        var getAllUsersCompletable = loadProductsCompletable
+                .thenApplyAsync(loadedProducts -> {
+                    System.out.println(LocalTime.now() + ": Main: Completable users: start");
+                    List<String> users = loadedProducts
+                            .stream()
+                            .flatMap(product -> product.getReviews().stream())
+                            .map(Review::getUser)
+                            .distinct()
+                            .collect(Collectors.toList());
+                    System.out.println(LocalTime.now() + ": Main: Completable users: end");
+
+                    return users;
+                });
+
+        System.out.println(LocalTime.now() + ": Main: Then Best Rated Product");
+
+        var bestRatedCompletable = loadProductsCompletable
+                .thenApplyAsync(loadedProducts -> {
+                    Product bestProduct = new Product();
+                    double maxScore = 0.0d;
+                    System.out.println(LocalTime.now() + ": Main: Completable load products: start");
+                    for (var product : loadedProducts) {
+                        double score = product.getReviews()
+                                .stream()
+                                .mapToDouble(Review::getValue)
+                                .average().orElse(-1);
+                        if (score > maxScore) {
+                            maxScore = score;
+                            bestProduct = product;
+                        }
+                    }
+                    System.out.println(LocalTime.now() + ": Main: Completable load products: end");
+                    return bestProduct;
+                });
+
+        Comparator<Product> comparator = Comparator.comparingLong(Product::getSalesRank);
+
+        var bestSellingCompletable = loadProductsCompletable
+                .thenApplyAsync(loadedProducts -> {
+                    System.out.println(LocalTime.now() + ": Main: Completable best selling: start");
+                    Product bestRankedProduct = loadedProducts
+                            .stream()
+                            .min(comparator)
+                            .orElse(null);
+                    System.out.println(LocalTime.now() + ": Main: Completable best selling: end");
+                    return bestRankedProduct;
+                });
+
+        var combinedCompletable = bestRatedCompletable.thenCombineAsync(bestSellingCompletable,
+                (bestSelling, bestRated) -> {
+                    System.out.println(LocalTime.now() + ": Main: Combine best selling: start");
+                    String result = "The best selling product is " + bestSelling.getTitle() + "\n";
+                    result += "The best rated product is " + bestRated.getTitle() + "\n";
+                    System.out.println(LocalTime.now() + ": Main: Combine best selling: end");
+                    return result;
+                });
+
+        System.out.println(LocalTime.now() + ": Main: Waiting for results");
+        combinedCompletable.completeOnTimeout("Timeout", 1, TimeUnit.SECONDS);
+
+        //Await for completion of all products
+        CompletableFuture.allOf(writesCompletable, getAllUsersCompletable, combinedCompletable).join();
+
+        try {
+            System.out.println("Number of loaded products: " + loadProductsCompletable.get().size());
+            System.out.println("Number of users: " + getAllUsersCompletable.get().size());
+            System.out.println("Best rated product: " + bestRatedCompletable.get().getTitle());
+            System.out.println("Best selling product: " + bestSellingCompletable.get().getTitle());
+            System.out.println("Product result: " + combinedCompletable.get());
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        System.out.println(LocalTime.now() + ": Main: end");
+    }
+
+
+## Results
+
+    17:50:22.615520200: Main: Loading products after three seconds
+    17:50:22.667655600: Main: Then Search and Write
+    17:50:22.677682700: Main: Then Get the Users
+    17:50:22.679687600: Main: Then Best Rated Product
+    17:50:22.685703200: Main: Waiting for results
+    17:50:25.671235500: LoadTask : Starting to load files
+    17:50:31.098375600: LoadTask: Finished loading files
+    17:50:31.099377: Main: Completable best selling: start
+    17:50:31.099377: Main: Completable load products: start
+    17:50:31.099377: SearchTask: start
+    17:50:31.106401400: Main: Completable best selling: end
+    17:50:31.106401400: Main: Completable users: start
+    17:50:31.124444500: SearchTask: end
+    17:50:31.124444500: WriteTask: start
+    17:50:31.128455200: WriteTask: end
+    17:50:31.162544600: Main: Completable load products: end
+    17:50:31.229722500: Main: Completable users: end
+    Number of loaded products: 20000
+    Number of users: 158288
+    Best rated product: Patterns of Preaching
+    Best selling product: The Da Vinci Code
+    Product result: Timeout
+    17:50:31.243760600: Main: end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
