@@ -238,14 +238,101 @@ This is know as **exploded module** format. It’s best to name the directory co
 
 What you’ve seen so far is the so-called **single-module mode** of the Java compiler. Typically, the project you want to compile consists of multiple modules. These modules may or may not refer to each other. Or the project might be a single module but uses other (already compiled) modules. For these cases, additional compiler flags have been introduced: **--module-source-path** and **--module-path**. These are the moduleaware counterparts of the -sourcepath and -classpath flags that have been part of javac for a long time.
 
+## Packaging
+
+Modules can be packaged and used in JAR files. This results in modular JAR files. A modular JAR file is similar to a regular JAR file, except it also contains a module-info.class. To package up the Modular Hello World example:
+
+    jar -cfe <output dir> <main-class> -C <compiled classes> . 
+    jar -cfe archive/my.jar com.modules.hello.Hello -C out/helloworld .
+
+-c (create)
+-f (The archive file name)
+-e or --main-class (The application entry point)
+
+Generated jar contains.The contents of the JAR are now similar to the exploded module, with the addition of a MANIFEST.MF file. Everything what is included in directory after -C:
+
+    \---myjar
+        |   module-info.class
+        |
+        +---com
+        |   \---modules
+        |       \---hello
+        |               Hello.class
+        |
+        \---META-INF
+                MANIFEST.MF
+
+## Running Modules
+
+Both the exploded module format and modular JAR file can be run. The exploded module format can be started with the following command:
+
+    java --module-path out/helloworld/ --module helloworld/com.modules.hello.Hello
+
+Or
+
+    java --module-path out/ --module helloworld/com.modules.hello.Hello
+
+Either way - it works.
+
+**You can also use the short-form -p flag instead of --module-path. The --module flag can be shortened to -m**.
+
+Running jar:
+
+    java -p archive -m helloworld
+
+JAR knows the class to execute from its metadata. We explicitly set the entry point to com.modules.hello.Hello when constructing the modular JAR.
+
+You can trace the actions taken by the module system by adding --show-module-resolution to the java command:
+
+    java --show-module-resolution -p archive -m helloworld
+
+Output:
+
+    root helloworld .../archive/my.jar
+    java.base binds java.management jrt:/java.management
+    java.base binds jdk.security.auth jrt:/jdk.security.auth
+    ...
+    jdk.javadoc requires java.xml jrt:/java.xml
+    jdk.jdeps requires java.compiler jrt:/java.compiler
+    jdk.jdeps requires jdk.compiler jrt:/jdk.compiler
+    java.security.jgss requires java.naming jrt:/java.naming
+    ...
+    jdk.accessibility requires java.desktop jrt:/java.desktop
+    jdk.unsupported.desktop requires java.desktop jrt:/java.desktop
+    java.rmi requires java.logging jrt:/java.logging
 
 
+To limit only to some modules you can use --limit-modules:
 
+    java --show-module-resolution --limit-modules java.base -p archive -m helloworld
 
+Output:
+    
+    root helloworld .../archive/my.jar
+    
+In this case, no other modules are required (besides the implicitly required platform module java.base) to run helloworld.
 
+An error would be encountered at startup if another module were necessary to run helloworld and it’s not present on the module path (or part of the JDK platform modules). This form of reliable configuration is a huge improvement over the old classpath situation. **Before the module system, a missing dependency is noticed only when the JVM tries to load a nonexistent class at run-time**.
 
+## Module Path
 
+The module path is a list of paths to individual modules and directories containing modules. Each directory on the module path can contain zero or more module definitions, where a module definition can be an exploded module or a modular JAR file. An example module path containing all three options looks like this: 
 
+    out/:myexplodedmodule/:mypackagedmodule.jar
+
+All modules inside the out directory are on the module path, in conjunction with the module myexplodedmodule (a directory) and mypackagedmodule (a modular JAR file).
+
+## Linking Modules
+
+Using **jlink**, you can create a runtime image containing only the necessary modules to run an application. Using the following command, we create a new runtime image with the helloworld module as root:
+
+    jlink --module-path archive/;$JAVA_HOME/jmods --add-modules helloworld --launcher hello=helloworld --output helloworld-image/
+
+The first option constructs a module path containing the mods directory (where helloworld lives) and the directory of the JDK installation containing the platform modules we want to link into the image. Unlike with javac and java, you have to explicitly add platform modules to the jlink module path. Then, --add-modules indicates helloworld is the root module that needs to be runnable in the runtime image. With --launcher, we define an entry point to directly run the module in the image. Last, --output indicates a directory name for the runtime image.
+
+# No Module Is an Island
+
+## Introducing the EasyText Example
 
 
 
