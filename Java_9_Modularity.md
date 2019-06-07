@@ -207,8 +207,36 @@ After modules:
 
     javac -d out src/helloworld/com/modules/hello/Hello.java src/helloworld/module-info.java
 
+Generates:
 
+    \---out
+        |   module-info.class
+        |
+        \---com
+            \---modules
+                \---hello
+                        Hello.class
 
+Or you can generate with:
+
+    javac -d out/helloworld src/helloworld/com/modules/hello/Hello.java src/helloworld/module-info.java
+
+Generates: 
+
+    \---out
+        \---helloworld
+            |   module-info.class
+            |
+            \---com
+                \---modules
+                    \---hello
+                            Hello.class
+
+This is know as **exploded module** format. It’s best to name the directory containing the exploded module after the module, but not required. Ultimately, the module system takes the name of the module from the descriptor, not from the directory name.
+
+## Compiling multiple modules
+
+What you’ve seen so far is the so-called **single-module mode** of the Java compiler. Typically, the project you want to compile consists of multiple modules. These modules may or may not refer to each other. Or the project might be a single module but uses other (already compiled) modules. For these cases, additional compiler flags have been introduced: **--module-source-path** and **--module-path**. These are the moduleaware counterparts of the -sourcepath and -classpath flags that have been part of javac for a long time.
 
 
 
