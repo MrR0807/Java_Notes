@@ -334,6 +334,139 @@ The first option constructs a module path containing the mods directory (where h
 
 ## Introducing the EasyText Example
 
+Source https://github.com/java9-modularity/examples/tree/master/chapter3/easytext-singlemodule
+
+### File tree
+
+       \---src
+           \---easytext
+               |   module-info.java
+               |
+               \---modules
+                   \---easytext
+                           Main.java
+
+# A Tale of Two Modules
+
+        \---src
+            +---analysis
+            |   |   module-info.java
+            |   |
+            |   \---modules
+            |       \---easytext
+            |           \---analysis
+            |                   FleschKincaid.java
+            |
+            \---cli
+                |   module-info.java
+                |
+                \---modules
+                    \---easytext
+                        \---cli
+                                Main.java
+
+
+    module easytext.analysis {
+        exports javamodularity.easytext.analysis;
+    }
+    
+    module easytext.cli {
+        requires easytext.analysis;
+    }
+
+The difference is that the Main class now delegates the algorithmic analysis to the FleschKincaid class. Since we have two interdependent modules, we need to compile them using the multimodule mode of javac:
+
+    javac -d out --module-source-path src/ --module easytext.cli
+    javac -d <output_dir> --module-source-path <source_path> --module <main_module>
+    
+However, this will not compile due to folder naming:
+
+    error: module easytext.cli not found in module source path
+    
+You have to rename the folders to corresponding names within module-info.java:
+
+**Renamed folders' tree structure:**
+
+    ---src
+       +---easytext.analysis
+       |   |   module-info.java
+       |   |
+       |   \---modules
+       |       \---easytext
+       |           \---analysis
+       |                   FleschKincaid.java
+       |
+       \---easytext.cli
+           |   module-info.java
+           |
+           \---modules
+               \---easytext
+                   \---cli
+                           Main.java
+                           
+
+After that, you can run one of two commands:
+
+    javac -d out --module-source-path src --module easytext.cli
+
+Or 
+
+    javac -d out --module-source-path src $(find src -name "*.java")
+    
+
+Another check the module system enforces is for cyclic dependencies. In the previous chapter, you learned that readability relations between modules must be acyclic at compile-time. **Within modules, you can still create cyclic relations between classes, as has always been the case.** It’s debatable whether you really want to do so from a software engineering perspective, but you can. However, at the module level, there is no choice. **Dependencies between modules must form an acyclic, directed graph.** By extension, there can never be cyclic dependencies between classes in different modules. **If you do introduce a cyclic dependency, the compiler won’t accept it. Adding requires easytext.cli to the *analysis module* descriptor introduces a cycle**
+
+
+## Finding the Right Platform Module
+
+When you run **java --list-modules**, the runtime outputs all available platform modules:
+
+        java.base@11.0.2
+        java.compiler@11.0.2
+        java.datatransfer@11.0.2
+        java.desktop@11.0.2
+        java.instrument@11.0.2
+        java.logging@11.0.2
+        java.management@11.0.2
+        java.management.rmi@11.0.2
+        java.naming@11.0.2
+        java.net.http@11.0.2
+        java.prefs@11.0.2
+        java.rmi@11.0.2
+        java.scripting@11.0.2
+        java.se@11.0.2
+        java.security.jgss@11.0.2
+        java.security.sasl@11.0.2
+        java.smartcardio@11.0.2
+        java.sql@11.0.2
+        java.sql.rowset@11.0.2
+        java.transaction.xa@11.0.2
+        java.xml@11.0.2
+        java.xml.crypto@11.0.2
+        jdk.accessibility@11.0.2
+        ...
+        jdk.zipfs@11.0.2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
