@@ -236,7 +236,7 @@ This is know as **exploded module** format. It’s best to name the directory co
 
 ## Compiling multiple modules
 
-What you’ve seen so far is the so-called **single-module mode** of the Java compiler. Typically, the project you want to compile consists of multiple modules. These modules may or may not refer to each other. Or the project might be a single module but uses other (already compiled) modules. For these cases, additional compiler flags have been introduced: **--module-source-path** and **--module-path**. These are the moduleaware counterparts of the -sourcepath and -classpath flags that have been part of javac for a long time.
+What you’ve seen so far is the so-called **single-module mode** of the Java compiler. Typically, the project you want to compile consists of multiple modules. These modules may or may not refer to each other. Or the project might be a single module but uses other (already compiled) modules. For these cases, additional compiler flags have been introduced: **--module-source-path** and **--module-path**. These are the module aware counterparts of the -sourcepath and -classpath flags that have been part of javac for a long time.
 
 ## Packaging
 
