@@ -516,10 +516,45 @@ Modules' info:
         exports modules.easytext.kincaid;
     }
 
+The frontend modules are now blissfully unaware of the analysis modules and implementation classes. There is no direct requires relation anymore between the consumer and providers of analyses. Frontend modules can be compiled independently from analysis implementation modules. When the factory offers additional analyses, the frontends will happily use them without any modification.
+
+On the other hand, the same tight coupling issues are still present at the factory module level and below. Whenever a new analysis module comes along, the factory needs to get a dependency on it and expand the getAnalyzer implementation. And the analysis modules still need to export their implementation classes for the factory to use.
+
+## Services for Implementation Hiding
+
+**The main problem is that the factory still has to know about all available implementations at compile-time, and the implementation classes must be exported.**
+
+The decoupling story can be improved a lot by the services mechanism in the Java module system. Using services, we can truly just share public interfaces, and strongly encapsulate implementation code in packages that are not exported.
+
+Services are expressed both in module descriptors and in code by using the Service Loader API. In that sense, using services is intrusive: you need to design your application to use them.
+
+## Providing Services
+
+Refactoring the Coleman algorithm (provided by the easytext.algorithm.coleman module) to a service provider.
 
 
+    module easytext.coleman {
+        requires easytext.api;
 
+        provides modules.easytext.api.Analyzer
+                with modules.easytext.coleman.Coleman;
+    }
 
+The provides with syntax declares that this module provides an implementation of the Analyzer interface with the ColemanAnalyzer as an implementation class. **Both the service type (after provides) and the implementation class (after with) must be fully qualified type names.** Most important, the package containing the ColemanAnalyzer implementation class is not exported from this provider module.
+
+## Consuming Services
+
+Consuming a service in the Java module system requires two steps. The first step is adding a uses clause to module-info.java in the CLI module:
+
+    module easytext.cli {
+        requires easytext.api;
+
+        uses modules.easytext.api.Analyzer;
+    }
+
+The uses clause instructs the ServiceLoader that this module wants to use implementations of Analyzer. The ServiceLoader then makes Analyzer instances available to the module. **Compilation will not fail when no service providers are found.** A uses clause also doesn’t guarantee there will be providers during run-time. The application will start successfully without any providers of services.
+
+    javac -d myout --module-source-path easytext/ --module easytext.cli,easytext.kincaid,easytext.coleman
 
 
 
