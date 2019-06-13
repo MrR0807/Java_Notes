@@ -416,50 +416,105 @@ Or
 
 Another check the module system enforces is for cyclic dependencies. In the previous chapter, you learned that readability relations between modules must be acyclic at compile-time. **Within modules, you can still create cyclic relations between classes, as has always been the case.** It’s debatable whether you really want to do so from a software engineering perspective, but you can. However, at the module level, there is no choice. **Dependencies between modules must form an acyclic, directed graph.** By extension, there can never be cyclic dependencies between classes in different modules. **If you do introduce a cyclic dependency, the compiler won’t accept it. Adding requires easytext.cli to the *analysis module* descriptor introduces a cycle**
 
+## Interfaces and Instantiation
 
-## Finding the Right Platform Module
+Ideally, we’d abstract away the different analyses behind an interface. After all, we’re just passing in sentences and getting back a score for each algorithm:
 
-When you run **java --list-modules**, the runtime outputs all available platform modules:
+    public interface Analyzer {
+        String getName();
+        double analyze(List<List<String>> text);
+    }
 
-        java.base@11.0.2
-        java.compiler@11.0.2
-        java.datatransfer@11.0.2
-        java.desktop@11.0.2
-        java.instrument@11.0.2
-        java.logging@11.0.2
-        java.management@11.0.2
-        java.management.rmi@11.0.2
-        java.naming@11.0.2
-        java.net.http@11.0.2
-        java.prefs@11.0.2
-        java.rmi@11.0.2
-        java.scripting@11.0.2
-        java.se@11.0.2
-        java.security.jgss@11.0.2
-        java.security.sasl@11.0.2
-        java.smartcardio@11.0.2
-        java.sql@11.0.2
-        java.sql.rowset@11.0.2
-        java.transaction.xa@11.0.2
-        java.xml@11.0.2
-        java.xml.crypto@11.0.2
-        jdk.accessibility@11.0.2
-        ...
-        jdk.zipfs@11.0.2
+The Analyzer interface is stable and can live in its own module—say, easytext.analysis.api. That’s what the frontend modules should know and care about. The analysis implementation modules then require this API module as well and implement the Analyzer interface. So far, so good.
+
+However, there’s a problem. Even though the frontend modules care only about calling the analyze method through the Analyzer interface, they still need a concrete instance to call this method on:
+
+    Analyzer analyzer = ???
+    
+# Chapter 4
+
+## Services
+
+Previous problem can be solved via factory pattern.
+
+Modules:
+
+    +---easytext.api
+    |   |   easytext.api.iml
+    |   |   module-info.java
+    |   |
+    |   \---modules
+    |       \---easytext
+    |           \---api
+    |                   Analyzer.java
+    |
+    +---easytext.cli
+    |   |   easytext.cli.iml
+    |   |   module-info.java
+    |   |
+    |   \---modules
+    |       \---easytext
+    |           \---cli
+    |                   Main.java
+    |
+    +---easytext.coleman
+    |   |   easytext.coleman.iml
+    |   |   module-info.java
+    |   |
+    |   \---modules
+    |       \---easytext
+    |           \---coleman
+    |                   Coleman.java
+    |
+    +---easytext.factory
+    |   |   easytext.factory.iml
+    |   |   module-info.java
+    |   |
+    |   \---modules
+    |       \---easytext
+    |           \---factory
+    |                   AnalyzerFactory.java
+    |
+    \---easytext.kincaid
+        |   easytext.kincaid.iml
+        |   module-info.java
+        |
+        \---modules
+            \---easytext
+                \---kincaid
+                        FleschKincaid.java
 
 
+Modules' info:
+
+    module easytext.api {
+        exports modules.easytext.api;
+    }
+
+    module easytext.cli {
+        requires easytext.factory;
+    }
+
+    module easytext.coleman {
+        requires easytext.api;
+
+        exports modules.easytext.coleman;
+    }
 
 
+    module easytext.factory {
+        requires easytext.kincaid;
+        requires easytext.coleman;
+        requires transitive easytext.api;
 
+        exports modules.easytext.factory;
+    }
 
+    module easytext.kincaid{
+        requires easytext.api;
 
-
-
-
-
-
-
-
+        exports modules.easytext.kincaid;
+    }
 
 
 
