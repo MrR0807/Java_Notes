@@ -6,8 +6,8 @@ The most accepted definition talks about concurrency as being when you have more
 
 ### Synchronization
 We have two kinds of synchronization:
-* __Control synchronization__: When, for example, one task depends on the end of another task, the second task can't start before the first has finished
-* __Data access synchronization__: When two or more tasks have access to a shared variable and only one of the tasks can access the variable
+* **Control synchronization**: When, for example, one task depends on the end of another task, the second task can't start before the first has finished
+* **Data access synchronization**: When two or more tasks have access to a shared variable and only one of the tasks can access the variable
 
 ### Possible problems in concurrent applications
 
@@ -1760,44 +1760,3 @@ We will execute four concurrent tasks. The first one will make a search of produ
     Best selling product: The Da Vinci Code
     Product result: Timeout
     17:50:31.243760600: Main: end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
