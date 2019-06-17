@@ -1,5 +1,4 @@
-# Chapter 1 
-## Modularity Matters
+# Modularity Matters
 
 Goal of modularity: **managing and reducing complexity.**
 
@@ -68,8 +67,7 @@ Strong encapsulation is enforced at the deepest layers inside the JVM. This limi
 **Optimization**.
 Because the module system knows which modules belong together, including platform modules, no other code needs to be considered during JVM startup. It also opens up the possibility to create a minimal configuration of modules for distribution.
 
-# Chapter 2
-## Modules and the Modular JDK
+# Modules and the Modular JDK
 
 Prior to the Java module system, the runtime library of the JDK consisted of a hefty rt.jar, weighing in at more than 60 megabytes. It contains most of the runtime classes for Java: the ultimate monolith of the Java platform.
 
@@ -154,9 +152,7 @@ Steps of module resolution:
 
 Java 9 can be used like previous versions of Java, **without moving your code into modules**. Code compiled and loaded outside a module ends up in the unnamed module. In contrast, all modules you’ve seen so far are explicit modules, defining their name in module-info.java. The unnamed module is special: it reads all other modules, including the java.logging module in this case.
 
-# Chapter 3
-
-## Working with Modules
+# Working with Modules
 
 ### Example:
 
@@ -430,10 +426,8 @@ The Analyzer interface is stable and can live in its own module—say, easytext.
 However, there’s a problem. Even though the frontend modules care only about calling the analyze method through the Analyzer interface, they still need a concrete instance to call this method on:
 
     Analyzer analyzer = ???
-    
-# Chapter 4
 
-## Services
+# Services
 
 Previous problem can be solved via factory pattern.
 
@@ -555,6 +549,176 @@ Consuming a service in the Java module system requires two steps. The first step
 The uses clause instructs the ServiceLoader that this module wants to use implementations of Analyzer. The ServiceLoader then makes Analyzer instances available to the module. **Compilation will not fail when no service providers are found.** A uses clause also doesn’t guarantee there will be providers during run-time. The application will start successfully without any providers of services.
 
     javac -d myout --module-source-path easytext/ --module easytext.cli,easytext.kincaid,easytext.coleman
+
+## Service Life Cycle
+
+A new ServiceLoader is instantiated every time you call ServiceLoader::load. Such a new ServiceLoader in turn reinstantiates provider classes when they are requested. Requesting services from an existing ServiceLoader instance returns cached instances of provider classes.
+
+
+    ServiceLoader<Analyzer> first = ServiceLoader.load(Analyzer.class);
+    System.out.println("Using the first analyzers");
+    for (Analyzer analyzer: first) {
+        System.out.println(analyzer.hashCode());
+    }
+    
+    Iterable<Analyzer> second = ServiceLoader.load(Analyzer.class);
+    System.out.println("Using the second analyzers");
+    for (Analyzer analyzer: second) {
+        System.out.println(analyzer.hashCode());
+    }
+
+    System.out.println("Using the first analyzers again, hashCode is the same");
+    for (Analyzer analyzer: first) {
+        System.out.println(analyzer.hashCode());
+    }
+
+    first.reload();
+    System.out.println("Reloading the first analyzers, hashCode is different");
+    for (Analyzer analyzer: first) {
+        System.out.println(analyzer.hashCode());
+    }
+
+Results:
+
+    Using the first analyzers
+    1379435698
+    Using the second analyzers
+    876563773
+    Using the first analyzers again, hashCode is the same
+    1379435698
+    Reloading the first analyzers, hashCode is different
+    87765719
+
+## Service Provider Methods
+
+**Service instances can be created in two ways. Either the service implementation class must have a public no-arg constructor, or a static provider method can be used.**
+
+A provider method is a public static no-arg method called provider, where the return type is the service type. It must return a service instance of the correct type (or a subtype).
+
+When using the provider method approach, the provides .. with clause refers to the class containing the provider method after with. This can very well be the service implementation class itself, but it can also be another class. A class appearing after with must have either a provider method or a public no-arg constructor.
+
+    public static Analyzer provider(){
+		System.out.println("Calling provider");
+		return new Coleman();
+	}
+
+Or
+
+    public class AnalyzerFactory {
+        public static Analyzer provider(){
+            System.out.println("Calling factory");
+            return new Coleman();
+        }
+    }
+
+Now we do have to change module-info.java to reflect this change. The provides .. with must now point to the class containing the static provider method.
+
+    module easytext.coleman {
+        requires easytext.api;
+
+        provides modules.easytext.api.Analyzer
+                with modules.easytext.coleman.AnalyzerFactory;
+    }
+
+
+## Default Service Implementations
+
+It’s perfectly possible to put an implementation into the same module exporting the service type. When a service type has an obvious default implementation, why not provide it from the same module directly? Bundling a default service implementation with the service type guarantees that at least one implementation is always available. In that case, no defensive coding is necessary on the consumer’s part.
+
+## Service Implementation Selection
+
+Sometimes you want to filter and select an implementation based on certain characteristics.
+
+## Service Type Inspection and Lazy Instantiation
+
+With Java 9, ServiceLoader is enhanced to support service implementation type inspection before instantiation. Besides iterating over all provided instances as we’ve done so far, it’s also possible to inspect a stream of ServiceLoader.Provider descriptions. The ServiceLoader.Provider class makes it possible to inspect a service provider before requesting an instance. **The stream method on ServiceLoader returns a stream of ServiceLoader.Provider objects to inspect.**
+
+    Interface ServiceLoader.Provider<S> {
+        S get()	                    //Returns an instance of the provider.
+        Class<? extends S> type()	//Returns the provider type.
+    }
+
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Fast {
+        public boolean value() default true;
+    }
+    
+    @Fast
+    public class ReallyFastAnalyzer implements Analyzer {
+        // Implementation of the analyzer
+    }
+    
+    
+    public class Main {
+        public static void main(String args[]) {
+            ServiceLoader<Analyzer> analyzers = ServiceLoader.load(Analyzer.class);
+            analyzers.stream()
+                     .filter(provider -> isFast(provider.type()))
+                     .map(ServiceLoader.Provider::get)
+                     .forEach(analyzer -> System.out.println(analyzer.getName()));
+        }
+        
+        private static boolean isFast(Class<?> clazz) {
+            return clazz.isAnnotationPresent(Fast.class) && clazz.getAnnotation(Fast.class).value() == true;
+        }
+    }
+
+## Services and Linking
+
+We can create an image for the EasyText implementation with services as well.
+
+    jlink --module-path mods/:$JAVA_HOME/jmods --add-modules easytext.cli \ --output image
+    
+The api and cli modules are part of the image as expected, but what about the two analysis provider modules? If we run the application this way, **it starts correctly because service providers are optional.** But it is pretty useless without any analyzers.
+
+**Service providers are not automatically included in the image based on uses clauses.**
+
+To include analyzers, we use the --add-modules argument when executing jlink for each provider module we want to add:
+    
+    jlink --module-path mods/:$JAVA_HOME/jmods \
+        --add-modules easytext.cli \
+        --add-modules easytext.analysis.coleman \
+        --add-modules easytext.analysis.kincaid \
+        --output image
+        
+
+This looks better, but we will still find a problem when starting the application:
+    
+    image/bin/java -m easytext.cli input.txt
+
+The application exits with an exception: java.lang.IllegalStateException: SyllableCounter not found. **The kincaid module uses another service of type SyllableCounter.** This is a case where a service provider uses another service to implement its functionality. We already know that **jlink doesn’t automatically include service providers, so the module containing the SyllableCounter example wasn’t included either.** We use --add-modules once more to finally get a fully functional image:
+
+    jlink --module-path mods/:$JAVA_HOME/jmods \
+        --add-modules easytext.cli \
+        --add-modules easytext.analysis.coleman \
+        --add-modules easytext.analysis.kincaid \
+        --add-modules easytext.analysis.naivesyllablecounter \
+        --output image
+
+
+# Modularity Patterns
+
+When designing for reuse, you have two main drivers:
+* **Adhering to the Unix philosophy of doing only one thing and doing it well.**
+* Minimizing the number of dependencies the module has itself. Otherwise, you’re burdening all reusing consumers with those transitive dependencies.
+
+Typically, reusable modules will be smaller and more focused than single-use application modules. On the other hand, orchestrating many small modules brings about its own complexity. When reuse is of no immediate concern, having larger modules can make sense.
+
+## Lean Modules
+
+Simplifying and minimizing the publicly exported part of your module is beneficial for two reasons. First, a simple and small API is easier to use than a large and convoluted one. Users of the module are not burdened with unnecessary details.
+
+
+
+
+
+
+
+
+
+
+
 
 
 
