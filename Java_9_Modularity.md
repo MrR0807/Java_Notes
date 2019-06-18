@@ -709,19 +709,124 @@ Typically, reusable modules will be smaller and more focused than single-use app
 
 Simplifying and minimizing the publicly exported part of your module is beneficial for two reasons. First, a simple and small API is easier to use than a large and convoluted one. Users of the module are not burdened with unnecessary details.
 
+## Implied Readability
+
+easytext.cli -> easytext.repository.api -> easytext.domain.api
+
+In this example, the TextRepository interface lives in the module easytext.repository.api, and the Text class that its findText method returns lives in another module, easytext.domain.api. The module-info.java of easytext.client (which calls the TextRepository):
+
+	module easytext.client {
+		requires easytext.repository.api;
+		uses easytext.repository.api.TextRepository;
+	}
+
+The easytext.repository.api in turn depends on the easytext.domain.api, since it uses Text as the return type in the TextRepository interface:
+
+	module easytext.repository.api {
+		exports easytext.repository.api;
+		requires easytext.domain.api;
+	}
+
+Note that Text has a wordcount method, which we’ll be using later in the client code. The easytext.domain.api module exports the package containing this Text class:
+
+	module easytext.domain.api {
+		exports easytext.domain.api;
+	}
+
+If we compile this, the following error is produced by the compiler:
+	
+	./src/easytext.client/easytext/client/Client.java:13: error: wordcount() in
+	Text is defined in an inaccessible class or interface
+	repository.findText("HHGTTG").wordcount();
+
+Even though we’re not mentioning the Text type directly in easytext.client, we’re trying to call a method on this type as it is returned from the repository. Therefore, the client module needs to read the easytext.domain.api module, which exports Text.
+
+A solution:
+
+	module easytext.repository.api {
+		exports easytext.repository.api;
+		requires transitive easytext.domain.api;
+	}
 
 
+Note the additional **transitive** keyword in the exports clause. It effectively says that the repository module reads easytext.domain.api, and every module requiring easytext.repository.api also automatically reads easytext.domain.api.
 
+Besides return types, this applies to argument types and thrown exceptions from different modules as well.
 
+## Aggregator Modules
 
+Sometimes you don’t want to burden the user of the library with the question of which exact modules to use. Maybe the modules of the library are split up in a way that benefits the library maintainer but might confuse the user.
 
+**An aggregator module** contains no code; it has only a module descriptor setting up implied readability to all other modules:
 
+	module library {
+		requires transitive library.one;
+		requires transitive library.two;
+		requires transitive library.three;
+	}
 
+## Safely Splitting a Module
 
+There is another useful application of the aggregator module pattern. It’s when you have a single, monolithic module that you need to split up after it has been released. New users of the library now have a choice of using either one of the individual modules, or largelibrary for readability on the whole API. Existing users of the library do not have to change their code or module descriptors when upgrading to this new version of largelibrary.
 
+## Split Packages
 
+One scenario you can run into when splitting modules is the introduction of split packages. **A split package is a single package that spans multiple modules**.
 
+module.one contains packages:
+* splitpackage.A
+* splitpackage.B
+* splitpackage.internal.InternalA
+* splitpackage.internal.InternalB
 
+module.two
+
+* splitpackage.A
+* splitpackage.B
+* splitpackage.internal.InternalA
+* splitpackage.internal.InternalB
+
+In this example, module.one and module.two both contain classes from the same packages called splitpackage and splitpackage.internal.
+
+**Only one module may export a given package to another module. Because exports are declared in terms of package names, having two modules export the same package leads to inconsistencies. If this were allowed, a class with the exact same fully qualified name might be exported from both modules.** Even if the split package is not exported from the modules, the module system won’t allow it. All modules from the module path are loaded within the same classloader. A classloader can have only a single definition of a package, and whether it’s exported or encapsulated doesn’t matter.
+
+	   +---easytext.coleman
+	   |   |   easytext.coleman.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           +---coleman
+	   |           |       Coleman.java
+	   |           |
+	   |           \---internal
+	   |                   Test.java
+	   |
+	   +---easytext.factory
+	   |   |   easytext.factory.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---factory
+	   |                   AnalyzerFactory.java
+	   |
+	   \---easytext.kincaid
+	       |   easytext.kincaid.iml
+	       |   module-info.java
+	       |
+	       \---modules
+		   \---easytext
+		       +---internal
+		       |       Test.java
+		       |
+		       \---kincaid
+			       FleschKincaid.java
+
+This will compile, but will not run:
+
+	Error occurred during initialization of boot layer
+	java.lang.LayerInstantiationException: Package modules.easytext.internal in both module easytext.kincaid and module easytext.coleman
 
 
 
