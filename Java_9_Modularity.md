@@ -828,6 +828,72 @@ This will compile, but will not run:
 	Error occurred during initialization of boot layer
 	java.lang.LayerInstantiationException: Package modules.easytext.internal in both module easytext.kincaid and module easytext.coleman
 
+If both kincaid and coleman export easytext.internal package, during compile time error would be of:
+
+	easytext\easytext.factory\module-info.java:1: error: module easytext.factory reads package modules.easytext.internal from both easytext.kincaid and easytext.coleman
+	module easytext.factory {
+	^
+	1 error
+
+## Breaking Cycles
+
+At compile-time two modules cannot require each other from their module descriptors. What to do when you need to modularize an application that does have cyclic dependencies between existing JARs?
+
+One obvious solution is to merge these JARs into a single module. When there is such a tight (cyclic) relation between two components, it’s not much of a stretch to conclude they’re effectively one module. Of course, this solution assumes the cyclic relationship is benign to start with.
+
+## Compile-Time Dependencies
+
+As the name already implies, compile-time dependencies are dependencies that are only required during compilation. You can express a compile-time dependency on a module by adding the static modifier to a requires clause:
+
+	module framework {
+		requires static fastjsonlib;
+	}
+	
+By adding static, the fastjsonlib module needs to be present when compiling, but not when running framework. **This effectively makes fastjsonlib an optional dependency of framework from the perspective of the module consumer.**
+The question of course is, what happens when framework is run without fastjsonlib? Let’s explore the scenario where framework uses the class FastJson exported from fastjsonlib directly:
+
+	package javamodularity.framework;
+	
+	import javamodularity.fastjsonlib.FastJson;
+	
+	public class MainBad {
+		public static void main(String... args) {
+			FastJson fastJson = new FastJson();
+		}
+	}
+
+The resolver doesn’t complain about the missing fastjsonlib module, because it is a compile-time only dependency. Still, we get an error at run-time because FastJson clearly is necessary for framework in this case.
+
+A direct reference to FastJson as in MainBad is problematic, because the VM will always try to load the class and instantiate it, leading to the NoClassDefFoundError.
+Fortunately, Java has lazy loading semantics for classes: they are loaded at the last possible time. If we can somehow tentatively try to use the FastJson class and gracefully recover if it’s not available, we achieve our goal. By using reflection with appropriate try-catch blocks, framework can prevent run-time errors:
+
+	public static void main(String... args) {
+		try {
+			Class<?> clazz = Class.forName("javamodularity.fastjsonlib.FastJson");
+			FastJson instance = (FastJson) clazz.getConstructor().newInstance();
+			System.out.println("Using FastJson");
+		} catch (ReflectiveOperationException e) {
+			System.out.println("Oops, we need a fallback!");
+		}
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
