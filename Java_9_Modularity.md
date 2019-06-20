@@ -700,7 +700,7 @@ The application exits with an exception: java.lang.IllegalStateException: Syllab
 # Modularity Patterns
 
 When designing for reuse, you have two main drivers:
-* **Adhering to the Unix philosophy of doing only one thing and doing it well.**
+* Adhering to the Unix philosophy of doing only one thing and doing it well.
 * Minimizing the number of dependencies the module has itself. Otherwise, you’re burdening all reusing consumers with those transitive dependencies.
 
 Typically, reusable modules will be smaller and more focused than single-use application modules. On the other hand, orchestrating many small modules brings about its own complexity. When reuse is of no immediate concern, having larger modules can make sense.
