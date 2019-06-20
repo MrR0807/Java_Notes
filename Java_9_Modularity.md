@@ -878,6 +878,167 @@ Fortunately, Java has lazy loading semantics for classes: they are loaded at the
 	}
 
 
+For example:
+
+	+---easytext
+	   +---easytext.api
+	   |   |   easytext.api.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---api
+	   |                   Analyzer.java
+	   |
+	   +---easytext.cli
+	   |   |   easytext.cli.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---cli
+	   |                   Main.java
+	   |
+	   +---easytext.coleman
+	   |   |   easytext.coleman.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---coleman
+	   |                   Coleman.java
+	   |
+	   +---easytext.factory
+	   |   |   easytext.factory.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---factory
+	   |                   AnalyzerFactory.java
+	   |
+	   \---easytext.kincaid
+	       |   easytext.kincaid.iml
+	       |   module-info.java
+	       |
+	       \---modules
+		   \---easytext
+		       \---kincaid
+			       FleschKincaid.java
+
+
+	module easytext.factory {
+	    requires static easytext.kincaid;
+	    requires easytext.coleman;
+	    requires transitive easytext.api;
+
+	    exports modules.easytext.factory;
+	}
+
+
+If we would compile as usually, at runtime, we would get ClassNotFoundException, as easytext.kincaid module with all its classes are optional. To make this work:
+
+	javac -d out --module-source-path easytext/ --module easytext.cli
+	java -p out --add-modules easytext.kincaid -m easytext.cli/modules.easytext.cli.Main
+
+## Exposing Resources in Packages
+You can expose encapsulated resources in packages to other modules by using **open modules or open packages.**
+
+# Advanced Modularity Patterns
+
+## Deep Reflection
+
+Two orthogonal issues need to be addressed to make traditional reflection-based libraries play nice with strong encapsulation:
+* Provide access to internal types without exporting packages.
+* Allow reflective access to all parts of these types.
+
+We’ll zoom in on the second problem first. Let’s assume we export a package so a library can get access. You already know that means we can compile against just the public types in those packages. **But does it also mean we can use reflection to break into private parts of those types at run-time?** The answer is no. **It turns out that even if a type is exported, this does not mean you can unconditionally break into private parts of those types with reflection.** 
+
+
+	class Exported {
+
+		private String mySecret = "secret";
+
+		public void doWork() {}
+	}
+	
+
+	class NotExported {
+
+		private String mySecret = "secret";
+
+		public void doWork() {}
+	}
+
+
+Accessing Exported.class doWork() method via reflection is **allowed.** Variable mySecret is **not allowed.**
+Accessing NotExported.class doWork() method and mySecret variable via reflection is **not allowed.**
+
+## Open Modules and Packages
+
+When a module is open, all its types are available for deep reflection by other modules at run-time. This property holds regardless of whether any packages are exported.
+
+	open module deepreflection {
+		exports api;
+	}
+
+The open keyword opens all packages in a module for deep reflection.
+When you know which packages need to be open, you can selectively open them from a normal module:
+
+	module deepreflection {
+		exports api;
+		opens internal;
+	}
+
+Here, only the types in package internal are open for deep reflection. Types in api are exported, but are not open for deep reflection.
+
+**opens** clauses can be qualified just like exports:
+
+	module deepreflection {
+		exports api;
+		opens internal to library;
+	}
+
+The semantics are as you’d expect: only module library can perform deep reflection on types from package internal. A qualified opens reduces the scope to just one or more other explicitly mentioned modules. When you can qualify an opens statement, it’s better to do so.
+
+## Annotations
+
+Modules can also be annotated. At run-time, those annotations can be read through the java.lang.Module API. Several default annotations that are part of the Java platform can be applied to modules, for example, the @Deprecated annotation:
+
+	@Deprecated
+	module m {}
+	
+## Layers and Configurations
+
+A resolved module graph lives within a ModuleLayer. Layers set up coherent sets of modules. When plainly starting a module by using java, an initial layer called the **boot layer** is constructed by the Java runtime. You can enumerate the modules in the boot layer with the code:
+
+	ModuleLayer.boot().modules().forEach(System.out::println);
+	
+# Migration
+
+## Libraries, Strong Encapsulation, and the JDK 9 Classpath
+
+By default, only a single warning is generated on the first illegal access attempt. Following attempts will not generate extra errors or warnings. If we want to further investigate the cause of the problem, we can use different settings for the --illegalaccess command-line flag to tweak the behavior:
+* --illegal-access=permit. The default behavior. Illegal access to encapsulated types is allowed. Generates a warning on the first illegal access attempt through reflection.
+* --illegal-access=warn. Like permit, but generates an error on every illegal access attempt.
+* --illegal-access=debug. Also shows stack traces for illegal access attempts.
+* --illegal-access=deny. Does not allow illegal access attempts. This will be the default in the future.
+
+We can use command-line flags to break encapsulation at compile-time as well. In the previous section, you saw how to use --add-opens to open a package from the command line. Both java and javac also support --add-exports. As the name suggests, we can use this to export an otherwise encapsulated package from a module. The syntax is --add-exports <module>/<package>=<targetmodule>:
+	
+	javac --add-exports java.base/sun.security.x509=ALL-UNNAMED \ encapsulated/EncapsulatedTypes.java
+	java --add-exports java.base/sun.security.x509=ALL-UNNAMED \ encapsulated.EncapsulatedTypes
+
+# Migration to Modules
+
+
+
+
+
+
+
+
+
 
 
 
