@@ -1031,12 +1031,91 @@ We can use command-line flags to break encapsulation at compile-time as well. In
 
 # Migration to Modules
 
+## Mixing Classpath and Module Path
+
+Simple test case:
+
+	+---lib
+	|       jackson-annotations-2.8.8.jar
+	|       jackson-core-2.8.8.jar
+	|       jackson-databind-2.8.8.jar
+	|
+	\---src
+	    \---books
+		|   module-info.java
+		|
+		\---demo
+			Book.java
+			Main.java
 
 
 
+Because the Jackson libraries are not our own source code, ideally we would not change them at all. Instead we start the migration top-down, by migrating our own code first. Let’s put this code in a module named books.
+
+	module books {
+	}
+
+Trying to compile this, will result in error.
+
+	javac -cp lib/ -d out/ --module-source-path src/ -m books
 
 
+Although jackson-databind-2.8.8.jar is still on the classpath, the compiler tells us that it is not usable in our module. **Modules cannot read the classpath, so our module can’t access types on the classpath**. To fix this issue we have to move jackson libary JARs to **automatic modules.**
 
+The Java module system has a useful feature to deal with code that isn’t a module yet: automatic modules. An automatic module can be created by moving an existing JAR file from the classpath to the module path, without changing its contents. This turns the JAR into a module, with a module descriptor generated on the fly by the module system. An automatic module has the following characteristics:
+
+* It does not contain module-info.class.
+* It has a module name specified in META-INF/MANIFEST.MF or derived from its filename.
+* It requires transitive all other resolved modules.
+* It exports all its packages.
+* It reads the classpath (or more precisely, the unnamed module as discussed later).
+* It cannot have split packages with other modules.
+
+What does it mean to require all other resolved modules? **An automatic module requires every module in the already resolved module graph.** All modules in the module graph are required transitive by automatic modules. This effectively means that if you require one automatic module, you get implied readability to all other modules.
+
+First we move the JAR file to a new directory that we name mods in this example:
+
+	+---lib
+	|       jackson-annotations-2.8.8.jar
+	|       jackson-core-2.8.8.jar
+	|
+	+---mods
+	|       jackson-databind-2.8.8.jar
+	|
+	\---src
+	    \---books
+		|   module-info.java
+		|
+		\---demo
+			Book.java
+			Main.java
+
+	module books {
+		 requires jackson.databind;
+	}
+
+The name of an automatic module can be specified in the newly introduced Automatic-Module-Name field of a META-INF/MANIFEST.MF file. If no name is specified, the module name is derived from the JAR’s filename:
+
+* Dashes (-) are replaced by dots (.).
+* Version numbers are omitted.
+
+To compile:
+
+	javac -cp "lib/jackson-annotations-2.8.8.jar;lib/jackson-core-2.8.8.jar" --module-path mods/ -d out --module-source-path src/ -m books
+Or:
+
+	javac -cp lib/jackson-annotations-2.8.8.jar:lib/jackson-core-2.8.8.jar --module-path mods/ -d out --module-source-path src/ -m books
+	
+To run:
+
+	java -cp "lib/jackson-annotations-2.8.8.jar;lib/jackson-core-2.8.8.jar" -p "mods;out" -m books/demo.Main
+
+Or:
+
+	java -cp lib/jackson-annotations-2.8.8.jar:lib/jackson-core-2.8.8.jar -p mods:out -m books/demo.Main
+	
+
+177
 
 
 
