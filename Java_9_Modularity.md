@@ -1199,19 +1199,66 @@ Or:
 	java -cp lib/jackson-annotations-2.8.8.jar:lib/jackson-core-2.8.8.jar -p mods:out -m books/demo.Main
 	
 
-177
+## Open Modules
+
+	open module books {
+		requires jackson.databind;
+	}
+
+An open module is a module that gives run-time access to all its packages.
+
+## Automatic Modules and the Classpath
+
+The unnamed module exports all code on the classpath and reads all other modules. There is a big restriction, however: the unnamed module itself is readable only from automatic modules.
+
+An explicit module can read only other explicit modules, and automatic modules. An automatic module reads all modules including the unnamed module.
+
+Adding additional dependency to main code.
+
+	package demo;
+	
+	import com.fasterxml.jackson.databind.ObjectMapper;
+	import com.fasterxml.jackson.core.Versioned;
+	public class Demo {
+		public static void main(String... args) throws Exception {
+			Book modularityBook = new Book("Java 9 Modularity", "Modularize all the things!");
+			ObjectMapper mapper = new ObjectMapper();
+			String json = mapper.writeValueAsString(modularityBook);
+			System.out.println(json);
+			Versioned versioned = (Versioned) mapper;
+		}
+	}
+	
+Trying to compile the code will result in an error:
+
+	src/books/demo/Main.java:4: error:
+	package com.fasterxml.jackson.core does not exist
+	import com.fasterxml.jackson.core.Versioned;
+
+Although the type exists in the unnamed module (the classpath), and the jackson.databind **automatic module can access it, we can’t access it from our module.** To fix this problem, we need to move Jackson Core to the module path as well, making it an automatic module.
 
 
+	javac -cp lib/jackson-annotations-2.8.8.jar \ --module-path mods \ -d out \ --module-source-path src \ -m books
 
+This works! Taking a step back, however, why does it work? We’re clearly using a type from jackson.core, but we don’t have a requires for jackson.core in our moduleinfo. java. **Why didn’t the compilation fail? Remember that an automatic module requires transitive all other modules. This means that by requiring jackson.data bind, we also read jackson.core transitively.**
 
+In this specific example, it is better to explicitly add a requires to jackson.core as well:
+	
+	module books {
+		requires jackson.databind;
+		requires jackson.core;
+		opens demo;
+	}
 
+## Split Packages
 
+When using automatic modules, we can run into split packages as well.
 
+When both a (automatic) module and the unnamed module contain the same package, the package from the module will be used.
 
+If you run into split package issues while migrating to Java 9, there’s is no way around them. You must deal with them, even when your classpath-based application works correctly from a user’s perspective.
 
-
-
-
+# Migration Case Study: Spring and Hibernate
 
 
 
