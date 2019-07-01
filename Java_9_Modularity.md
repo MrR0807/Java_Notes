@@ -232,7 +232,7 @@ This is know as **exploded module** format. It’s best to name the directory co
 
 ## Compiling multiple modules
 
-What you’ve seen so far is the so-called **single-module mode** of the Java compiler. Typically, the project you want to compile consists of multiple modules. These modules may or may not refer to each other. Or the project might be a single module but uses other (already compiled) modules. For these cases, additional compiler flags have been introduced: **--module-source-path** and **--module-path**. These are the module aware counterparts of the -sourcepath and -classpath flags that have been part of javac for a long time.
+What you’ve seen so far is the so-called **single-module mode** of the Java compiler. Typically, the project you want to compile consists of multiple modules. These modules may or may not refer to each other. Or the project might be a single module but uses other (already compiled) modules. For these cases, additional compiler flags have been introduced: **--module-source-path** and **--module-path**. These are the module aware counterparts of the -sourcepath and -classpath flags that have been part of javac for a long time. Sourcepath is the root of code to be compiled (where your source code is). Classpath is a path (or multiple paths) to libraries you are compiling against (these are compiled classes, either in folders or Jar files).
 
 ## Packaging
 
@@ -1015,6 +1015,90 @@ A resolved module graph lives within a ModuleLayer. Layers set up coherent sets 
 	ModuleLayer.boot().modules().forEach(System.out::println);
 	
 # Migration
+
+## module-path vs module-source-path
+
+As previously noted, module-path is same as classpath and module-source-path is same as sourcepath. Example:
+
+	+---easytext
+	   +---.idea
+	   |       misc.xml
+	   |       modules.xml
+	   |       workspace.xml
+	   |
+	   +---easytext.cli
+	   |   |   easytext.cli.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---cli
+	   |                   Main.java
+	   |
+	   +---easytext.coleman
+	   |   |   easytext.coleman.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---coleman
+	   |                   Coleman.java
+	   |
+	   +---easytext.factory
+	   |   |   easytext.factory.iml
+	   |   |   module-info.java
+	   |   |
+	   |   \---modules
+	   |       \---easytext
+	   |           \---factory
+	   |                   AnalyzerFactory.java
+	   |
+	   \---easytext.kincaid
+	       |   easytext.kincaid.iml
+	       |   module-info.java
+	       |
+	       \---modules
+	           \---easytext
+	               \---kincaid
+	                       FleschKincaid.java
+	
+	\---mods
+	    |   module-info.class
+	    |
+	    \---modules
+		\---easytext
+		    \---api
+			    Analyzer.class
+
+
+Trying to compile without --module-path:
+
+	javac -d out/ --module-source-path easytext/ --module easytext.cli
+	
+There will be multiple errors as:
+
+	easytext\easytext.factory\module-info.java:4: error: module not found: easytext.api
+	    requires transitive easytext.api;
+
+It is required to use --module-path:
+
+	javac -d out --module-path mods/ --module-source-path easytext/ --module easytext.cli
+	
+Running without explicitly defining --module-path:
+
+	java --module-path out/ --module easytext.cli/modules.easytext.cli.Main
+	
+Error:
+	
+	java.lang.module.FindException: Module easytext.api not found, required by easytext.factory
+
+Run with including "mods" directory as well:
+
+	java --module-path "out/;mods/" --module easytext.cli/modules.easytext.cli.Main
+
+Or:
+
+	java --module-path out/:mods/ --module easytext.cli/modules.easytext.cli.Main
 
 ## Libraries, Strong Encapsulation, and the JDK 9 Classpath
 
