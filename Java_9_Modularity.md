@@ -407,7 +407,7 @@ After that, you can run one of two commands:
 
 Or 
 
-    javac -d out --module-source-path src $(find src -name "*.java")
+    javac -d out --module-source-path src cd 
     
 
 Another check the module system enforces is for cyclic dependencies. In the previous chapter, you learned that readability relations between modules must be acyclic at compile-time. **Within modules, you can still create cyclic relations between classes, as has always been the case.** It’s debatable whether you really want to do so from a software engineering perspective, but you can. However, at the module level, there is no choice. **Dependencies between modules must form an acyclic, directed graph.** By extension, there can never be cyclic dependencies between classes in different modules. **If you do introduce a cyclic dependency, the compiler won’t accept it. Adding requires easytext.cli to the *analysis module* descriptor introduces a cycle**
@@ -1259,6 +1259,180 @@ When both a (automatic) module and the unnamed module contain the same package, 
 If you run into split package issues while migrating to Java 9, there’s is no way around them. You must deal with them, even when your classpath-based application works correctly from a user’s perspective.
 
 # Migration Case Study: Spring and Hibernate
+
+Code can be found in: https://github.com/java9-modularity/examples/tree/master/chapter9
+
+	+---lib
+	|       antlr-2.7.7.jar
+	|       cdi-api-1.1.jar
+	|       classmate-1.3.0.jar
+	|       commons-dbcp-1.4.jar
+	|       commons-logging-1.2.jar
+	|       commons-pool-1.5.4.jar
+	|       dom4j-1.6.1.jar
+	|       el-api-2.2.jar
+	|       geronimo-jta_1.1_spec-1.1.1.jar
+	|       hibernate-commons-annotations-5.0.1.Final.jar
+	|       hibernate-core-5.2.2.Final.jar
+	|       hibernate-jpa-2.1-api-1.0.0.Final.jar
+	|       hsqldb-2.3.4.jar
+	|       jandex-2.0.0.Final.jar
+	|       javassist-3.20.0-GA.jar
+	|       javax.inject-1.jar
+	|       jaxb-api-2.3.0.jar 			//Since Java 11 you have to include this explicitly
+	|       jaxb-core-2.3.0.jar			//Since Java 11 you have to include this explicitly
+	|       jaxb-impl-2.3.0.jar			//Since Java 11 you have to include this explicitly
+	|       jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar
+	|       jboss-logging-3.3.0.Final.jar
+	|       jcl-over-slf4j-1.7.21.jar
+	|       jsr250-api-1.0.jar
+	|       log4j-api-2.6.2.jar
+	|       log4j-core-2.6.2.jar
+	|       slf4j-api-1.7.21.jar
+	|       slf4j-simple-1.7.21.jar
+	|       spring-aop-4.3.2.RELEASE.jar
+	|       spring-beans-4.3.2.RELEASE.jar
+	|       spring-context-4.3.2.RELEASE.jar
+	|       spring-core-4.3.2.RELEASE.jar
+	|       spring-expression-4.3.2.RELEASE.jar
+	|       spring-jdbc-4.3.2.RELEASE.jar
+	|       spring-orm-4.3.2.RELEASE.jar
+	|       spring-tx-4.3.2.RELEASE.jar
+	|
+	|
+	\---src
+	    |   log4j2.xml
+	    |   main.xml
+	    |
+	    +---books
+	    |   +---api
+	    |   |   +---entities
+	    |   |   |       Book.java
+	    |   |   |
+	    |   |   \---service
+	    |   |           BooksService.java
+	    |   |
+	    |   \---impl
+	    |       +---entities
+	    |       |       BookEntity.java
+	    |       |
+	    |       \---service
+	    |               HibernateBooksService.java
+	    |
+	    +---bookstore
+	    |   +---api
+	    |   |   \---service
+	    |   |           BookstoreService.java
+	    |   |
+	    |   \---impl
+	    |       \---service
+	    |               BookstoreServiceImpl.java
+	    |
+	    \---main
+		    Main.java
+
+
+
+To compile this code: 
+
+	javac -cp "lib/antlr-2.7.7.jar;lib/cdi-api-1.1.jar;lib/classmate-1.3.0.jar;lib/commons-dbcp-1.4.jar;lib/commons-logging-1.2.jar;lib/commons-pool-1.5.4.jar;lib/dom4j-1.6.1.jar;lib/el-api-2.2.jar;lib/geronimo-jta_1.1_spec-1.1.1.jar;lib/hibernate-commons-annotations-5.0.1.Final.jar;lib/hibernate-core-5.2.2.Final.jar;lib/hibernate-jpa-2.1-api-1.0.0.Final.jar;lib/hsqldb-2.3.4.jar;lib/jandex-2.0.0.Final.jar;lib/javassist-3.20.0-GA.jar;lib/javax.inject-1.jar;lib/jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar;lib/jboss-logging-3.3.0.Final.jar;lib/jcl-over-slf4j-1.7.21.jar;lib/jsr250-api-1.0.jar;lib/log4j-api-2.6.2.jar;lib/log4j-core-2.6.2.jar;lib/slf4j-api-1.7.21.jar;lib/slf4j-simple-1.7.21.jar;lib/spring-aop-4.3.2.RELEASE.jar;lib/spring-beans-4.3.2.RELEASE.jar;lib/spring-context-4.3.2.RELEASE.jar;lib/spring-core-4.3.2.RELEASE.jar;lib/spring-expression-4.3.2.RELEASE.jar;lib/spring-jdbc-4.3.2.RELEASE.jar;lib/spring-orm-4.3.2.RELEASE.jar;lib/spring-tx-4.3.2.RELEASE.jar;lib/jaxb-impl-2.3.0.jar;lib/jaxb-api-2.3.0.jar;lib/jaxb-core-2.3.0.jar" -d out --source-path src $(find src -name '*.java')
+	
+
+To run:
+
+	java -cp "lib/antlr-2.7.7.jar;lib/cdi-api-1.1.jar;lib/classmate-1.3.0.jar;lib/commons-dbcp-1.4.jar;lib/commons-logging-1.2.jar;lib/commons-pool-1.5.4.jar;lib/dom4j-1.6.1.jar;lib/el-api-2.2.jar;lib/geronimo-jta_1.1_spec-1.1.1.jar;lib/hibernate-commons-annotations-5.0.1.Final.jar;lib/hibernate-core-5.2.2.Final.jar;lib/hibernate-jpa-2.1-api-1.0.0.Final.jar;lib/hsqldb-2.3.4.jar;lib/jandex-2.0.0.Final.jar;lib/javassist-3.20.0-GA.jar;lib/javax.inject-1.jar;lib/jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar;lib/jboss-logging-3.3.0.Final.jar;lib/jcl-over-slf4j-1.7.21.jar;lib/jsr250-api-1.0.jar;lib/log4j-api-2.6.2.jar;lib/log4j-core-2.6.2.jar;lib/slf4j-api-1.7.21.jar;lib/slf4j-simple-1.7.21.jar;lib/spring-aop-4.3.2.RELEASE.jar;lib/spring-beans-4.3.2.RELEASE.jar;lib/spring-context-4.3.2.RELEASE.jar;lib/spring-core-4.3.2.RELEASE.jar;lib/spring-expression-4.3.2.RELEASE.jar;lib/spring-jdbc-4.3.2.RELEASE.jar;lib/spring-orm-4.3.2.RELEASE.jar;lib/spring-tx-4.3.2.RELEASE.jar;lib/jaxb-impl-2.3.0.jar;lib/jaxb-api-2.3.0.jar;lib/jaxb-core-2.3.0.jar;out" main.Main
+	
+Code runs and generates a warning:
+
+	WARNING: An illegal reflective access operation has occurred
+	WARNING: Illegal reflective access by javassist.util.proxy.SecurityActions (file:.../lib/javassist-3.20.0-GA.jar) to method java.lang.ClassLoader.defineClass(...)
+	WARNING: Please consider reporting this to the maintainers of javassist.util.proxy.SecurityActions
+
+## Setting Up for Modules
+
+With these problems out of the way, we can start migrating toward modules. First, we migrate the code to a single module.
+
+The first step is to change -sourcepath to --module-source-path. To do this, we need to slightly change the structure of the project. The src directory should not contain packages directly, but a module directory first. The module directory should also contain module-info.java.
+
+## Using Automatic Modules
+
+To be able to compile our module, we need to add requires statements to module-info.java for any compile-time dependencies. This also implies that we need to move some of the JAR files from the classpath to the module path to make them automatic modules.
+
+Firstly we add required dependencies to module-info.java:
+
+	module bookapp {
+		requires spring.context;
+		requires spring.tx;
+		requires javax.inject;
+		requires hibernate.core;
+		requires hibernate.jpa;
+	}
+
+Then move required dependencies to a different dir:
+
+	+---mods
+	|       hibernate-core-5.2.2.Final.jar
+	|       hibernate-jpa-2.1-api-1.0.0.Final.jar
+	|       javax.inject-1.jar
+	|       spring-context-4.3.2.RELEASE.jar
+	|       spring-tx-4.3.2.RELEASE.jar
+
+Then compile:
+
+	javac -cp "lib/antlr-2.7.7.jar;lib/cdi-api-1.1.jar;lib/classmate-1.3.0.jar;lib/commons-dbcp-1.4.jar;lib/commons-logging-1.2.jar;lib/commons-pool-1.5.4.jar;lib/dom4j-1.6.1.jar;lib/el-api-2.2.jar;lib/geronimo-jta_1.1_spec-1.1.1.jar;lib/hibernate-commons-annotations-5.0.1.Final.jar;lib/hibernate-core-5.2.2.Final.jar;lib/hibernate-jpa-2.1-api-1.0.0.Final.jar;lib/hsqldb-2.3.4.jar;lib/jandex-2.0.0.Final.jar;lib/javassist-3.20.0-GA.jar;lib/javax.inject-1.jar;lib/jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar;lib/jboss-logging-3.3.0.Final.jar;lib/jcl-over-slf4j-1.7.21.jar;lib/jsr250-api-1.0.jar;lib/log4j-api-2.6.2.jar;lib/log4j-core-2.6.2.jar;lib/slf4j-api-1.7.21.jar;lib/slf4j-simple-1.7.21.jar;lib/spring-aop-4.3.2.RELEASE.jar;lib/spring-beans-4.3.2.RELEASE.jar;lib/spring-context-4.3.2.RELEASE.jar;lib/spring-core-4.3.2.RELEASE.jar;lib/spring-expression-4.3.2.RELEASE.jar;lib/spring-jdbc-4.3.2.RELEASE.jar;lib/spring-orm-4.3.2.RELEASE.jar;lib/spring-tx-4.3.2.RELEASE.jar;lib/jaxb-impl-2.3.0.jar;lib/jaxb-api-2.3.0.jar;lib/jaxb-core-2.3.0.jar" -d out --module-path mods/ --add-modules java.naming --module-source-path src -m bookapp
+
+Run:
+
+	java -cp "lib/antlr-2.7.7.jar;lib/cdi-api-1.1.jar;lib/classmate-1.3.0.jar;lib/commons-dbcp-1.4.jar;lib/commons-logging-1.2.jar;lib/commons-pool-1.5.4.jar;lib/dom4j-1.6.1.jar;lib/el-api-2.2.jar;lib/geronimo-jta_1.1_spec-1.1.1.jar;lib/hibernate-commons-annotations-5.0.1.Final.jar;lib/hibernate-core-5.2.2.Final.jar;lib/hibernate-jpa-2.1-api-1.0.0.Final.jar;lib/hsqldb-2.3.4.jar;lib/jandex-2.0.0.Final.jar;lib/javassist-3.20.0-GA.jar;lib/javax.inject-1.jar;lib/jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar;lib/jboss-logging-3.3.0.Final.jar;lib/jcl-over-slf4j-1.7.21.jar;lib/jsr250-api-1.0.jar;lib/log4j-api-2.6.2.jar;lib/log4j-core-2.6.2.jar;lib/slf4j-api-1.7.21.jar;lib/slf4j-simple-1.7.21.jar;lib/spring-aop-4.3.2.RELEASE.jar;lib/spring-beans-4.3.2.RELEASE.jar;lib/spring-context-4.3.2.RELEASE.jar;lib/spring-core-4.3.2.RELEASE.jar;lib/spring-expression-4.3.2.RELEASE.jar;lib/spring-jdbc-4.3.2.RELEASE.jar;lib/spring-orm-4.3.2.RELEASE.jar;lib/spring-tx-4.3.2.RELEASE.jar;lib/jaxb-impl-2.3.0.jar;lib/jaxb-api-2.3.0.jar;lib/jaxb-core-2.3.0.jar" --module-path "mods;out" --module bookapp/main.Main
+
+Generates a runtime error:
+
+	java.lang.NoClassDefFoundError: java/sql/SQLException
+	
+## Java Platform Dependencies and Automatic Modules
+
+A java.lang.NoClassDefFoundError tells us we need to add java.sql to --addmodules for the java command. Why wasn’t java.sql resolved without our manual intervention? Hibernate depends on java.sql internally. Because Hibernate is used as an automatic module, it doesn’t have a module descriptor to require other (platform) modules.
+
+To fix this add --add-modules java.sql (or use in module-info.java):
+
+	java -cp "lib/antlr-2.7.7.jar;lib/cdi-api-1.1.jar;lib/classmate-1.3.0.jar;lib/commons-dbcp-1.4.jar;lib/commons-logging-1.2.jar;lib/commons-pool-1.5.4.jar;lib/dom4j-1.6.1.jar;lib/el-api-2.2.jar;lib/geronimo-jta_1.1_spec-1.1.1.jar;lib/hibernate-commons-annotations-5.0.1.Final.jar;lib/hibernate-core-5.2.2.Final.jar;lib/hibernate-jpa-2.1-api-1.0.0.Final.jar;lib/hsqldb-2.3.4.jar;lib/jandex-2.0.0.Final.jar;lib/javassist-3.20.0-GA.jar;lib/javax.inject-1.jar;lib/jboss-interceptors-api_1.1_spec-1.0.0.Beta1.jar;lib/jboss-logging-3.3.0.Final.jar;lib/jcl-over-slf4j-1.7.21.jar;lib/jsr250-api-1.0.jar;lib/log4j-api-2.6.2.jar;lib/log4j-core-2.6.2.jar;lib/slf4j-api-1.7.21.jar;lib/slf4j-simple-1.7.21.jar;lib/spring-aop-4.3.2.RELEASE.jar;lib/spring-beans-4.3.2.RELEASE.jar;lib/spring-context-4.3.2.RELEASE.jar;lib/spring-core-4.3.2.RELEASE.jar;lib/spring-expression-4.3.2.RELEASE.jar;lib/spring-jdbc-4.3.2.RELEASE.jar;lib/spring-orm-4.3.2.RELEASE.jar;lib/spring-tx-4.3.2.RELEASE.jar;lib/jaxb-impl-2.3.0.jar;lib/jaxb-api-2.3.0.jar;lib/jaxb-core-2.3.0.jar" --module-path "mods;out" --add-modules java.sql --module bookapp/main.Main
+
+Next error:
+
+	IllegalAccessException: class org.springframework.beans.BeanUtils cannot access class books.impl.service.HibernateBooksService
+	
+## Opening Packages for Reflection
+
+Spring relies on reflection to instantiate classes. For this to work, we have to open implementation packages containing classes that Spring needs to instantiate. Hibernate, by the same token, also uses reflection to manipulate entity classes.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
