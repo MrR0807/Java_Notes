@@ -1405,55 +1405,10 @@ Next error:
 
 Spring relies on reflection to instantiate classes. For this to work, we have to open implementation packages containing classes that Spring needs to instantiate. Hibernate, by the same token, also uses reflection to manipulate entity classes.
 
+	opens books.impl.entities;
+	opens books.impl.service;
+	opens bookstore.impl.service;
 
+# Modular Development Tooling
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## Apache Maven
