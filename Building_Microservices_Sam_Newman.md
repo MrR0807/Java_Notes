@@ -67,6 +67,16 @@ This isn’t just about picking the technology and the protocol. If you pick HTT
 
 ## Governance Through Code
 
+### Exemplars
+
+Ideally, these should be real-world services you have that get things right, rather than isolated services that are just implemented to be perfect examples. By ensuring your exemplars are actually being used, you ensure that all the principles you have actually make sense.
+
+## Exception Handling
+
+# Chapter 3. How to Model Services
+
+
+
 
 
 
