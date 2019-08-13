@@ -1,7 +1,6 @@
 # Chapter 1. Microservices
 
-The question I am often asked is how small is small? A microservice as something that could be rewritten in two weeks. Or 
-I nearly always ask the question who has a system that is too big and that you’d like to break down?
+The question I am often asked is how small is small? A microservice as something that could be rewritten in two weeks. Or I nearly always ask the question who has a system that is too big and that you’d like to break down?
 
 ### Autonomous
 
@@ -75,12 +74,43 @@ Ideally, these should be real-world services you have that get things right, rat
 
 # Chapter 3. How to Model Services
 
+### Loose Coupling
 
+When services are loosely coupled, a change to one service should not require a change to another. The whole point of a microservice is being able to make a change to one service and deploy it, without needing to change any other part of the system.
 
+A loosely coupled service knows as little as it needs to about the services with which it collaborates.
 
+### High Cohesion
 
+We want related behavior to sit together, and unrelated behavior to sit elsewhere. So we want to find boundaries within our problem domain that help ensure that related behavior is in one place, and that communicate with other boundaries as loosely as possible.
 
+### Shared and Hidden Models
 
+For example, we can then consider the finance department and the warehouse to be two separate **bounded contexts.** They both have an explicit interface to the outside world (in terms of inventory reports, pay slips, etc.), and they have details that only they need to know about (forklift trucks, calculators).
+
+Now the finance department doesn’t need to know about the detailed inner workings of the warehouse. It does need to know some things, though — for example it needs to know about stock levels to keep the accounts up to date.
+
+### Modules and Services
+
+**When starting out, however, keep a new system on the more monolithic side;** getting service boundaries wrong can be costly, so waiting for things to stabilize as you get to grips with a new domain is sensible.
+
+It's best to firstly grow the codebase and define bounded contexts via modules than separate services.
+
+### Premature Decomposition
+
+Prematurely decomposing a system into microservices can be costly, especially if you are new to the domain. In many ways, having an existing codebase you want to decompose into microservices is much easier than trying to go to microservices from the beginning.
+
+# Turtles All the Way Down
+
+At the start, you will probably identify a number of coarse-grained bounded contexts. But these bounded contexts can in turn contain further bounded contexts. For example, you could decompose the warehouse into capabilities associated with *order fulfillment, inventory management, or goods receiving.* When considering the boundaries of your microservices, first think in terms of the larger, coarser-grained contexts, and then subdivide along these nested contexts when you’re looking for the benefits of splitting out these seams.
+
+Whether you choose the nested approach over the full separation approach should be based on your organizational structure. If order fulfillment, inventory management, and goods receiving are managed by different teams, they probably deserve their status as top-level microservices. If, on the other hand, all of them are managed by one team, then the nested model makes more sense.
+
+# Chapter 4. Integration
+
+Getting integration right is the single most important aspect of the technology associated with microservices in my opinion.
+
+## Looking for the Ideal Integration Technology
 
 
 
