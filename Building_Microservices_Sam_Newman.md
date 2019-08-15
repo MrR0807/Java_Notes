@@ -112,6 +112,84 @@ Getting integration right is the single most important aspect of the technology 
 
 ## Looking for the Ideal Integration Technology
 
+### Avoid Breaking Changes
+
+Every now and then, we may make a change that requires our consumers to also change. We’ll discuss how to handle this later, but we want to pick technology that ensures this happens as rarely as possible.
+
+### Keep Your APIs Technology-Agnostic
+
+Avoid integration technology that dictates what technology stacks we can use to implement our microservices.
+
+### Make Your Service Simple for Consumers
+### Hide Internal Implementation Detail
+
+## Interfacing with Customers
+
+### The Shared Database
+
+By far the most common form of integration that I or any of my colleagues see in the industry is database (DB) integration.
+First, we are allowing external parties to view and bind to internal implementation details. If I decide to change my schema to better represent my data, or make my system easier to maintain, I can break my consumers. The DB is effectively a very large, shared API that is also quite brittle.
+
+Second, my consumers are tied to a specific technology choice. Perhaps right now it makes sense to store customers in a relational database, so my consumers use an appropriate (potentially DB-specific) driver to talk to it. What if over time we realize we would be better off storing data in a nonrelational database?
+
+Remember when we talked about the core principles behind good microservices? Strong cohesion and loose coupling — with database integration, we lose both things.
+
+**Avoid at (nearly) all costs.**
+
+## Synchronous Versus Asynchronous
+
+Synchronous communication can be easier to reason about. We know when things have completed successfully or not. 
+Asynchronous communication can be very useful for long-running jobs, where keeping a connection open for a long period of time between the client and server is impractical. It also works very well when you need low latency.
+
+These two different modes of communication can enable two different idiomatic styles of collaboration: **request/response** or **event-based.**
+
+## Orchestration Versus Choreography
+
+As we start to model more and more complex logic, we have to deal with the problem of managing business processes that stretch across the boundary of individual services. Let’s take an example from MusicCorp, and look at what happens when we create a customer:
+* A new record is created in the loyalty points bank for the customer.
+* Our postal system sends out a welcome pack.
+* We send a welcome email to the customer.
+
+When it comes to actually implementing this flow, there are two styles of architecture we
+could follow:
+* With **orchestration**, we rely on a central brain to guide and drive the process, much like the conductor in an orchestra. 
+* With **choreography**, we inform each part of the system of its job, and let it work out the details, like dancers all finding their way and reacting to others around them in a ballet.
+
+Let’s think about what an orchestration solution would look like for this flow. Here, probably the simplest thing to do would be to have our customer service act as the central brain. On creation, it talks to the loyalty points bank, email service, and postal service, through a series of request/response calls. **The downside to this orchestration approach is that the customer service can become too much of a central governing authority. It can become the hub in the middle of a web, and a central point where logic starts to live.**
+
+With a choreographed approach, we could instead just have the customer service emit an event in an asynchronous manner, saying Customer created. The email service, postal service, and loyalty points bank then just subscribe to these events and react accordingly. This approach is significantly more decoupled. If some other service needed to reach to the creation of a customer, it just needs to subscribe to the events and do its job when needed. **The downside is that the explicit view of the business process is now only implicitly reflected in our system.**
+
+In general, I have found that systems that tend more toward the **choreographed approach are more loosely coupled, and are more flexible and amenable to change.** You do need to do extra work to monitor and track the processes across system boundaries, however. I have found most heavily orchestrated implementations to be extremely brittle, with a higher cost of change. With that in mind, I **strongly prefer aiming for a choreographed system, where each service is smart enough to understand its role in the whole dance.**
+
+
+**Synchronous calls are simpler, and we get to know if things worked straightaway.** If we like the semantics of request/response but are dealing with longer-lived processes, we could just initiate **asynchronous requests and wait for callbacks.** On the other hand, **asynchronous event collaboration helps us adopt a choreographed approach, which can yield significantly more decoupled services.**
+
+## Technologies that fit well with request/response
+
+### Remote Procedure Calls (RPC)
+
+Remote procedure call refers to the technique of making a local call and having it execute on a remote service somewhere. There are a number of different types of RPC technology out there. Some of this technology relies on having an interface definition (SOAP, Thrift, protocol buffers).
+All these technologies, have the same, core characteristic in that they make a local call look like a remote call.
+
+### Local Calls Are Not Like Remote Calls
+
+The core idea of RPC is to hide the complexity of a remote call. Many implementations of RPC, though, hide too much. **The drive in some forms of RPC to make remote method calls look like local method calls hides the fact that these two things are very different.** I can make large numbers of local, in-process calls without worrying overly about the performance. With RPC, though, the cost of marshalling and un-marshalling payloads can be significant, not to mention the time taken to send things over the network.
+
+Famously, the first of the fallacies of distributed computing is “The network is reliable”. **Networks aren’t reliable. They can and will fail, even if your client and the server you are speaking to are fine.**
+
+### Is RPC Terrible?
+
+Despite its shortcomings, I wouldn’t go so far as to call RPC terrible. Just be aware of some of the potential pitfalls associated with RPC if you’re going to pick this model. **Don’t abstract your remote calls to the point where the network is completely hidden, and ensure that you can evolve the server interface without having to insist on lock-step upgrades for clients.**
+
+Compared to database integration, RPC is certainly an improvement when we think about options for request/response collaboration. But there’s another option to consider.
+
+### Representational State Transfer (REST)
+
+
+
+
+
+
 
 
 
