@@ -221,6 +221,54 @@ One of the **downsides** is that **this navigation of controls can be quite chat
 
 ### JSON, XML, or Something Else?
 
+The fact that JSON is a much simpler format means that consumption is also easier. JSON does have some downsides, though. XML defines the link control we used earlier as a hypermedia control. The JSON standard doesn’t define anything similar, so in-house styles are frequently used to shoe-horn this concept in. The **Hypertext Application Language (HAL)** attempts to fix this by defining some common standards for hyperlinking for JSON
+
+### Beware Too Much Convenience
+
+**Some frameworks actually make it very easy to simply take database representations of objects, deserialize them into in-process objects, and then directly expose these externally.** I remember at a conference seeing this demonstrated using Spring Boot and cited as a major advantage. **The inherent coupling that this setup promotes will in most cases cause far more pain than the effort required to properly decouple these concepts.*
+
+## Implementing Asynchronous Event-Based Collaboration
+
+### Technology Choices
+
+There are two main parts we need to consider here: 
+* A way for our microservices to emit events
+* A way for our consumers to find out those events have happened
+
+Traditionally, message brokers like RabbitMQ try to handle both problems. Producers use an API to publish an event to the broker. The broker handles subscriptions, allowing consumers to be informed when an event arrives.
+
+It can add complexity to the development process, because it is another system you may need to run to develop and test your services. However, it can be an incredibly effective way to implement loosely coupled, event-driven architectures. In general, I’m a fan.
+
+Do be wary, though, about the world of middleware, of which the message broker is just a small part. Queues in and of themselves are perfectly sensible, useful things. However, vendors tend to want to package lots of software with them, which can lead to more and more smarts being pushed into the middleware, as evidenced by things like the Enterprise Service Bus. **Keep your middleware dumb, and keep the smarts in the endpoints.**
+
+Another approach is to try to use HTTP as a way of propagating events. **ATOM** is a REST- compliant specification that defines semantics (among other things) for publishing feeds of resources.
+
+**But Message Broker is better between these two.**
+
+### Complexities of Asynchronous Architectures
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
