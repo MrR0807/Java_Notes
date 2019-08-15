@@ -185,13 +185,41 @@ Compared to database integration, RPC is certainly an improvement when we think 
 
 ### Representational State Transfer (REST)
 
+Most important is the concept of resources.
+REST itself doesn’t really talk about underlying protocols, although it is most commonly used over HTTP. Some of the features that HTTP gives us as part of the specification, such as verbs, make implementing REST over HTTP easier, whereas with other protocols you’ll have to handle these features yourself.
 
+### REST and HTTP
 
+HTTP itself defines some useful capabilities that play very well with the REST style. For example, the HTTP verbs (e.g., GET, POST, and PUT) already have well-understood meanings in the HTTP specification as to how they should work with resources.
 
+HTTP also brings a large ecosystem of supporting tools and technology. We get to use HTTP caching proxies and load balancers, and many monitoring tools already have lots of support for HTTP out of the box.
 
+Note that HTTP can be used to implement RPC too. SOAP, for example, gets routed over HTTP, but unfortunately uses very little of the specification. Verbs are ignored, as are simple things like HTTP error codes.
 
+### Hypermedia As the Engine of Application State
 
+Another principle introduced in REST that can help us avoid the coupling between client and server is the concept of **hypermedia as the engine of application state (HATEOAS).**
 
+Hypermedia is a concept whereby a piece of content contains links to various other pieces of content in a variety of formats (e.g., text, images, sounds). This should be pretty familiar to you, as **it’s what the average web page does: you follow links, which are a form of hypermedia controls, to see related content.** The idea behind HATEOAS is that clients should perform interactions (potentially leading to state transitions) with the server via these links to other resources.
+
+Let’s look at a hypermedia control that we might have for MusicCorp.
+
+    <album>
+      <name>Give Blood</name>
+      <link rel="/artist" href="/artist/theBrakes" />
+      <description>
+          Awesome, short, brutish, funny and loud. Must buy!
+      </description>
+      <link rel="/instantpurchase" href="/instantPurchase/1234" />
+    </album>
+
+In this document, we have two hypermedia controls. The client reading such a document needs to know that a control with a relation of artist is where it needs to navigate to get information about the artist, and that instantpurchase is part of the protocol used to purchase the album.
+
+As a client, I don’t need to know which URI scheme to access to buy the album, I just need to access the resource, find the buy control, and navigate to that. The buy control could change location, the URI could change, or the site could even send me to another service altogether, and as a client I wouldn’t care. **This gives us a huge amount of decoupling between the client and server.**
+
+One of the **downsides** is that **this navigation of controls can be quite chatty, as the client needs to follow links to find the operation it wants to perform.** Ultimately, this is a trade-off. I would suggest you **start with having your clients navigate these controls first, then optimize later if necessary.**
+
+### JSON, XML, or Something Else?
 
 
 
