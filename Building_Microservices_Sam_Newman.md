@@ -247,10 +247,49 @@ Another approach is to try to use HTTP as a way of propagating events. **ATOM** 
 
 ### Complexities of Asynchronous Architectures
 
+**Asynchronous architectures lead to an increase in complexity.** For example, when considering longrunning async request/response, we have to think about what to do when the response comes back. Does it come back to the same node that initiated the request? If so, what if that node is down?
 
+The associated complexity with event-driven architectures and asynchronous programming in general leads me to believe that you should be cautious in how eagerly you start adopting these ideas. **Ensure you have good monitoring in place, and strongly consider the use of correlation IDs, which allow you to trace requests across process boundaries.**
 
+### Services as State Machines
 
+Our *customer microservice* **owns** all logic associated with behavior in this context.
 
+When a consumer wants to change a customer, it sends an appropriate request to the customer service. The customer service, based on its logic, gets to decide if it accepts that request or not. **Our customer service controls all lifecycle events associated with the customer itself.** We want to avoid dumb, anemic services that are little more than CRUD wrappers. **If the decision about what changes are allowed to be made to a customer leak out of the customer service itself, we are losing cohesion.**
+
+### Reactive Extensions
+
+At its heart, Rx inverts traditional flows. Rather than asking for some data, then performing operations on it, you observe the outcome of an operation (or set of operations) and react when something changes.
+
+### DRY and the Perils of Code Reuse in a Microservice World
+
+Sometimes, however, the use of shared code can create this very coupling. For example, at one client we had a library of common domain objects that represented the core entities in use in our system. This library was used by all the services we had. But when a change was made to one of them, all services had to be updated. Our system communicated via message queues, which also had to be drained of their now invalid contents, and woe betide you if you forgot.
+
+### Client Libraries
+
+The argument is that this makes it easy to use your service, and avoids the duplication of code required to consume the service itself. The problem, of course, is that if the same people create both the server API and the client API, there is the danger that logic that should exist on the server starts leaking into the client.
+
+### Access by Reference
+
+Let’s consider the example where we ask the email service to send an email when an order has been shipped. Now we could send in the request to the email service with the customer’s email address, name, and order details. However, if the email service is actually queuing up these requests, or pulling them from a queue, things could change in the meantime. It might make more sense to just send a URI for the Customer and Order resources, and let the email server go look them up when it is time to send the email.
+
+## Versioning
+
+### Defer It for as Long as Possible
+
+The best way to reduce the impact of making breaking changes is to avoid making them in the first place.
+
+**Another key to deferring a breaking change is to encourage good behavior in your clients, and avoid them binding too tightly to your services in the first place.** Use as little as possible from the service, deserialize only what you require.
+
+### Catch Breaking Changes Early
+
+I am strongly in favor of using consumer-driven contracts.
+
+Once you realize you are going to break a consumer, you have the choice to either try to avoid the break altogether or else embrace it and start having the right conversations with the people looking after the consuming services.
+
+### Use Semantic Versioning
+
+**Semantic versioning is a specification that allows just that. With semantic versioning, each version number is in the form MAJOR.MINOR.PATCH.** When the MAJOR number increments, it means that backward incompatible changes have been made. When MINOR increments, new functionality has been added that should be backward compatible. Finally, a change to PATCH states that bug fixes have been made to existing functionality.
 
 
 
