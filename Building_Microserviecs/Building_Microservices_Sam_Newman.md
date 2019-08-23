@@ -329,10 +329,55 @@ A common solution to the problem of chatty interfaces with backend services, or 
 
 [API Gateway](API_Gateway.PNG)
 
-The problem that can occur is that normally we’ll have one giant layer for all our services. This leads to everything being thrown in together, and suddenly we start to lose isolation of our various user interfaces, limiting our ability to release them independently. **A model I prefer and that I’ve seen work well is to restrict the use of these backends to one specific user interface or application.**
+The problem that can occur is that normally we’ll have one giant layer for all our services. This leads to everything being thrown in together, and suddenly we start to lose isolation of our various user interfaces, limiting our ability to release them independently. 
+
+**A model I prefer and that I’ve seen work well is to restrict the use of these backends to one specific user interface or application.** This pattern is sometimes referred to as **backends for frontends (BFFs).**
+The danger with this approach is the same as with any aggregating layer; it can take on logic it shouldn’t. The business logic for the various capabilities these backends use should stay in the services themselves.
 
 [Back-end for front-end](BFF.PNG)
 
+## Summary
+
+* Avoid database integration at all costs.
+* Understand the trade-offs between REST and RPC, but strongly consider REST as a good starting point for request/response integration.
+* Prefer choreography over orchestration.
+* Avoid breaking changes and the need to version by understanding Postel’s Law and using tolerant readers.
+* Think of user interfaces as compositional layers.
+
+# CHAPTER 5. Splitting the Monolith
+
+## It’s All About Seams
+
+The problem with the monolith is that all too often it is the opposite of both. Rather than tend toward cohesion, and keep things together that tend to change together, we acquire and stick together all sorts of unrelated code. Likewise, loose coupling doesn’t really exist.
+
+In his book Working Effectively with Legacy Code (Prentice-Hall), Michael Feathers defines the concept of a ***seam* — that is, a portion of the code that can be treated in isolation and worked on without impacting the rest of the codebase.**
+
+Bounded contexts make excellent seams, because by definition they represent cohesive and yet loosely coupled boundaries in an organization.
+
+### Example: Breaking Foreign Key Relationships
+
+How do we fix things here? Well, we need to make a change in two places. First, we need to stop the finance code from reaching into the line item table, as this table really belongs to the catalog code, and we don’t want database integration happening once catalog and finance are services in their own rights. **The quickest way to address this is rather than having the code in finance reach into the line item table, we’ll expose the data via an API call in the catalog package that the finance code can call.**
+
+At this point it becomes clear that we may well end up having to make two database calls to generate the report. This is correct. And the same thing will happen if these are two separate services. Typically concerns around performance are now raised. **Sometimes making one thing slower in exchange for other things is the right thing to do, especially if slower is still perfectly acceptable.**
+
+But what about the foreign key relationship? Well, we lose this altogether. **This becomes a constraint we need to now manage in our resulting services rather than in the database level.** This may mean that we need to implement our own consistency check across services, or else trigger actions to clean up related data.
+
+### Staging the Break
+
+So we’ve found seams in our application code, grouping it around bounded contexts. We’ve used this to identify seams in the database, and we’ve done our best to split those out. What next? Do you do a big-bang release, going from one monolithic service with a single schema to two services, each with its own schema? I would actually recommend that you split out the schema but keep the service together before splitting the application code out into separate microservices.
+
+### Transactional Boundaries
+
+If we have pulled apart the schema into two separate schemas, one for customerrelated data including our order table, and another for the warehouse, we have lost this transactional safety. The order placing process now spans two separate transactional boundaries.
+
+Possible solutions:
+* **Try Again Later** - eventual consistency. Rather than using a transactional boundary to ensure that the system is in a consistent state when the transaction completes, instead we accept that the system will get itself into a consistent state at some point in the future.
+* **Abort the Entire Operation** - we have to do is issue a compensating transaction, kicking off a new transaction to wind back what just happened. For us, that could be something as simple as issuing a DELETE statement to remove the order from the database. Then we’d also need to report back via the UI that the operation failed. However, if we have not one or two operations we want to be consistent, but three, four, or five. Handling compensating transactions for each failure mode becomes quite challenging to comprehend, let alone implement.
+* **Distributed Transactions**
+
+### Distributed Transactions
+
+An alternative to manually orchestrating compensating transactions is to use a distributed transaction. Distributed transactions try to span multiple transactions within them, using some overall governing process called a transaction manager to orchestrate the various transactions being done by underlying systems.
 
 
 
