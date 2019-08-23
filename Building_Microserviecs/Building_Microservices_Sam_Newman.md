@@ -317,6 +317,23 @@ Assuming that our services already speak XML or JSON to each other via HTTP, an 
 
 [Direct API communication](Direct_API_communication.PNG)
 
+### UI Fragment Composition
+
+Rather than having our UI make API calls and map everything back to UI controls, we could have our services provide parts of the UI directly, and then just pull these fragments in to create a UI.
+
+[UI Fragment Composition](UI_Fragment_Composition.PNG)
+
+### Backends for Frontends
+
+A common solution to the problem of chatty interfaces with backend services, or the need to vary content for different types of devices, is to have a server-side aggregation endpoint, or API gateway.
+
+[API Gateway](API_Gateway.PNG)
+
+The problem that can occur is that normally we’ll have one giant layer for all our services. This leads to everything being thrown in together, and suddenly we start to lose isolation of our various user interfaces, limiting our ability to release them independently. **A model I prefer and that I’ve seen work well is to restrict the use of these backends to one specific user interface or application.**
+
+[Back-end for front-end](BFF.PNG)
+
+
 
 
 
