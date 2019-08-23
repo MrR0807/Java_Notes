@@ -291,10 +291,31 @@ Once you realize you are going to break a consumer, you have the choice to eithe
 
 **Semantic versioning is a specification that allows just that. With semantic versioning, each version number is in the form MAJOR.MINOR.PATCH.** When the MAJOR number increments, it means that backward incompatible changes have been made. When MINOR increments, new functionality has been added that should be backward compatible. Finally, a change to PATCH states that bug fixes have been made to existing functionality.
 
+### Coexist Different Endpoints
 
+If we want to release a breaking change, we deploy a new version of the service that exposes both the old and new versions of the endpoint.
 
+When I last used this approach, we had gotten ourselves into a bit of a mess with the number of consumers we had and the number of breaking changes we had made. This meant that we were actually coexisting three different versions of the endpoint.
+**To make this more manageable, we internally transformed all requests to the V1 endpoint to a V2 request, and then V2 requests to the V3 endpoint. This meant we could clearly delineate what code was going to be retired when the old endpoint(s) died.**
 
+For systems making use of HTTP, I have seen this done with both **version numbers in request headers and also in the URI itself—for example, /v1/customer/ or /v2/customer/.** I’m torn as to which approach makes the most sense.
 
+### Use Multiple Concurrent Service Versions
+
+Another versioning solution often cited is to have different versions of the service live at once, and for older consumers to route their traffic to the older version.
+
+Web Shop -> Old microservice -> Same_DB
+Admin -> New microservice -> Same_DB
+
+Coexisting concurrent service versions for a short period of time can make perfect sense, especially when you’re doing things like blue/green deployments or canary releases. The longer it takes for you to get consumers upgraded to the newer version and released, the more you should look to coexist different endpoints in the same microservice rather than coexist entirely different versions. I remain unconvinced that this work is worthwhile for the average project.
+
+## User Interfaces
+
+### API Composition
+
+Assuming that our services already speak XML or JSON to each other via HTTP, an obvious option available to us is to have our user interface interact directly with these APIs. A web-based UI could use JavaScript GET requests to retrieve data, or POST requests to change it.
+
+[Direct API communication](Direct_API_communication.PNG)
 
 
 
