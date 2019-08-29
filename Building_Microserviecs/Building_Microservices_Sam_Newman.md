@@ -536,7 +536,9 @@ Docker itself doesn’t solve all problems for us. **Think of it as a simple Paa
 
 ## Types of Tests
 
-First Header | Second Header
+
+Acceptance testing | Exploratory testing
+Did we build the right thing? Automated. | Usability; how can I break the system? Manual.
 ------------ | -------------
 Content from cell 1 | Content from cell 2
 Content in the first column | Content in the second column
