@@ -481,22 +481,65 @@ Downsides:
 * Attempting to do proper lifecycle management of applications on top of platforms like the JVM can be problematic, and more complex than simply restarting a JVM. Analyzing resource use and threads is also much more complex, as you have multiple applications sharing the same process;
 * This approach is again an attempt to optimize for scarcity of resources that simply may not hold up anymore.
 
+### Single Service Per Host
 
+Pros:
+* With a single-service-per-host model we avoid side effects of multiple hosts living on a single host, making monitoring and remediation much simpler. We have potentially reduced our single points of failure. 
+* We also can more easily scale one service independent from others, and deal with security concerns more easily by focusing our attention only on the service and host that requires it.
+* In my opinion, if you don’t have a viable PaaS available, then this model does a very good job of reducing a system’s overall complexity.
+Cons:
+* Potentially less efficient resource utilization.
+* We have more servers to manage.
 
+## From Physical to Virtual
 
+### Traditional Virtualization
 
+**Virtualization** allows us to slice up a physical server into separate hosts, each of which can run different things.
 
+**Slicing up the machine into ever increasing VMs isn’t free.** Think of our physical machine as a sock drawer. If we put lots of wooden dividers into our drawer, can we store more socks or fewer? The answer is fewer: **the dividers themselves take up room too!**
 
+### Vagrant
 
+Vagrant is a very useful deployment platform, which is normally used for dev and test rather than production.
+You can spin up multiple VMs at a time, shut individual ones to test failure modes, and have the VMs mapped through to local directories so you can make changes and see them reflected immediately.
+One of the downsides, though, is that running lots of VMs can tax the average development machine.
 
+### Linux Containers
 
+For Linux users, there is an alternative to virtualization. Rather than having a hypervisor to segment and control separate virtual hosts, Linux containers instead create a separate process space in which other processes live.
 
+Each container is effectively a subtree of the overall system process tree. These containers can have physical resources allocated to them, something the kernel handles for us.
 
+**First we don’t need a hypervisor.** Second, although each container can run its own operating system distribution, it has to share the same kernel (because the kernel is where the process tree lives). This means that our host operating system could run Ubuntu, and our containers CentOS, as long as they could both share the same kernel.
 
+We don’t just benefit from the resources saved by not needing a hypervisor. We also gain in terms of feedback. Linux containers are much faster to provision than full-fat virtual machines.
 
+**Linux containers aren’t without some problems:**
+* Imagine I have lots of microservices running in their own containers on a host. How does the outside world see them? You need some way to route the outside world through to the underlying containers, something many of the hypervisors do for you with normal virtualization. I’ve seen many a person sink inordinate amounts of time into configuring port forwarding using IPTables to expose containers directly. 
+* These containers cannot be considered completely sealed from each other. There are many documented and known ways in which a process from one container can bust out and interact with other containers or the underlying host.
 
+### Docker
 
+Docker is a platform built on top of lightweight containers. Docker manages the container provisioning, handles some of the networking problems for you, and even provides its own registry concept that allows you to store and version Docker applications.
 
+Docker can also alleviate some of the downsides of running lots of services locally for dev and test purposes. **Rather than using Vagrant to host multiple independent VMs, each one containing its own service, we can host a single VM in Vagrant that runs a Docker instance. We then use Vagrant to set up and tear down the Docker platform itself, and use Docker for fast provisioning of individual services.**
+
+Docker itself doesn’t solve all problems for us. **Think of it as a simple PaaS that works on a single machine.** If you want tools to help you manage services across multiple Docker instances across multiple machines, you’ll need to look at other software that adds these capabilities. There is a key need for a scheduling layer that lets you request a container and then finds a Docker container that can run it for you. In this space, Google’s recently open sourced Kubernetes.
+
+### Summary
+
+* Focus on maintaining the ability to release one service independently from another.
+* Move to a single-service per host/container
+
+# CHAPTER 7 Testing
+
+## Types of Tests
+
+First Header | Second Header
+------------ | -------------
+Content from cell 1 | Content from cell 2
+Content in the first column | Content in the second column
 
 
 
