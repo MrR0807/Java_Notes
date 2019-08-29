@@ -536,12 +536,24 @@ Docker itself doesn’t solve all problems for us. **Think of it as a simple Paa
 
 ## Types of Tests
 
+### Unit Tests
 
-Acceptance testing | Exploratory testing
-Did we build the right thing? Automated. | Usability; how can I break the system? Manual.
------------- | -------------
-Content from cell 1 | Content from cell 2
-Content in the first column | Content in the second column
+We’re not launching services here, and are limiting the use of external files or network connections. The prime goal of these tests is to give us very fast feedback about whether our functionality is good.
+
+### Service Tests
+
+Service tests are designed to bypass the user interface and test services directly. In a monolithic application, we might just be testing a collection of classes that provide a service to the UI. For a system comprising a number of services, a service test would test an individual service’s capabilities.
+
+The reason we want to test a single service by itself is to improve the isolation of the test to make finding and fixing problems faster. To achieve this isolation, we need to stub out all external collaborators so only the service itself is in scope.
+
+### End-to-End Tests
+
+Often they will be driving a GUI through a browser, but could easily be mimicking other sorts of user interaction, like uploading a file.
+
+### Implementing Service Tests
+
+Our service tests want to test a slice of functionality across the whole service, but to isolate ourselves from other services we need to find some way to stub out all of our collaborators.
+
 
 
 
