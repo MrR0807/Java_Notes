@@ -554,6 +554,67 @@ Often they will be driving a GUI through a browser, but could easily be mimickin
 
 Our service tests want to test a slice of functionality across the whole service, but to isolate ourselves from other services we need to find some way to stub out all of our collaborators.
 
+### Mocking or Stubbing
+
+When I talk about stubbing downstream collaborators, I mean that we create a stub service that responds with canned responses to known requests from the service under test. For example, I might tell my stub points bank that when asked for the balance of customer 123, it should return 15,000.
+
+Mocks can be very useful to ensure that the expected side effects happen. For example, I might want to check that when I create a customer, a new points balance is set up for that customer.
+
+### A Smarter Stub Service
+
+Normally for stub services I’ve rolled them myself. I’ve used everything from Apache or Nginx to embedded Jetty containers. 
+
+### Those Tricky End-to-End Tests
+
+To implement an end-to-end test we need to deploy multiple services together, then run a test against all of them. Obviously, this test has much more scope, resulting in more confidence that our system works! On the other hand, these tests are liable to be slower and make it harder to diagnose failure.
+
+Cons:
+* Against which other services' versions to test? What if there are more new ones?
+* There could be a lot of overlaping (indirectional calls). Some services might call other services and thus then those services create their on end-to-end test they might test the same calls.
+* More moving parts. Some services might not be up, and test fails, but for a wrong reason.
+
+If you have tests that **sometimes fail**, but everyone just re-runs them because they may pass again later, then you have flaky tests.
+
+**End-to-end tests makes sense for a small amount of services. But once you have to deploy >5 services just to make sure that tests pass, its going to be a pain.**
+
+### Consumer-Driven Tests to the Rescue
+
+What is one of the key problems we are trying to address when we use the integration tests outlined previously? **We are trying to ensure that when we deploy a new service to production, our changes won’t break consumers.**
+
+One way we can do this without requiring testing against the real consumer is by using a **consumer-driven contract (CDC).**
+
+Example. The customer service has two separate consumers: the helpdesk and web shop. Both these consuming services have expectations for how the customer service will behave. In this example, you create two sets of tests: one for each consumer representing the helpdesk’s and web shop’s use of the customer service. A good practice here is to have someone from the producer and consumer teams collaborate on creating the tests, so perhaps people from the web shop and helpdesk teams pair with people from the customer service team.
+
+Because these **CDCs are expectations on how the customer service should behave, they can be run against the customer service by itself** with any of its downstream dependencies stubbed out.
+
+These tests are focused on how a consumer will use the service, and the trigger if they break is very different when compared with service tests. If one of these CDCs breaks during a build of the customer service, it becomes obvious which consumer would be impacted. At this point, you can either fix the problem or else start the discussion about introducing a breaking change.
+
+### Pact
+
+Pact is a consumer-driven testing tool. 
+
+**How Pact works?**
+
+The consumer starts by defining the expectations of the producer using a Ruby DSL. Then, you launch a local mock server, and run this expectation against it to create the Pact specification file. The Pact file is just a formal JSON specification; you could obviously handcode these, but using the language API is much easier. This also gives you a running mock server that can be used for further isolated tests of the consumer.
+
+On the producer side, you then verify that this consumer specification is met by using the JSON Pact specification to drive calls against your API and verify responses. For this to work, the producer codebase needs access to the Pact file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
