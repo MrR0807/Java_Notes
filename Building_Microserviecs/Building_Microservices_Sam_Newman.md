@@ -5,7 +5,7 @@ The question I am often asked is how small is small? A microservice as something
 ### Autonomous
 
 All communication between the services themselves are via network calls, to enforce separation between the services and avoid the perils of tight coupling.
-The **golden rule: can you make a change to a service and deploy it by itself without changing anything else?** If the answer is no, then many of the advantages we discuss throughout this book will be hard for you to achieve. **To do decoupling well, you’ll need to model your services right and get the APIs right. I’ll be talking about that a lot.**
+The **golden rule: can you make a change to a service and deploy it by itself without changing anything else?** If the answer is no, then many of the advantages we discuss throughout this book will be hard for you to achieve. **To do decoupling well, you’ll need to model your services right and get the APIs right.**
 
 ### Resilience
 
