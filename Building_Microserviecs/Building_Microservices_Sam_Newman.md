@@ -599,6 +599,8 @@ The consumer starts by defining the expectations of the producer using a Ruby DS
 
 On the producer side, you then verify that this consumer specification is met by using the JSON Pact specification to drive calls against your API and verify responses. For this to work, the producer codebase needs access to the Pact file.
 
+As the JSON Pact specification is created by the consumer, this needs to become an artifact that the producer build has access to. You could store this in your CI/CD tool’s artifact repository, or else use the Pact Broker, which allows you to store multiple versions of your Pact specifications.
+
 
 
 
