@@ -601,7 +601,35 @@ On the producer side, you then verify that this consumer specification is met by
 
 As the JSON Pact specification is created by the consumer, this needs to become an artifact that the producer build has access to. You could store this in your CI/CD tool’s artifact repository, or else use the Pact Broker, which allows you to store multiple versions of your Pact specifications.
 
+### It’s About Conversations
 
+It is important to understand that **CDCs require good communication and trust between the consumer and producing service.** If both parties are in the same team (or the same person!), then this shouldn’t be hard. However, if you are consuming a service provided with a **third party, you may not have the frequency of communication, or trust, to make CDCs work. In these situations, you may have to make do with limited larger-scoped integration tests just around the untrusted component.** Alternatively, if you are **creating an API for thousands of potential consumers, such as with a publicly available web service API, you may have to play the role of the consumer yourself.**
+
+### So Should You Use End-to-End Tests?
+
+You can view running end-to-end tests prior to production deployment as training wheels. While you are learning how CDCs work, and improving your production monitoring and deployment techniques, these end-to-end tests may form a useful safety net, where you are trading off cycle time for decreased risk. But as you improve those other areas, you can start to reduce your reliance on end-to-end tests to the point where they are no longer needed.
+
+### Smoke Tests
+
+Smoke test suite - a collection of tests designed to be run against newly deployed software to confirm that the deployment worked. A simple integration test where we just check that when the system under test is invoked it returns normally and does not blow up.
+
+### Blue/Green Deployment
+
+With blue/green, we have two copies of our software deployed at a time, but only one version of it is receiving real requests.
+
+In production, we have v123 of the customer service live. We want to deploy a new version, v456. We deploy this alongside v123, but do not direct any traffic to it. Instead, we perform some testing in situ against the newly deployed version. Once the tests have worked, we direct the production load to the new v456 version of the customer service.
+
+### Canary Releasing
+
+**With canary releasing, we are verifying our newly deployed software by directing amounts of production traffic against the system to see if it performs as expected.** “Performing as expected” can cover a number of things, both functional and nonfunctional. For example, we could check that a newly deployed service is responding to requests within 500ms, or that we see the same proportional error rates from the new and the old service.
+
+If the new release is bad, you get to revert quickly. If it is good, you can push increasing amounts of traffic through the new version. **Canary releasing differs from blue/green in that you can expect versions to coexist for longer, and you’ll often vary the amounts of traffic.**
+
+Canary releasing is a powerful technique, and can help you verify new versions of your software with real traffic, while giving you tools to manage the risk of pushing out a bad release. It does require a more complex setup, however, than blue/green deployment, and a bit more thought. You could expect to coexist different versions of your services for longer than with blue/green, so you may be tying up more hardware for longer than before. You’ll also need more sophisticated traffic routing, as you may want to ramp up or down the percentages of the traffic to get more confidence that your release works.
+
+## Cross-Functional Testing (Nonfunctional Requirements)
+
+### Performance Tests
 
 
 
