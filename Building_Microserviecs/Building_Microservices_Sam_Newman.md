@@ -631,6 +631,18 @@ Canary releasing is a powerful technique, and can help you verify new versions o
 
 ### Performance Tests
 
+When decomposing systems into smaller microservices, we increase the number of calls that will be made across network boundaries. Where previously an operation might have involved one database call, it may now involve three or four calls across network boundaries to other services, with a matching number of database calls.
+
+Start with tests that check core journeys in your system. You may be able to take end-to-end journey tests and simply run these at volume.
+
+## Summary
+
+* Optimize for fast feedback, and separate types of tests accordingly.
+* Avoid the need for end-to-end tests wherever possible by using consumer-driven contracts.
+* Use consumer-driven contracts to provide focus points for conversations between teams.
+
+# Chapter 8. Monitoring
+
 
 
 
