@@ -704,6 +704,32 @@ For the system:
 
 # CHAPTER 9 Security
 
+### Common Single Sign-On Implementations
+
+A common approach to authentication and authorization is to use some sort of single sign-on (SSO) solution. **SAML**, which is the reigning implementation in the enterprise space, and **OpenID Connect** both provide capabilities in this area. More or less they use the same core concepts, although the terminology differs slightly.
+
+When a principal tries to access a resource (like a web-based interface), she is directed to authenticate with an ***identity provider***. This may ask her to provide a username and password, or might use something more advanced like two-factor authentication. Once the identity provider is satisfied that the principal has been authenticated, it gives information to the ***service provider***, allowing it to decide whether to grant her access to the resource.
+
+This ***identity provider*** could be an externally hosted system, or something inside your own organization. Google, for example, provides an OpenID Connect identity provider. For enterprises, though, it is common to have your own identity provider, which may be linked to your company’s directory service. A directory service could be something like the **Lightweight Directory Access Protocol (LDAP)** or **Active Directory.**
+
+**SAML is a SOAP-based standard.**
+
+**OpenID Connect is a standard that has emerged as a specific implementation of OAuth 2.0, based on the way Google and others handle SSO.**
+
+### Single Sign-On Gateway
+
+Rather than having each service manage handshaking with your identity provider, you can use a gateway to act as a proxy, sitting between your services and the outside world. [SSO_Gateway](SSO_Gateway.PNG).
+
+
+
+
+
+
+
+
+
+
+
 
 
 
