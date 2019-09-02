@@ -718,7 +718,9 @@ This ***identity provider*** could be an externally hosted system, or something 
 
 ### Single Sign-On Gateway
 
-Rather than having each service manage handshaking with your identity provider, you can use a gateway to act as a proxy, sitting between your services and the outside world. [SSO_Gateway](SSO_Gateway.PNG).
+Rather than having each service manage handshaking with your identity provider, you can use a gateway to act as a proxy, sitting between your services and the outside world - [SSO_Gateway](SSO_Gateway.PNG).
+
+
 
 
 
