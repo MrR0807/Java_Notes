@@ -527,7 +527,7 @@ Docker can also alleviate some of the downsides of running lots of services loca
 
 Docker itself doesn’t solve all problems for us. **Think of it as a simple PaaS that works on a single machine.** If you want tools to help you manage services across multiple Docker instances across multiple machines, you’ll need to look at other software that adds these capabilities. There is a key need for a scheduling layer that lets you request a container and then finds a Docker container that can run it for you. In this space, Google’s recently open sourced Kubernetes.
 
-### Summary
+## Summary
 
 * Focus on maintaining the ability to release one service independently from another.
 * Move to a single-service per host/container
@@ -643,13 +643,66 @@ Start with tests that check core journeys in your system. You may be able to tak
 
 # Chapter 8. Monitoring
 
+Breaking system up into smaller, fine-grained microservices results in multiple benefits. It also, however, **adds complexity when it comes to monitoring the system in production.**
 
+* Logs (Kibana, logstash)
+* Gather CPU metrics
 
+### Service Metrics
 
+**I would strongly suggest having your services expose basic metrics themselves. At a bare minimum, for a web service you should probably expose metrics like response times and error rates** - vital if your server isn’t fronted by a web server that is doing this for you. 
 
+But you should really go further. For example, our accounts service may want to expose the number of times customers view their past orders, or your web shop might want to capture how much money has been made during the last day. Why do we care about this? Well, for a number of reasons. First, there is an old adage that 80% of software features are never used.
 
+Second, we are getting better than ever at reacting to how our users are using our system to work out how to improve it. Metrics that inform us of how our systems behave can only help us here.
 
+**I tend to err toward exposing everything and relying on my metrics system to handle this later.**
 
+### Synthetic Monitoring
+
+We can try to work out if a service is healthy by, for example, deciding what a good CPU level is, or what makes for an acceptable response time. Sometimes systems cannot generate enough events to have a determed good average/base point. The solution - generate fake events to help gather enough statistics.
+
+### Correlation IDs
+
+One approach that can be useful here is to use correlation IDs. When the first call is made, you generate a GUID for the call. This is then passed along to all subsequent calls and can be put into your logs in a structured way, much as you’ll already do with components like the log level or date. With the right log aggregation tooling, you’ll then be able to trace that event all the way through your system:
+
+    15-02-2014 16:01:01 Web-Frontend INFO [abc-123] Register
+    15-02-2014 16:01:02 RegisterService INFO [abc-123] RegisterCustomer ...
+    15-02-2014 16:01:03 PostalSystem INFO [abc-123] SendWelcomePack ...
+    15-02-2014 16:01:03 EmailSystem INFO [abc-123] SendWelcomeEmail ...
+    15-02-2014 16:01:03 PaymentGateway ERROR [abc-123] ValidatePayment ...
+
+Software such as Zipkin can also trace calls across multiple system boundaries. Based on the ideas from Google’s own tracing system, Dapper, Zipkin can provide very detailed tracing of interservice calls, along with a UI to help present the data.
+
+### The Cascade
+
+Cascading failures can be especially perilous. Imagine a situation where the network connection between our music shop website and the catalog service goes down. The services themselves appear healthy, but they can’t talk to each other.
+
+Therefore, monitoring the integration points between systems is key. Each service instance should track and expose the health of its downstream dependencies, from the database to other collaborating services. You should also allow this information to be aggregated to give you a rolled-up picture. You’ll want to see the response time of the downstream calls, and also detect if it is erroring.
+
+### Standardization
+
+In my opinion, monitoring is one area where standardization is incredibly important. With services collaborating in lots of different ways to provide capabilities to users using multiple interfaces, you need to view the system in a holistic way.
+
+## Summary
+
+For each service:
+* Track inbound response time at a bare minimum. Once you’ve done that, follow with error rates and then start working on application-level metrics.
+* Track the health of all downstream responses, at a bare minimum including the response time of downstream calls, and at best tracking error rates. Libraries like Hystrix can help here.
+* Standardize on how and where metrics are collected.
+* Log into a standard location, in a standard format if possible. Aggregation is a pain if every service uses a different layout!
+* Monitor the underlying operating system so you can track down rogue processes and do capacity planning.
+
+For the system:
+* Aggregate host-level metrics like CPU together with application-level metrics.
+* Ensure your metric storage tool allows for aggregation at a system or service level, and drill down to individual hosts.
+* Ensure your metric storage tool allows you to maintain data long enough to understand trends in your system.
+* Have a single, queryable tool for aggregating and storing logs.
+* Strongly consider standardizing on the use of correlation IDs.
+* Understand what requires a call to action, and structure alerting and dashboards accordingly.
+* Investigate the possibility of unifying how you aggregate all of your various metrics by seeing if a tool like Suro or Riemann makes sense for you.
+
+# CHAPTER 9 Security
 
 
 
