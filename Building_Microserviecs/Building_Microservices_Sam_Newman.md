@@ -746,6 +746,66 @@ The server needs to manage its own SSL certificates, which can become problemati
 
 If you are already using SAML or OpenID Connect as your authentication and authorization scheme, you could just use that for service-to-service interactions too. If you’re using a gateway, you’ll need to route all in-network traffic via the gateway too.
 
+This does mean you’ll need an account for your clients, sometimes referred to as a service account. Many organizations use this approach quite commonly. A word of warning, though: if you are going to create service accounts, try to keep their use narrow. **So consider each microservice having its own set of credentials.**
+
+There are a couple of other downsides:
+* Just as with Basic Auth, we need to securely store our credentials: where do the username and password live? 
+* The other problem is that some of the technology in this space to do the authentication is fairly tedious to code for. SAML, in particular, makes implementing a client a painful affair. OpenID Connect has a simpler workflow, but as we discussed earlier it isn’t that well supported yet.
+
+### Client Certificates
+
+Here, each client has an X.509 certificate installed that is used to establish a link between client and server. The server can verify the authenticity of the client certificate, providing strong guarantees that the client is valid.
+
+The operational challenges here in certificate management are even more onerous than with just using server-side certificates.
+
+It isn’t just some of the basic issues of **creating and managing a greater number of certificates**; rather, it’s that with all the **complexities around the certificates themselves**, you can expect to spend a lot of time trying to diagnose why a service won’t accept what you believe to be a completely valid client certificate. And then we have to consider the **difficulty of revoking and reissuing certificates** should the worst happen.
+
+### HMAC Over HTTP
+
+Hash-based messaging code (HMAC). 
+
+With HMAC the body request along with a private key is hashed, and the resulting hash is sent along with the request. The server then uses its own copy of the private key and the request body to re-create the hash. If it matches, it allows the request. The added benefit is that this traffic can then more easily be cached.
+
+There are three downsides to this approach:
+* First, both the client and server need a shared secret that needs to be communicated somehow.
+* Second, this is a pattern, not a standard, and thus there are divergent ways of implementing it. JSON web tokens (JWT) are also worth looking at, as they implement a very similar approach and seem to be gaining traction.
+* Finally, understand that this approach ensures only that no third party has manipulated the request and that the private key itself remains private. The rest of the data in the request will still be visible to parties snooping on the network.
+
+### API Keys
+
+API keys allow a service to identify who is making a call, and place limits on what they can do. Often the limits go beyond simply giving access to a resource, and can extend to actions like rate-limiting specific callers to protect quality of service for other people.
+
+Part of their popularity stems from the fact that API keys are focused on ease of use for programs. Compared to handling a SAML handshake, API key–based authentication is much simpler and more straightforward.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
