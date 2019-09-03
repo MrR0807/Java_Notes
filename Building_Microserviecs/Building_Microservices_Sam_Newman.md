@@ -718,13 +718,33 @@ This ***identity provider*** could be an externally hosted system, or something 
 
 ### Single Sign-On Gateway
 
-Rather than having each service manage handshaking with your identity provider, you can use a gateway to act as a proxy, sitting between your services and the outside world - [SSO_Gateway](SSO_Gateway.PNG).
+Rather than having each service manage handshaking with your identity provider, you can use a gateway to act as a proxy, sitting between your services and the outside world - [SSO_Gateway](SSO_Gateway.PNG). The idea is that we can centralize the behavior for redirecting the user and perform the handshake in only one place.
 
+However, we still need to solve the problem of how the downstream service receives information about principals, such as their username or what roles they play. If you’re using HTTP, it could populate headers with this information.
 
+Another problem is that if we have decided to offload responsibility for authentication to a gateway, it can be harder to reason about how a microservice behaves when looking at it in isolation. If you go the gateway route, make sure your developers can launch their services behind one without too much work.
 
+## Service-to-Service Authentication and Authorization
 
+Up to this point we’ve been using the term principal to describe anything that can authenticate and be authorized to do things, but our examples have actually been about humans using computers. But what about programs, or other services, authenticating with each other?
 
+### Allow Everything Inside the Perimeter
 
+Our first option could be to just assume that any calls to a service made from inside our perimeter are implicitly trusted.
+
+For most of the organizations I see using this model, I worry that the implicit trust model is not a conscious decision, but more that people are unaware of the risks in the first place.
+
+### HTTP(S) Basic Authentication
+
+HTTP Basic Authentication allows for a client to send a username and password in a standard HTTP header. The problem is that doing this over HTTP is highly problematic, as the username and password are not sent in a secure manner. Thus, HTTP Basic Authentication should normally be used over HTTPS. 
+
+The server needs to manage its own SSL certificates, which can become problematic when it is managing multiple machines. Some organizations take on their own certificate issuing process, which is an additional administrative and operational burden.
+
+**Another downside is that traffic sent via SSL cannot be cached by reverse proxies like Varnish or Squid. This means that if you need to cache traffic, it will have to be done either inside the server or inside the client.**
+
+### Use SAML or OpenID Connect
+
+If you are already using SAML or OpenID Connect as your authentication and authorization scheme, you could just use that for service-to-service interactions too. If you’re using a gateway, you’ll need to route all in-network traffic via the gateway too.
 
 
 
