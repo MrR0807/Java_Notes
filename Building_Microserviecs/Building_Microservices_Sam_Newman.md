@@ -777,12 +777,87 @@ API keys allow a service to identify who is making a call, and place limits on w
 
 Part of their popularity stems from the fact that API keys are focused on ease of use for programs. Compared to handling a SAML handshake, API key–based authentication is much simpler and more straightforward.
 
+### The Deputy Problem
 
+Having a principal authenticate with a given microserservice is simple enough. But what happens if that service then needs to make additional calls to complete an operation? When I am logged in, I can click on a link to view details of an order. To display the information, we need to pull back the original order from the order service, but we also want to look up shipping information for the order. So clicking the link to /orderStatus/12345 causes the online shop to initiate a call from the online shop service to both the order service and shipping service asking for those details. But should these downstream services accept the calls from the online shop?
 
+There is a type of vulnerability called the confused deputy problem, which in the context of service-to-service communication refers to a situation where a malicious party can trick a deputy service into making calls to a downstream service on his behalf that he shouldn’t be able to. For example, as a customer, when I log in to the online shopping system, I can see my account details. What if I could trick the online shopping UI into making a request for someone else’s details, maybe by making a call with my logged-in credentials?
 
+### Securing Data at Rest
 
+Everything should be encrypted can simplify things somewhat. There is no guesswork about what should or should not be protected. However, you’ll still need to think about what data can be put into logfiles to help problem identification, and the computational overhead of encrypting everything can become pretty onerous, needing more powerful hardware as a result.
 
+# CHAPTER 11 Microservices at Scale
 
+### Failure Is Everywhere
+
+Baking in the assumption that everything can and will fail leads you to think differently about how you solve problems. At scale, even if you buy the best kit, the most expensive hardware, you cannot avoid the fact that things can and will fail.
+
+### How Much Is Too Much?
+
+Knowing how much failure you can tolerate, or how fast your system needs to be, is driven by the users of your system.
+Having an autoscaling system capable of reacting to increased load or failure of individual nodes might be fantastic, but could be overkill for a reporting system that only needs to run twice a month, where being down for a day or two isn’t that big of a deal.
+When it comes to considering if and how to scale out your system to better handle load or failure, start by trying to understand the following requirements:
+* **Response time/latency.** How long should various operations take?
+* **Availability.** Can you expect a service to be down? Is this considered a 24/7 service?
+* **Durability of data.** How much data loss is acceptable? How long should data be kept for?
+
+### Degrading Functionality
+
+An essential part of building a resilient system, especially when your functionality is spread over a number of different microservices that may be up or down, is the ability **to safely degrade functionality**.
+
+Let’s imagine a standard web page on our ecommerce site. To pull together the various parts of that website, we might need several microservices to play a part. One microservice might display the details about the album being offered for sale. Another might show the price and stock level. And we’ll probably be showing shopping cart contents too, which may be yet another microservice. Now if one of those services is down, and that results in the whole web page being unavailable, then we have arguably made a system that is less resilient than one that requires only one service to be available.
+
+What we need to do is understand the impact of each outage, and work out how to properly degrade functionality. If the shopping cart service is unavailable, we’re probably in a lot of trouble, but we could still show the web page with the listing. Perhaps we just hide the shopping cart or replace it with an icon saying “Be Back Soon!”
+
+### The Antifragile Organization
+
+Netflix goes beyond that by actually inciting failure to ensure that its systems are tolerant of it. Netflix Simian Army:
+* **Chaos Monkey** - during certain hours of the day will turn off random machines.
+* **Chaos Gorilla** - is used to take out an entire availability center.
+* **Latency Monkey** - simulates slow network connectivity between machines.
+
+### Timeouts
+
+Timeouts are something it is easy to overlook, but in a downstream system they are important to get right. How long can I wait before I can consider a downstream system to actually be down?
+
+Wait too long to decide that a call has failed, and you can slow the whole system down. Time out too quickly, and you’ll consider a call that might have worked as failed. Have no timeouts at all, and a downstream system being down could hang your whole system.
+
+### Circuit Breakers
+
+A circuit breaker, after a certain number of requests to the downstream resource have failed, the circuit breaker is blown. All further requests fail fast while the circuit breaker is in its blown state. After a certain period of time, the client sends a few requests through to see if the downstream service has recovered, and if it gets enough healthy responses it resets the circuit breaker.
+
+How you implement a circuit breaker depends on what a failed request means, but when I’ve implemented them for HTTP connections I’ve taken failure to mean either a timeout or a 5XX HTTP return code. In this way, when a downstream resource is down, or timing out, or returning errors, after a certain threshold is reached we automatically stop sending traffic and start failing fast. And we can automatically start again when things are healthy.
+
+### Bulkheads
+
+In shipping, a bulkhead is a part of the ship that can be sealed off to protect the rest of the ship. So if the ship springs a leak, you can close the bulkhead doors. You lose part of the ship, but the rest of it remains intact.
+
+In software architecture terms, there are lots of different bulkheads we can consider. Returning to my own experience, we actually missed the chance to implement a bulkhead. We should have used different connection pools for each downstream connection. That way, if one connection pool gets exhausted, the other connections aren’t impacted.
+
+In many ways, bulkheads are the most important of these three patterns. Timeouts and circuit breakers help you free up resources when they are becoming constrained, but bulkheads can ensure they don’t become constrained in the first place. Hystrix allows you, for example, to implement bulkheads that actually reject requests in certain conditions to ensure that resources don’t become even more saturated; this is known as *load shedding*.
+
+### Idempotency
+
+This is very useful when we want to replay messages that we aren’t sure have been processed, a common way of recovering from error.
+Not idempotent:
+
+    <credit>
+        <amount>100</amount>
+        <forAccount>1234</account>
+    </credit>
+
+Idempotent:
+
+    <credit>
+        <amount>100</amount>
+        <forAccount>1234</account>
+        <reason>
+            <forPurchase>4567</forPurchase>
+        </reason>
+    </credit>
+
+This mechanism works just as well with event-based collaboration, and can be especially useful if you have multiple instances of the same type of service subscribing to events. **Even if we store which events have been processed, with some forms of asynchronous message delivery there may be small windows where two workers can see the same message. By processing the events in an idempotent manner, we ensure this won’t cause us any issues.**
 
 
 
