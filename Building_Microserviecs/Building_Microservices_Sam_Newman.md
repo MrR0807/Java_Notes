@@ -877,8 +877,141 @@ Another common form of separation to reduce failure is to ensure that not all yo
 
 ### Load Balancing
 
-When you need your service to be resilient, you want to avoid single points of failure. For a typical microservice that exposes a synchronous HTTP endpoint, **the siest way to achieve this is to have multiple hosts running your microservice instance, sitting ehind a load balancer.
+When you need your service to be resilient, you want to avoid single points of failure. For a typical microservice that exposes a synchronous HTTP endpoint, **the easiest way to achieve this is to have multiple hosts running your microservice instance, sitting behind a load balancer.
 
+Load balancer distribute calls sent to them to one or more instances based on some algorithm, remove instances when they are no longer healthy, and hopefully add them back in when they are.
+
+### Worker-Based Systems
+
+Load balancing isn’t the only way to have multiple instances of your service share load and reduce fragility. Depending on the nature of the operations, a worker-based system could be just as effective. **Here, a collection of instances all work on some shared backlog of work.** This could be a number of Hadoop processes, or perhaps a number of listeners to a shared queue of work.
+
+The model also works well for peaky load, where you can spin up additional instances on demand to match the load coming in. As long as the work queue itself is resilient, this model can be used to scale both for improved throughput of work, but also for improved resiliency.
+
+### Starting Again
+
+You should design for ~10x growth, but plan to rewrite before ~100x. At certain points, you need to do something pretty radical to support the next level of growth.
+
+At the start of a new project, we often don’t know exactly what we want to build, nor do we know if it will be successful. We need to be able to rapidly experiment, and understand what capabilities we need to build. If we tried building for massive scale up front, we’d end up front-loading a huge amount of work to prepare for load that may never come, while diverting effort away from more important activities, like understanding if anyone will want to actually use our product.
+
+## Scaling Databases
+
+### Availability of Service Versus Durability of Data
+
+It is important to separate the concept of availability of the service from the durability of the data itself.
+
+For example, I could store a copy of all data written to my database in a resilient filesystem. If the database goes down, my data isn’t lost, as I have a copy, but the database itself isn’t available, which may make my microservice unavailable too.
+
+### Scaling for Reads
+
+Many services are read-mostly. Scaling for reads is much easier than scaling for writes:
+- Caching of data
+- Use read replicas
+
+The replication from the primary database to the replicas happens at some point after the write. This means that with this technique reads **may sometimes see stale data until the replication has completed.** Eventually the reads will see the consistent data. Such a setup is called **eventually consistent**, and if you can handle the temporary inconsistency it is a fairly easy and common way to help scale systems.
+
+Years ago, using read replicas to scale was all the rage, although nowadays I would suggest you look to caching first, as it can deliver much more significant improvements in performance, often with less work.
+
+### Scaling for Writes
+
+One approach is to use **sharding.** With sharding, you have multiple database nodes. You take a piece of data to be written, apply some hashing function to the key of the data, and based on the result of the function learn where to send the data. To pick a very simplistic (and actually bad) example, imagine that customer records A–M go to one database instance, and N–Z another. You can manage this yourself in your application, but some databases, like Mongo, handle much of it for you.
+
+**The complexity with sharding for writes comes from handling queries.** Looking up an individual record is easy, as I can just apply the hashing function to find which instance the data should be on, and then retrieve it from the correct shard. But what about queries that span the data in multiple nodes.
+
+If you want to query all shards, you either need to query each individual shard and join in memory, or have an alternative read store where both data sets are available. Mongo uses map/reduce jobs, for example, to perform these queries.
+
+**One of the questions that emerges with sharded systems is, what happens if I want to add an extra database node?** In the past, this would often require significant downtime - especially for large clusters—as you might have to take the entire database down and rebalance the data. More recently, more systems support adding extra shards to a live system, where the rebalancing of data happens in the background; Cassandra, for example, handles this very well. **Adding shards to an existing cluster isn’t for the faint of heart, though, so make sure you test this thoroughly.**
+
+Sharding for writes may scale for write volume, but may not improve resiliency. If customer records A–M always go to Instance X, and Instance X is unavailable, access to records A–M can be lost.
+
+**Scaling databases for writes are where things get very tricky, and where the capabilities of the various databases really start to become differentiated.**
+
+### Shared Database Infrastructure
+
+Some types of databases, such as the traditional RDBMS, separate the concept of the database itself and the schema. This means one running database could host multiple, independent schemas, one for each microservice. This can be very useful in terms of reducing the number of machines we need to run our system, but we are introducing a significant single point of failure.
+
+## Caching
+
+The reason that HTTP scales so well in handling large numbers of requests is that the concept of caching is built in.
+
+### Client-Side, Proxy, and Server-Side Caching
+
+**Client-side caching**
+
+In **client-side caching**, the client stores the cached result. The client gets to decide when (and if) it goes and retrieves a fresh copy. Ideally, the downstream service will provide hints to help the client understand what to do with the response, so it knows when and if to make a new request.
+Clientside caching can help reduce network calls drastically, and can be one of the fastest ways of reducing load on a downstream service.
+Invalidation of stale data can also be trickier.
+
+**Proxy caching**
+
+With **proxy caching**, a proxy is placed between the client and the server. A great example of this is using a reverse proxy or content delivery network (CDN). 
+
+With proxy caching, everything is opaque to both the client and server. This is often a very simple way to add caching to an existing system. If the proxy is designed to cache generic traffic, it can also cache more than one service; a common example is a reverse proxy
+
+**Server-side caching**
+
+With **server-side caching**, the server handles caching responsibility, perhaps making use of a system like Redis or Memcache, or even a simple in-memory cache.
+
+With server-side caching, everything is opaque to the clients; they don’t need to worry about anything. With a cache near or inside a service boundary, it can be **easier to reason about things like invalidation of data, or track and optimize cache hits. In a situation where you have multiple types of clients, a server-side cache could be the fastest way to improve performance.**
+
+### Caching in HTTP
+
+First, with HTTP, we can use cache-control directives in our responses to clients. These tell clients if they should cache the resource at all, and if so how long they should cache it for in seconds. We also have the option of setting an Expires header, where instead of saying how long a piece of content can be cached for, we specify a time and date at which a resource should be considered stale and fetched again. The nature of the resources you are sharing determines which one is most likely to fit. Standard static website content like CSS or images often fit well with a simple cachecontrol time to live (TTL). On the other hand, if you know in advance when a new version of a resource will be updated, setting an Expires header will make more sense. All of this is very useful in stopping a client from even needing to make a request to the server in the first place.
+
+Aside from cache-control and Expires, we have another option in our arsenal of HTTP goodies: **Entity Tags, or ETags**. An ETag is used to determine if the value of a resource has changed. If I update a customer record, the URI to the resource is the same, but the value is different, so I would expect the ETag to change. This becomes powerful when we’re using what is called a conditional GET. When making a GET request, we can specify additional headers, telling the service to send us the resource only if some criteria are met.
+
+For example, let’s imagine we fetch a customer record, and its ETag comes back as o5t6fkd2sa. Later on, perhaps because a cache-control directive has told us the resource should be considered stale, we want to make sure we get the latest version. When issuing the subsequent GET request, we can pass in a If-None-Match: o5t6fkd2sa. This tells the server that we want the resource at the specified URI, unless it already matches this ETag value. If we already have the up-to-date version, the service sends us a 304 Not Modified response, telling us we have the latest version. If there is a newer version available, we get a 200 OK with the changed resource, and a new ETag for the resource.
+
+**ETags, Expires, and cache-control can overlap a bit, and if you aren’t careful you can end up giving conflicting information if you decide to use all of them!**
+
+### Caching for Writes
+
+If you make use of a write behind cache, you can write to a local cache, and at some later point the data will be flushed to a downstream source, probably the canonical source of data.
+
+### Caching for Resilience
+
+Caching can be used to implement resiliency in case of failure.
+
+### Keep It Simple
+
+Be careful about caching in too many places! The more caches between you and the source of fresh data, the more stale the data can be, and the harder it can be to determine the freshness of the data that a client eventually sees.
+
+## CAP Theorem
+
+At its heart it tells us that in a distributed system, we have three things we can trade off against each other: **consistency, availability, and partition tolerance.** Specifically, the theorem tells us that we get to keep two.
+
+Let’s imagine that our inventory service is deployed across two separate data centers. Backing our service instance in each data center is a database, and these two databases talk to each other to try to synchronize data between them. Reads and writes are done via the local database node, and replication is used to synchronize the data between the nodes.
+
+Now let’s think about what happens when something fails. Imagine that something as simple as the network link between the two data centers stops working. The synchronization at this point fails. Writes made to the primary database in DC1 will not propagate to DC2, and vice versa. Most databases that support these setups also support some sort of queuing technique to ensure that we can recover from this afterward, but what happens in the meantime?
+
+### Sacrificing Consistency
+
+Systems that are happy to cede consistency to keep partition tolerance and availability are said to be **eventually consistent;** that is, we expect at some point in the future that all nodes will see the updated data, but it won’t happen at once so we have to live with the possibility that users see old data.
+
+### Sacrificing Availability
+
+Now in the partition, if the database nodes can’t talk to each other, they cannot coordinate to ensure consistency. We are unable to guarantee consistency, so our only option is to refuse to respond to the request. In other words, we have sacrificed availability. Our system is consistent and partition tolerant, or CP.
+
+**Consistency across multiple nodes is really hard. Getting multinode consistency right is so hard that I would *strongly, strongly* suggest that if you need it, don’t try to invent it yourself.**
+
+### Sacrificing Partition Tolerance?
+
+How can we sacrifice partition tolerance? If our system has no partition tolerance, it can’t run over a network. In other words, it needs to be a single process operating locally. **CA systems don’t exist in distributed systems.**
+
+### AP or CP?
+
+AP systems scale more easily and are simpler to build. CP system will require more work due to the challenges in supporting distributed consistency.
+
+### It’s Not All or Nothing
+
+Our system as a whole doesn’t need to be either AP or CP. Our catalog could be AP, as we don’t mind too much about a stale record. But we might decide that our inventory service needs to be CP, as we don’t want to sell a customer something we don’t have and then have to apologize later.
+
+## Service Discovery
+
+Service discovery handle things in two parts.
+
+First, they provide some
+mechanism for an instance to register itself and say, “I’m here!” Second, they provide
+a way to find the service once it’s registered.
 
 
 
