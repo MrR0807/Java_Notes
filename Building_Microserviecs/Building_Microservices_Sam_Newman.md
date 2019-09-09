@@ -859,16 +859,25 @@ Idempotent:
 
 This mechanism works just as well with event-based collaboration, and can be especially useful if you have multiple instances of the same type of service subscribing to events. **Even if we store which events have been processed, with some forms of asynchronous message delivery there may be small windows where two workers can see the same message. By processing the events in an idempotent manner, we ensure this won’t cause us any issues.**
 
+## Scaling
 
+### Go Bigger
 
+Some operations can just benefit from more grunt. Getting a bigger box with faster CPU and better I/O can often improve latency and throughput, allowing you to process more work in less time. However, this form of scaling, often called **vertical scaling**, can be expensive - sometimes one big server can cost more than two smaller servers with the same combined raw power, especially when you start getting to really big machines.
 
+### Splitting Workloads
 
+We could also use the need for increased scale to split an existing microservice into parts to better handle the load. As a simplistic example, let’s imagine that our accounts service provides the ability to create and manage individual customers’ financial accounts, but also exposes an API for running queries to generate reports. We could extract reporting to a different microservice.
 
+### Spreading Your Risk
 
+One way to scale for resilience is to ensure that you don’t put all your eggs in one basket. A simplistic example of this is making sure that you don’t have multiple services on one host, where an outage would impact multiple services. But let’s consider what **host** means. In most situations nowadays, **a host is actually a virtual concept.** So what if I have all of my services on different hosts, but all those hosts are actually virtual hosts, running on the same physical box? If that box goes down, I could lose multiple services.
 
+Another common form of separation to reduce failure is to ensure that not all your services are running in a single rack in the data center, or that your services are distributed across more than one data center.
 
+### Load Balancing
 
-
+When you need your service to be resilient, you want to avoid single points of failure. For a typical microservice that exposes a synchronous HTTP endpoint, **the siest way to achieve this is to have multiple hosts running your microservice instance, sitting ehind a load balancer.
 
 
 
