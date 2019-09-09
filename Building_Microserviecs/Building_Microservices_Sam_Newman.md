@@ -1007,13 +1007,37 @@ Our system as a whole doesn’t need to be either AP or CP. Our catalog could be
 
 ## Service Discovery
 
-Service discovery handle things in two parts.
+Service discovery handle things in two parts:
+* First, they provide some mechanism for an instance to register itself and say, "I’m here!".
+* Second, they provide a way to find the service once it’s registered.
 
-First, they provide some
-mechanism for an instance to register itself and say, “I’m here!” Second, they provide
-a way to find the service once it’s registered.
+### DNS
 
+DNS lets us associate a name with the IP address of one or more machines. We could decide, for example, that our accounts service is always found at accounts.musiccorp.com. We would then have that entry point to the IP address of the host running that service, or perhaps have it resolve to a load balancer that is distributing load across a number of instances.
 
+DNS has a host of advantages, the main one being it is such a well-understood and well-used standard that almost any technology stack will support it. Unfortunately, while a number of services exist for **managing DNS inside an organization, few of them seem designed for an environment where we are dealing with highly disposable hosts, making updating DNS entries somewhat painful.**
+
+One way to work around this problem is to have the domain name entry for your service point to a load balancer, which in turn points to the instances of your service.
+
+## Dynamic Service Registries
+
+The downsides of DNS as a way of finding nodes in a highly dynamic environment have led to a number of alternative systems.
+
+### Zookeeper
+
+Zookeeper was originally developed as part of the Hadoop project. Zookeeper relies on running a number of nodes in a cluster to provide various guarantees.
+
+Zookeeper itself is fairly generic in what it offers, which is why it is used for so many use cases. You can think of it just as a replicated tree of information that you can be alerted about when it changes.
+
+In the grand scheme of things, Zookeeper could be considered *old* by now, and doesn’t provide us that much functionality out of the box to help with service discovery compared to some of the newer alternatives.
+
+### Consul
+
+Like Zookeeper, Consul supports both configuration management and service discovery. But it goes further than Zookeeper in providing more support for these key use cases. For example, it exposes an HTTP interface for service discovery, and one of Consul’s killer features is that it actually provides a DNS server out of the box.
+
+### Eureka
+
+Netflix’s open source Eureka system bucks the trend of systems like Consul and Zookeeper in that it doesn’t also try to be a general-purpose configuration store. It is actually very targeted in its use case.
 
 
 
