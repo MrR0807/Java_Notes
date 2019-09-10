@@ -1039,51 +1039,25 @@ Like Zookeeper, Consul supports both configuration management and service discov
 
 Netflix’s open source Eureka system bucks the trend of systems like Consul and Zookeeper in that it doesn’t also try to be a general-purpose configuration store. It is actually very targeted in its use case.
 
+## Documenting Services
 
+### Swagger
 
+Swagger lets you describe your API in order to generate a very nice web UI that allows you to view the documentation and interact with the API via a web browser.
 
+### HAL and the HAL Browser
 
+By itself, the Hypertext Application Language (HAL) is a standard that describes standards for hypermedia controls that we expose. **Hypermedia controls are the means by which we allow clients to progressively explore our APIs to use our service’s capabilities in a less coupled fashion than other integration techniques.** HAL browser gives you a way to explore the API via a web browser.
 
+Unlike with Swagger all the information needed to drive this documentation and sandbox is embedded in the hypermedia controls. This is a double-edged sword. If you are already using hypermedia controls, it takes little effort to expose a HAL browser and have clients explore your API. However, if you aren’t using hypermedia, you either can’t use HAL or have to retrofit your API to use hypermedia, which is likely to be an exercise that breaks existing consumers.
 
+# CHAPTER 12 Bringing It All Together
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Microservices should follow these guidelines:
+* **Model Around Business Concepts** - Use bounded contexts to define potential domain boundaries.
+* **Adopt a Culture of Automation** - Automated testing, deploy the same way everywhere, continuous delivery, immutable servers.
+* **Hide Internal Implementation Details** - Services should also hide their databases to avoid falling into one of the most common sorts of coupling that can appear in traditional service-oriented architectures, and use data pumps or event data pumps to consolidate data across multiple services for reporting purposes.
+* **Decentralize All the Things** - Ensure that teams own their services. **Avoid** approaches like **enterprise service bus or orchestration systems**, which can lead to centralization of business logic and dumb services. Instead, **prefer choreography** over orchestration and **dumb middleware**, with smart endpoints to ensure that you keep associated logic and data within service boundaries, helping keep things cohesive.
+* **Independently Deployable** - We should always strive to ensure that our microservices can and are deployed by themselves. Even when breaking changes are required, we should seek to coexist versioned endpoints to allow our consumers to change over time.
+* **Isolate Failure** - If we hold the tenets of antifragility in mind, and expect failure will occur anywhere and everywhere, we are on the right track. Make sure your timeouts are set appropriately. Understand when and how to use bulkheads and circuit breakers to limit the fallout of a failing component.
+* **Highly Observable** - Use semantic monitoring to see if your system is behaving correctly, by injecting synthetic transactions into your system to simulate real-user behavior. Aggregate your logs, and aggregate your stats, so that when you see a problem you can drill down to the source.
