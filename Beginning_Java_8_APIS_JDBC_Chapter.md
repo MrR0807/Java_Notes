@@ -24,5 +24,48 @@ The <protocol> part is always set to jdbc. The <sub-protocol> part is vendor-spe
     
     jdbc:oracle:thin:@localhost:1521:chanda
     
-As always, the protocol part is jdbc. The sub-protocol part is oracle:thin, which identifies the Oracle Corporation as the vendor, and the type of the driver it will use, which is thin. The data source details part is @localhost:1521:chanda. Details in order: IP address of the machine; port number; Oracle's instance name.
+As always, the protocol part is jdbc. The sub-protocol part is **oracle:thin**, which identifies the Oracle Corporation as the vendor, and the type of the driver it will use, which is thin. The data source details part is @localhost:1521:chanda. Details in order: IP address of the machine; port number; Oracle's instance name.
+
+### Establishing the Database Connection
+
+DriverManager::getConnection() method takes a connection URL, a user id, a password, and any number of name-value pairs using a java.util.Properties object. The getConnection() method is overloaded:
+* static Connection getConnection(String url) throws SQLException
+* static Connection getConnection(String url, Properties info) throws SQLException
+* static Connection getConnection(String url, String user, String password) throws SQLException
+
+**A ResultSet object is automatically closed when the Statement object that generated it is closed, re-executed, or used to retrieve the next result from a sequence of multiple results.**
+
+## Setting the Auto-Commit Mode
+
+When you connect to a database, the auto-commit property for the Connection object is set to true by default. **If a connection is in an auto-commit mode, a SQL statement is committed automatically after its successful execution.** If a connection is not in an auto-commit mode, you must call the commit() or rollback() method of the Connection object to commit or rollback a transaction. Typically, you disable the auto-commit mode for a connection in a JDBC application, so your application logic controls the final outcome of the transaction. To disable the auto-commit mode, you need to call the setAutoCommit(false) on the Connection object after connection has been established.
+
+## Transaction Isolation Level
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
