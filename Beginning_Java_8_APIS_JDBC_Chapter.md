@@ -41,8 +41,43 @@ When you connect to a database, the auto-commit property for the Connection obje
 
 ## Transaction Isolation Level
 
+In a multi-user database, you will often come across the following two terms:
+* Data concurrency
+* Data consistency
 
-407
+Data concurrency refers to the ability of multiple users to use the same data concurrently. Data consistency refers to the accuracy of the data that is maintained when multiple users are manipulating the data concurrently. **A database maintains data consistency using locks and by isolating one transaction from another. How much a transaction is isolated from another transaction depends on the desired level of data consistency.**
+
+### Dirty Read
+
+In a dirty read, a transaction reads uncommitted data from another transaction:
+* Transaction A inserts a new row in a table and it has not committed it yet.
+* Transaction B reads the uncommitted row inserted by the transaction A.
+* Transaction A rollbacks the changes.
+* At this point, transaction B is left with data for a row that does not exist.
+
+### Non-Repeatable Read
+
+In a non-repeatable read, when a transaction re-reads the data, it finds that the data has been modified by another transaction that has been already committed:
+* Transaction A reads a row.
+* Transaction B modifies or deletes the same row and commits the changes.
+* Transaction A re-reads the same row and finds that the row has been modified or deleted.
+
+### Phantom Read
+
+In a phantom read, when a transaction re-executes the same query, it finds more data that satisfies the query:
+* Transaction A executes a query (say Q) and finds X number of rows matching the query.
+* Transaction B inserts some rows that satisfy the query Q criteria and commits.
+* Transaction A re-executes the same query (Q) and finds Y number of rows (Y > X) matching the query.
+
+The ANSI SQL-92 standard defines four transaction isolation levels in terms of the above-described three situations for data consistency. The four transaction isolation levels are as follows:
+
+| Isolation Level  | Dirty Read    | Non-Repeatable Read | Phantom Read |
+| ---------------- | ------------- | ------------------- | ------------ |
+| Read Uncommitted | Permitted     | Permitted           | Permitted    |
+| Read Committed   | Not Permitted | Permitted           | Permitted    |
+| Repeatable Read  | Not Permitted | Not Permitted       | Permitted    |
+| Serializable     | Not Permitted | Not Permitted       | Not Permitted| 
+
 
 
 
