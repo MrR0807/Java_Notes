@@ -71,12 +71,12 @@ In a phantom read, when a transaction re-executes the same query, it finds more 
 
 The ANSI SQL-92 standard defines four transaction isolation levels in terms of the above-described three situations for data consistency. The four transaction isolation levels are as follows:
 
-| Isolation Level  | Dirty Read    | Non-Repeatable Read | Phantom Read |
-| ---------------- | ------------- | ------------------- | ------------ |
-| Read Uncommitted | Permitted     | Permitted           | Permitted    |
-| Read Committed   | Not Permitted | Permitted           | Permitted    |
-| Repeatable Read  | Not Permitted | Not Permitted       | Permitted    |
-| Serializable     | Not Permitted | Not Permitted       | Not Permitted| 
+|Isolation Level  |Dirty Read    |Non-Repeatable Read |Phantom Read |
+| --------------- | ----------- | ------------------- | ------------ |
+| Read Uncommitted| Permitted   | Permitted           | Permitted    |
+| Read Committed  | Not Permitted | Permitted         | Permitted    |
+| Repeatable Read | Not Permitted | Not Permitted     | Permitted    |
+| Serializable    | Not Permitted | Not Permitted     | Not Permitted| 
 
 
 
