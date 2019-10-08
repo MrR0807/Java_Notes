@@ -247,6 +247,91 @@ If you want to clear the values of all placeholders, you can use the clearParame
         }
     }
 
+## CallableStatement Interface
+
+It is used to call a SQL stored procedure or a function in a database. You can also call a stored procedure or a function using the Statement object. However, using a CallableStatement is the preferred way.
+
+### Executing a CallableStatement
+
+Before you execute a stored procedure, you need to prepare a CallableStatement by calling the prepareCall() method of the Connection object. The prepareCall() method accepts a SQL string as a parameter. The following snippet of code shows how to prepare a CallableStatement:
+
+    Connection conn = JDBCUtil.getConnection();
+    String SQL = "{call myProcedure}";
+    CallableStatement cstmt = conn.prepareCall(SQL);
+
+# Processing Result Sets
+
+A set of rows obtained by executing a SQL SELECT statement in a database is known as a result set. JDBC lets you execute a SELECT statement in the database and process the returned result set in the Java program using an instance of the ResultSet interface.
+
+## What Is a ResultSet?
+
+When you execute a query (a SELECT statement) in a database, it returns the matching records in the form of a result set. You can consider a result set as a data arranged in rows and columns.
+
+A ResultSet object maintains a cursor, which points to a row in the result set. It works similar to a cursor object in database programs. You can scroll the cursor to a specific row in the result set to access or manipulate the column values for that row. The cursor can point to only one row at a time. The row to which it points at a particular point in time is called the ***current row***. 
+
+The following three properties of a ResultSet object need to be discussed before you can look at an example:
+* Scrollability
+* Concurrency
+* Holdability
+
+**Scrollability determines the ability of the ResultSet to scroll through the rows. By default, a ResultSet is scrollable only in the forward direction.** You can also create a ResultSet that can scroll in the forward as well as the backward direction. I will call this ResultSet a bidirectional scrollable ResultSet. A bidirectional scrollable ResultSet has another property called **update sensitivity.** It determines whether the changes in the underlying database will be reflected in the result set while you are scrolling through its rows. **A scroll sensitive ResultSet shows you changes made in the database, whereas a scroll insensitive one would not show you the changes made in the database after you have opened the ResultSet.**
+
+The following three constants in the ResultSet interface are used to specify the scrollability of a ResultSet:
+* **TYPE_FORWARD_ONLY**: Allows a ResultSet object to move only in the forward direction.
+* **TYPE_SCROLL_SENSITIVE**: Allows a ResultSet object to move in the forward and backward directions.
+* **TYPE_SCROLL_INSENSITIVE**: Allows a ResultSet object to move in the forward and backward directions.
+
+**Concurrency refers to its ability of the ResultSet to update data. By default, a ResultSet is read-only and it does not let you update its data.** If you want to update data in a database through a ResultSet, you need to request an updatable result set from the JDBC driver. The following two constants in the ResultSet interface are used to specify the concurrency of a ResultSet:
+* **CONCUR_READ_ONLY**: Makes a result set read-only.
+* **CONCUR_UPDATABLE**: Makes a result set updatable.
+
+**Holdability refers to the state of the ResultSet after a transaction that it is associated with has been committed.** A ResultSet may be closed or kept open when the transaction is committed. **The default value of the holdability of a ResultSet is dependent on the JDBC driver.** The holdability of a ResultSet is specified using one of the following two constants defined in the ResultSet interface:
+* **HOLD_CURSORS_OVER_COMMIT**: Keeps the ResultSet open after the transaction is committed.
+* **CLOSE_CURSORS_AT_COMMIT**: Closes the ResultSet after the transaction is committed.
+
+## Getting a ResultSet
+
+Here is a typical way to get a forward-only scrollable result set:
+
+    Connection conn = JDBCUtil.getConnection();
+    Statement stmt = conn.createStatement();
+    String sql = "select person_id, first_name, last_name, dob, income " +
+    "from person";
+    // Execute the query to get the result set
+    ResultSet rs = stmt.executeQuery(sql);
+    // Process the result set using the rs variable
+
+
+The returned ResultSet from the executeQuery() method is already open, and it is ready to be looped through to get the associated data. **In the beginning, the cursor points before the first row in the result set. You must move the cursor to a valid row before you can access the column’s values for that row.** The next() method of the ResultSet is used to move the cursor to the next row. When the next() method is called for the first time, it moves the cursor to the first row in the result set.
+
+It is very important to consider the return value of the next() method. It returns a boolean value. It returns true if the cursor is positioned to a valid row. Otherwise, it returns false.
+
+When a cursor is positioned after the last row in a forward-only scrollable ResultSet object, you cannot do anything with it, except close it using its close() method. However, things are different for a bidirectional scrollable ResultSet, which lets you iterate through the rows as many times as you want.
+
+The following four methods of the ResultSet interface let you know if the cursor is before the first row, on the first row, on the last row, or after the last row:
+* boolean isBeforeFirst() throws SQLException
+* boolean isFirst() throws SQLException
+* boolean isLast() throws SQLException
+* boolean isAfterLast() throws SQLException
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
