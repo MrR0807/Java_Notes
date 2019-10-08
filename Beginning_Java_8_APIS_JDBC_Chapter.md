@@ -78,6 +78,176 @@ The ANSI SQL-92 standard defines four transaction isolation levels in terms of t
 | Repeatable Read | Not Permitted | Not Permitted     | Permitted    |
 | Serializable    | Not Permitted | Not Permitted     | Not Permitted| 
 
+    // Get a Connection object
+    Connection conn = get a connection object...;
+    // Set the transaction isolation level to read committed
+    conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+You will be using three sets of methods while working with data in JDBC programs: getXxx(), setXxx(), and updateXxx(), where Xxx indicates a data type such as int, String, Date, etc. These methods are found in many interfaces that are used in this chapter such as PreparedStatement, ResultSet, etc.
+
+## Knowing About the Database
+
+The same database feature may be supported differently, or not supported at all, by different DBMSs. An instance of the **DatabaseMetaData interface** gives you detailed information about the features supported by a DBMS through the JDBC driver.
+
+# Executing SQL Statements
+
+Based on the type of work that a SQL statement performs in a DBMS, it can be categorized as follows:
+
+* A Data Definition Language (DDL) Statement: Examples of DDL statements are CREATE TABLE, ALTER TABLE, etc.
+* A Data Manipulation Language (DML) Statement: Examples of DML statements are SELECT, INSERT, UPDATE, DELETE, etc.
+* A Data Control Language (DCL) Statement: Examples of DCL statements are GRANT and REVOKE.
+* A Transaction Control Language (TCL) Statement: Example of TCL statements are COMMIT, ROLLBACK, SAVEPOINT, etc.
+
+Java uses three different interfaces to represent SQL statements in different formats:
+* Statement
+* PreparedStatement
+* CallableStatement
+
+        interface CallableStatement extends PreparedStatement
+        interface PreparedStatement extends Statement
+
+Using a **PreparedStatement** object is preferred over using a **Statement**:
+* Using a PreparedStatement eliminates the threat of a SQL injection.
+* The PreparedStatement improves the performance of your JDBC application by compiling a statement once and executing it multiple times.
+* A PreparedStatement lets you use Java data types to supply values in a SQL statement instead of using strings.
+
+## Results of Executing a SQL Statement
+
+When you execute a SQL statement, the DBMS may return zero or more results. The results may include update counts (number of records affected in the database) or result sets (a group of records).
+When you execute a SELECT statement, it returns a result set. When you execute an UPDATE or DELETE statement, it returns an update count, which is the number of records affected in the database by the SQL.
+**When you execute a stored procedure, it may return multiple update counts as well as multiple result sets.**
+
+## Using the Statement Interface
+
+You can use a Statement to execute any kind of SQL statement:
+* boolean execute(String SQL) throws SQLException. Typically, it is used to execute a SQL statement that does not return a result set, such as a DDL statement like CREATE TABLE.
+* int executeUpdate(String SQL) throws SQLException. The executeUpdate() method is used to execute a SQL statement that updates the data in the database such as INSERT, UPDATE and DELETE statements. It returns the number of rows affected in the database by the execution of the statement.
+* ResultSet executeQuery(String SQL) throws SQLException. The executeQuery() method is especially designed to execute a SQL statement that produces one and only one result set. It is best suited for executing a SELECT statement.
+
+Example:
+
+        Connection conn = null;
+        try {
+            conn = JDBCUtil.getConnection();
+            // Create a SQL string
+            String SQL = "create table person ( " +
+                "person_id integer not null, " +
+                "first_name varchar(20) not null, " +
+                "last_name varchar(20) not null, " +
+                "gender char(1) not null, " +
+                "dob date, " +
+                "income double," +
+                "primary key(person_id))";
+        
+        Statement stmt = null;
+        try {
+            stmt = conn.createStatement();
+            stmt.executeUpdate(SQL);
+        }
+        finally {
+            JDBCUtil.closeStatement(stmt);
+        }
+        
+        // Commit the transaction
+        JDBCUtil.commit(conn);
+        System.out.println("Person table created.");
+        }
+        catch (SQLException e) {
+            System.out.println(e.getMessage());
+            JDBCUtil.rollback(conn);
+        }
+        finally {
+            JDBCUtil.closeConnection(conn);
+        }
+
+## Using the PreparedStatement Interface
+
+It precompiles the SQL statement provided DBMS supports a SQL statement precompilation. It reuses the precompiled SQL statement if the statement is executed multiple times. It lets you prepare a SQL statement, which is in a string format, using placeholders for input parameters.
+A question mark in a SQL string is a placeholder for an input parameter whose value will be supplied before the statement is executed. Suppose you want to use a PreparedStatement to insert a record in the person table. Your SQL statement in a string format would be as follows:
+
+    String sql = "insert into person " +
+        "(person_id, first_name, last_name, gender, dob, income) " +
+        "values " +
+        "(?, ?, ?, ?, ?, ?)";
+        
+You can create a PreparedStatement using the prepareStatement() method of the Connection object.
+
+    String sql = "your sql statement goes here";
+    Connection conn = JDBCUtil.getConnection();
+    // Obtain a PreparedStatement for the sql
+    PreparedStatement pstmt = conn.prepareStatement(sql);
+
+The next step is to supply the values for the placeholders one-by-one using a setXxx() method of the PreparedStatement interface, where Xxx is the data type of the placeholder.
+
+    pstmt.setInt(1, 301); // person_id
+    pstmt.setString(2, "Tom"); // first name
+    pstmt.setString(3, "Baker"); // last name
+    pstmt.setString(4, "M"); // gender
+    java.sql.Date dob = java.sql.Date.valueOf("1970-01-25");
+    pstmt.setDate(5, dob); // dob
+    pstmt.setDouble(6, 45900); // income
+
+Now it is time to send the SQL statement with the values for the placeholders to the database. You execute a SQL statement in a PreparedStatement using one of its execute(), executeUpdate(), and executeQuery() methods. **These methods take no arguments. Recall that the Statement interface has the same methods, which take SQL strings as their arguments.**
+
+    // Execute the INSERT statement in pstmt
+    pstmt.executeUpdate();
+    
+If you want to clear the values of all placeholders, you can use the clearParameters() method of the PreparedStatement interface. When you are done with executing the statement in a PreparedStatement object, you need to close it using its close() method.
+
+
+    public class PreparedStatementTest {
+        public static void main(String[] args) {
+            Connection conn = null;
+            PreparedStatement pstmt = null;
+            try {
+                conn = JDBCUtil.getConnection();
+                pstmt = getInsertSQL(conn);
+                // Need to get dob in java.sql.Date object
+                Date dob = Date.valueOf("1970-01-01");
+                // Insert two person records
+                insertPerson(pstmt, 401, "Sara", "Jain", "F", dob, 0.0);
+                insertPerson(pstmt, 501, "Su", "Chi", "F", null, 10000.0);
+                // Commit the transaction
+                JDBCUtil.commit(conn);
+                System.out.println("Updated person records successfully.");
+            }
+            catch (SQLException e) {
+                System.out.println(e.getMessage());
+                JDBCUtil.rollback(conn);
+            }
+            finally {
+                JDBCUtil.closeStatement(pstmt);
+                JDBCUtil.closeConnection(conn);
+            }
+        }
+        public static void insertPerson(PreparedStatement pstmt, int personId, String firstName, String lastName, String gender, Date dob, double income) throws SQLException {
+            // Set all the input parameters
+            pstmt.setInt(1, personId);
+            pstmt.setString(2, firstName);
+            pstmt.setString(3, lastName);
+            pstmt.setString(4, gender);
+            // Set the dob value properly if it is null
+            if (dob == null) {
+                pstmt.setNull(5, Types.DATE);
+            }
+            else {
+                pstmt.setDate(5, dob);
+            }
+            pstmt.setDouble(6, income);
+            // Execute the statement
+            pstmt.executeUpdate();
+        }
+        public static PreparedStatement getInsertSQL(Connection conn) throws SQLException {
+            String SQL = "insert into person " +
+            "(person_id, first_name, last_name, gender, dob, income) " +
+            "values " +
+            "(?, ?, ?, ?, ?, ?)";
+            PreparedStatement pstmt = conn.prepareStatement(SQL);
+            return pstmt;
+        }
+    }
+
+
 
 
 
