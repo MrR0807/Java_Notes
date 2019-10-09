@@ -385,15 +385,13 @@ You are not done yet with the new row. You must send the changes to the database
                     + "from person";
             Statement stmt = null;
             try {
-                stmt = conn.createStatement(TYPE_FORWARD_ONLY,
-                        CONCUR_UPDATABLE);
+                stmt = conn.createStatement(TYPE_FORWARD_ONLY, CONCUR_UPDATABLE);
                 // Get the result set
                 ResultSet rs = stmt.executeQuery(SQL);
                 // Make sure your resultset is updatable
                 int concurrency = rs.getConcurrency();
                 if (concurrency != ResultSet.CONCUR_UPDATABLE) {
-                    System.out.println("The JDBC driver does not " +
-                            "support updatable result sets.");
+                    System.out.println("The JDBC driver does not support updatable result sets.");
                     return;
                 }
                 // First insert a new row to the ResultSet
@@ -410,12 +408,9 @@ You are not done yet with the new row. You must send the changes to the database
 
                 // Print all rows in the result set
                 while (rs.next()) {
-                    System.out.print("Person ID: " +
-                            rs.getInt("person_id") +
-                            ", First Name: " +
-                            rs.getString("first_name") +
-                            ", Last Name: " +
-                            rs.getString("last_name"));
+                    System.out.print("Person ID: " + rs.getInt("person_id") +
+                            ", First Name: " + rs.getString("first_name") +
+                            ", Last Name: " + rs.getString("last_name"));
                     System.out.println();
                 }
             }
@@ -424,7 +419,7 @@ You are not done yet with the new row. You must send the changes to the database
             }
     }
 
-
+460
 
 
 
