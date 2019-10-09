@@ -314,17 +314,115 @@ The following four methods of the ResultSet interface let you know if the cursor
 * boolean isLast() throws SQLException
 * boolean isAfterLast() throws SQLException
 
-443
+Suppose you have the following ResultSet of a query:
+
+    select person_id as "Person ID", first_name, last_name from person
 
 
+In the ResultSet, the person_id column has a column index of 1, the first_name column has a column index of 2, and the last_name column has a column index of 3. You have specified Person ID as the column label for the person_id column. You have not specified the column labels for the first_name and last_name columns. To get the value of the person_id column, you need to use either getInt(1) or getInt("PERSON ID"). To get the value of the first_name column, you need to use either getString(2) or getString("first_name").
+
+You can get the names of columns in a ResultSet object using the ResultSetMetaData object.
+
+In a ResultSet, when a column has a null value, the getXxx() method returns the default value for the Xxx data type:
+* For numeric data types (int, double, byte, etc.), the getXxx() method returns zero when the column has a null value;
+* For boolean returns false when the column has a null value;
+* For reference returns null.
+
+**If you want to know whether the column value, which you read using a getXxx() method, is null, you need to call the wasNull() method immediately after calling the getXxx() method.**
+
+## Bidirectional Scrollable ResultSets
+
+You can request a JDBC driver for a bidirectional scrollable ResultSet by specifying the scrollability property when you create a Statement, prepare a PreparedStatement, or prepare a CallableStatement. **Not all JDBC drivers support all three types of scrollability properties for a result set.**
+
+Example:
+
+    // Request a bi-directional change insensitive ResultSet
+    Statement stmt = conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+    
+## Scrolling Through Rows of a ResultSet
+
+**The number of rows a ResultSet will retrieve from the database is JDBC driver-dependent. It may choose to retrieve one row at a time from a database. You can give a hint to the JDBC driver using the setFetchSize(int fetchSize) method.**
+
+For example, calling the next() method of a ResultSet may trigger a fetch from the database. Suppose a ResultSet fetches 10 records at a time. If you call the next() method the first time, it will fetch and cache 10 records and, for nine subsequent calls to its next() method, it will give you rows from its cache. Fetching and caching rows for a ResultSet is dependent on a JDBC driver and the underlying DBMS.
+
+## Closing a ResultSet
+
+You can close a ResultSet object by calling its close() method. A ResultSet object can also be closed implicitly in the following situations:
+* When the Statement object that produces the ResultSet object is closed, it automatically closes the ResultSet object.
+* When a Statement object is re-executed, its previously opened ResultSet object is closed.
+* If a Statement object produces multiple result sets, retrieving the next result set closes the previously retrieved ResultSet.
+* If it is a forward-only scrollable ResultSet, a JDBC driver may choose to close it when its next() method returns false as the part of optimization.
+
+## Making Changes to a ResultSet
+
+You can use a ResultSet to perform insert, update, and delete operations on database tables. The concurrency for the ResultSet object must be ResultSet.CONCUR_UPDATABLE in order to perform updates on the ResultSet.
+
+### Inserting a Row Using a ResultSet
+
+So far, you are aware of only two imaginary rows in a result set. They were rows before the first row and after the last row. However, there is one more imaginary row that exists in a ResultSet and that is called an **insert row.** You can think of this row as an empty new row, which acts as a staging area for a new row that you want to insert. You can position the cursor to the insert row using the ResultSet object’s **moveToInsertRow()** method. When the cursor moves to the insert row, it remembers its previous position. You can call the **moveToCurrentRow()** method to move the cursor from the insert row back to the previously current row. So, the first step in inserting a new row is to move the cursor to the insert row.
+
+    // Move the cursor to an insert row to add a new row
+    rs.moveToInsertRow();
+
+At this point, a new row has been inserted in the staging area and all columns have undefined values. Define values:
+
+    rs.updateInt("person_id", 501);
+    rs.updateString("first_name", "Richard");
+    rs.updateString("last_name", "Castillo");
+    rs.updateString("gender", "M");
+
+You are not done yet with the new row. You must send the changes to the database before your new row becomes part of the ResultSet. You can send the newly inserted row to the database by calling the insertRow() method of the ResultSet interface as shown:
+    
+    // Send changes to the database
+    rs.insertRow();
+
+**Moving to another row before calling the insertRow() method after calling the moveToInsertRow() method discards the new row.**
 
 
+    public static void addRow(Connection conn) throws SQLException {
+            String SQL = "select person_id, first_name, "
+                    + "last_name, gender, dob, income "
+                    + "from person";
+            Statement stmt = null;
+            try {
+                stmt = conn.createStatement(TYPE_FORWARD_ONLY,
+                        CONCUR_UPDATABLE);
+                // Get the result set
+                ResultSet rs = stmt.executeQuery(SQL);
+                // Make sure your resultset is updatable
+                int concurrency = rs.getConcurrency();
+                if (concurrency != ResultSet.CONCUR_UPDATABLE) {
+                    System.out.println("The JDBC driver does not " +
+                            "support updatable result sets.");
+                    return;
+                }
+                // First insert a new row to the ResultSet
+                rs.moveToInsertRow();
+                rs.updateInt("person_id", 501);
+                rs.updateString("first_name", "Richard");
+                rs.updateString("last_name", "Castillo");
+                rs.updateString("gender", "M");
+                // Send the new row to the database
+                rs.insertRow();
 
+                // Move back to the current row
+                rs.moveToCurrentRow();
 
-
-
-
-
+                // Print all rows in the result set
+                while (rs.next()) {
+                    System.out.print("Person ID: " +
+                            rs.getInt("person_id") +
+                            ", First Name: " +
+                            rs.getString("first_name") +
+                            ", Last Name: " +
+                            rs.getString("last_name"));
+                    System.out.println();
+                }
+            }
+            finally {
+                JDBCUtil.closeStatement(stmt);
+            }
+    }
 
 
 
