@@ -419,7 +419,96 @@ You are not done yet with the new row. You must send the changes to the database
             }
     }
 
-460
+### Updating a Row Using a ResultSet
+
+Here are the steps involved in updating an existing row in a ResultSet object:
+* Move the cursor to a valid row in the result set. Note that you can update data only for an existing row;
+* Call an updateXxx() method for a column to update the column’s value;
+* If you do not want to go ahead with the changes made using updateXxx() method calls, you need to call the cancelRowUpdates() method of the ResultSet to cancel the changes;
+* When you are done updating all the column’s values for the current row, call the updateRow() method to send the changes to the database;
+
+**If you move the cursor to a different row before calling the updateRow(), all your changes made using the updateXxx() method calls will be discarded.**
+
+    public static void giveRaise(Connection conn, double raise) throws SQLException {
+            String SQL = "select person_id, first_name, last_name, income from person";
+            Statement stmt = null;
+            try {
+                stmt = conn.createStatement(TYPE_FORWARD_ONLY, CONCUR_UPDATABLE);
+                // Get the result set
+                ResultSet rs = stmt.executeQuery(SQL);
+                // Make sure our resultset is updatable
+                int concurrency = rs.getConcurrency();
+                if (concurrency != CONCUR_UPDATABLE) {
+                    System.out.println("The JDBC driver does not support updatable result sets.");
+                    return;
+                }
+                // Give everyone a raise
+                while (rs.next()) {
+                    double oldIncome = rs.getDouble("income");
+                    double newIncome = 0.0;
+                    if (rs.wasNull()) {
+                        // null income starts at 10000.00
+                        oldIncome = 10000.00;
+                        newIncome = oldIncome;
+                    } else {
+                        // Increase the income
+                        newIncome = oldIncome + oldIncome * (raise / 100.0);
+                    }
+                    // Update the income column with the new value
+                    rs.updateDouble("income", newIncome);
+                    // Send the changes to the database
+                    rs.updateRow();
+                }
+            } finally {
+                JDBCUtil.closeStatement(stmt);
+            }
+        }
+
+### Deleting a Row Using a ResultSet
+
+Here are the steps to delete a row:
+* Position the cursor at a valid row;
+* Call the deleteRow() method of the ResultSet to delete the current row.
+
+        ResultSet rs = get an updatable result set object;
+        // Scroll to the row you want to delete, say the first row
+        rs.next();
+        // Delete the current row
+        rs.delete(); // Row is deleted from the result set and the database
+        // Commit or rollback changes depending on your processing logic
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
