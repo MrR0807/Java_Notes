@@ -477,28 +477,226 @@ Here are the steps to delete a row:
         rs.delete(); // Row is deleted from the result set and the database
         // Commit or rollback changes depending on your processing logic
 
+## ResultSetMetaData
+
+A ResultSetMetaData contains a lot of information about all columns in a result set. All of the methods, except getColumnCount(), in the ResultSetMetaData interface accept a column index in the result set as an argument. It contains the table name, name, label, database data type, class name in Java, nullability, precision, etc. of a column.
+
+# Using RowSets
+
+An instance of the RowSet interface is a wrapper for a result set. The RowSet interface inherits from the ResultSet interface. In simple terms, a RowSet is a Java object that contains a set of rows from a tabular data source. The tabular data source could be a database, a flat file, a spreadsheet, etc. The RowSet interface is in the javax.sql package. The following are the advantages of the RowSet over the ResultSet:
+* When you use a ResultSet object, you must deal with the Connection and Statement objects at the same time. A RowSet hides the complexities. All you have to work with is only one object, which is a RowSet object;
+* A ResultSet is not Serializable. A RowSet is Serializable;
+* **A ResultSet is always connected to a data source. A RowSet object does not need to be connected to its data source all the time**;
+* A RowSet is by default scrollable and updatable;
+* A ResultSet uses a database as its data source. You are not restricted to using only a database as a data source with a RowSet;
+* A RowSet also supports filtering of data after the data has been retrieved. Filtering of data is not possible in a ResultSet. You must use a WHERE clause in a query to filter data in the database itself if you use a ResultSet.
+* A RowSet makes it possible to join two or more data sets based on their column’s values after they have been retrieved from their data sources. One data set can be retrieved from a database and another from a flat file.
+
+Disadvantages of using a RowSet:
+* A specific RowSet implementation may cache data in memory. **You need to be careful when using such type of RowSets. You should not fetch large volumes of data**;
+* With cached data in a RowSet, there are more possibilities of data inconsistency between the data in the RowSet and data in the data source.
+
+The following interfaces in the javax.sql.rowset package define five types of rowsets:
+* JdbcRowSet;
+* CachedRowSet;
+* WebRowSet;
+* FilteredRowSet;
+* JoinRowSet.
+
+## Creating a RowSet
+
+An instance of the **RowSetFactory** interface lets you create different types of RowSet objects without caring about the rowset implementation classes. To get a **RowSetFactory**, you need to use the **newFactory()** static method of the **RowSetProvider** class. The RowSetFactory interface has five methods to create five types of rowsets.
+
+        JdbcRowSet jdbcRs = null;
+        try {
+            // Get the RowSetFactory implementation
+            RowSetFactory rsFactory = RowSetProvider.newFactory();
+            // Create a JdbcRowSet object
+            jdbcRs = rsFactory.createJdbcRowSet();
+            // Work with jdbcRs here
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            if (jdbcRs != null) {
+                try {
+                    // Close the RowSet
+                    jdbcRs.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+## Setting RowSet Connection Properties
+
+Typically, a RowSet will need to connect to a data source to retrieve and update data. You can set the database connection properties for a RowSet in terms of a JDBC URL or a data source name.
+
+// Create a RowSet
+RowSet rs = create a RowSet;
+// Set the conection properties for the RowSet
+rs.setUrl("jdbc:derby:beginningJavaDB");
+rs.setUsername("root");
+rs.setPassword("chanda");
+
+Alternatively, you can set a data source name for the RowSet object.
+
+**You do not need to establish a connection to the database. The RowSet will take care of establishing connection when it is needed.**
+
+## Setting a Command for a RowSet
+
+The command will be in a string in the form of a SQL SELECT statement or a stored procedure call. You can use a question mark as a placeholder for any parameter that you would like to pass to your command at runtime. Working with parameters in a command for a RowSet is the same as working with parameters for a PreparedStatement.
+
+    // Command to select rows from the person table with two parameters that
+    // will be the range of the income
+    String sqlCommand = "select person_id, first_name, last_name, income " +
+    "from person " +
+    "where income between ? and ?;
+    // Set the command to the RowSet object
+    rs.setCommand(sqlCommand);
+    // Set the range of income between 20000.0 and 30000.0
+    rs.setDouble(1, 20000.0);
+    rs.setDouble(2, 30000.0);
+
+## Populating a RowSet with Data
+
+If you want to populate a RowSet with data by executing its command, you need to call its execute() method as shown:
+// Execute its command to populate the RowSet
+rs.execute();
+
+## Scrolling Through Rows of a RowSet
+
+By default, all RowSet objects are bidirectional scrollable and updateable. 
+
+    RowSet rs = create a RowSet;
+    ...
+    while(rs.next()) {
+        // Read values for person_id and first_name from the current row
+        int personID = rs.getInt("person_id");
+        String firstName = rs.getString("first_name");
+        // Perform other processing here
+    }
+
+## Updating Data in a RowSet
+
+Updating data in a RowSet is similar to updating data in a ResultSet. To update a column’s value, you need to move the cursor to a row, use one of the updateXxx() methods to set the new value for a column, and call the updateRow() method of the RowSet to make the changes permanent in the RowSet.
+
+To insert a new row, you need to move the cursor to the insert row by calling the moveToInsertRow() method of the RowSet. You need to set values for columns in the insert row using one of updateXxx() methods. Finally, you call the insertRow() method of the RowSet. To delete a row, you need to move the cursor to the row you want to delete and call the deleteRow() method of the RowSet.
+
+## JdbcRowSet
+
+**A JdbcRowSet is also called a connected rowset because it always maintains a database connection.** You can think of a JdbcRowSet as a thin wrapper for a ResultSet. As a ResultSet always maintains a database connection, so does a JdbcRowSet. It adds some methods that let you configure the connection behaviors. You can use its setAutoCommit() method to enable or disable the auto-commit mode for the connection. You can use its commit() and rollback() methods to commit or rollback changes made to its data.
+
+A JDBC driver or underlying database may not support a bidirectional scrollable and updatable result set. In such cases, a JdbcRowSet implementation may provide such features.
+
+        RowSetFactory factory = RowSetUtil.getRowSetFactory();
+        // Use a try-with-resources block
+        try (JdbcRowSet jdbcRs = factory.createJdbcRowSet()) {
+            // Set the connection parameters
+            RowSetUtil.setConnectionParameters(jdbcRs);
+            // Set the command and input parameters
+            String sqlCommand = "select person_id, first_name, " +
+                    "last_name from person " +
+                    "where person_id between ? and ?";
+            jdbcRs.setCommand(sqlCommand);
+            jdbcRs.setInt(1, 101);
+            jdbcRs.setInt(2, 301);
+            // Retrieve the data
+            jdbcRs.execute();
+            // Scroll to the last row to get the row count It may throw an
+            // exception if the underlying JdbcRowSet implementation
+            // does not support a bi-directional scrolling result set.
+            try {
+                jdbcRs.last();
+                System.out.println("Row Count: " + jdbcRs.getRow());
+                // Position the cursor before the first row
+                jdbcRs.beforeFirst();
+            } catch (SQLException e) {
+                System.out.println("JdbcRowSet implementation" +
+                        " supports forward-only scrolling");
+            }
+            // Print the records in the rowset
+            RowSetUtil.printPersonRecord(jdbcRs);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+Updating row:
+
+     RowSetFactory factory = RowSetUtil.getRowSetFactory();
+     // Use a try-with-resources block
+     try (JdbcRowSet jdbcRs = factory.createJdbcRowSet()) {
+          // Set the connection parameters
+          RowSetUtil.setConnectionParameters(jdbcRs);
+          // Set the auto-commit mode to false
+          jdbcRs.setAutoCommit(false);
+          // Set the command and input parameters
+          String sqlCommand = "select person_id, first_name, " +
+                    "last_name, income from person " +
+                    "where person_id = ?";
+          jdbcRs.setCommand(sqlCommand);
+          jdbcRs.setInt(1, 101);
+          // Retrieve the data
+          jdbcRs.execute();
+          // If a row is retrieved, update the first row's income
+          // column to 65000.00
+          if (jdbcRs.next()) {
+              int personId = jdbcRs.getInt("person_id");
+              jdbcRs.updateDouble("income", 65000.00);
+              jdbcRs.updateRow();
+              // Commit the changes
+              jdbcRs.commit();
+              System.out.println("Income has been set to " +
+                        "65000.00 for person_id=" + personId);
+          }
+          else {
+              System.out.println("No person record was found.");
+          }
+        }
+        catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+## CachedRowSet
+
+**A CachedRowSet is also called a disconnected rowset because it is disconnected from a database when it does not need a database connection. It keeps the database connection open only for the duration it needs to interact with the database. Once it is done with the connection, it disconnects. For example, it connects to a database when it needs to retrieve or update data.**
+
+A CachedRowSet is always serializable, scrollable, and updatable.
+
+You can obtain the number of rows in a CachedRowSet using its size() method. Note that the size() method is not available for a JdbcRowSet.
+
+        // Use a try-with-resources block
+        try (CachedRowSet cachedRs = factory.createCachedRowSet()) {
+            // Set the connection parameters
+            RowSetUtil.setConnectionParameters(cachedRs);
+            String sqlCommand = "select person_id, first_name, last_name " +
+                    "from person " +
+                    "where person_id between 101 and 501";
+            cachedRs.setCommand(sqlCommand);
+            cachedRs.execute();
+            // Print the records in cached rowset
+            System.out.println("Row Count: " + cachedRs.size());
+            RowSetUtil.printPersonRecord(cachedRs);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
 
+A CachedRowSet provides an additional feature called **paging** to let you retrieve rows generated by a command in chunks. The CachedRowSet lets you set the page size by calling its **setPageSize(int size)** method. Suppose a command for a CachedRowSet generates 500 rows. By calling its **setPageSize(90)**, it will retrieve a maximum of 90 rows at a time. When you call its **execute()** method, it will retrieve the first 90 rows. To retrieve the next 90 rows, you need to call its **nextPage()** method.
 
 
+You can update the data in a CachedRowSet and save the changes back to the database. The process of saving changes to the database for a CachedRowSet is different from that of a JdbcRowSet. Two main reasons:
+* First, it is disconnected and you do not want to connect to the database often;
+* Second, the updated data may have conflicts with the data stored in the database.
 
+The process of inserting and deleting rows in a CachedRowSet is the same as in a JdbcRowSet. After changing the values for the current row, you need to call the updateRow() method.
 
+The process of updating rows is a bit different.
 
+After you make changes to a CachedRowSet, you can send changes to the database by calling its acceptChanges() method that may commit the changes if you have set the commit-on-accept-change value to true. You need to refer to the implementation details of the CachedRowSet on how it lets you set the commit-on-accept-change value. If it is set to false, you need to use the commit() or rollback() method of the CachedRowSet interface to commit or rollback changes.
 
+**A CachedRowSet has to deal with conflicts that may exist between the data in it and the data in the database. When conflicts are detected during the acceptChanges() method call, it throws a SyncProviderException.**
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Working with a Large Object (LOB)
 
 
 
