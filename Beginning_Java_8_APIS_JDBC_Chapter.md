@@ -698,9 +698,16 @@ After you make changes to a CachedRowSet, you can send changes to the database b
 
 # Working with a Large Object (LOB)
 
+The JDBC API has support for working with large objects stored in a database. The type of a large object could be one of the following.
+* Binary Large Object (Blob)
+* Character Large Object (Clob)
+* National Character Large Object (NClob)
 
+The data for LOB columns is usually not stored in a database table itself. The database stores the data for a LOB at some other location. It stores a reference (or pointer) to the data location in the table. The reference for a LOB stored in the table is also called a locator.
 
+When you retrieve the data for a column of a LOB type, usually a JDBC driver retrieves only the locator for the LOB. When you need the actual data, you need to perform some more operations on the locator to fetch the data.
 
+500
 
 
 
