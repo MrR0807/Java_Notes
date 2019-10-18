@@ -790,6 +790,104 @@ Finally, it is time to write the LOB’s data to a database. You can use the set
     // Insert the record into the database
     pstmt.executeUpdate();
 
+The ResultSet interface also includes the updateBlob() and updateClob() methods, which you can use to update Blob and Clob objects through a ResultSet object. Blob and Clob objects may require a lot of resources. **Once you are done with them, you need to free the resources held by them by calling their free() method.**
+
+    public static void insertPersonDetail(Connection conn, int personDetailId, int personId, String pictureFilePath, String resumeFilePath) throws SQLException {
+
+        String SQL = "insert into person_detail (person_detail_id, person_id, picture, resume) values (?, ?, ?, ?)";
+        PreparedStatement pstmt = null;
+        try {
+        pstmt = conn.prepareStatement(SQL);
+        pstmt.setInt(1, personDetailId);
+        pstmt.setInt(2, personId);
+        // Set the picture data
+        if (pictureFilePath != null) {
+            // We need to create a Blob object first
+            Blob pictureBlob = conn.createBlob();
+            readInPictureData(pictureBlob, pictureFilePath);
+            pstmt.setBlob(3, pictureBlob);
+        }
+        // Set the resume data
+        if (resumeFilePath != null) {
+            // We need to create a Clob object first
+            Clob resumeClob = conn.createClob();
+            readInResumeData(resumeClob, resumeFilePath);
+            pstmt.setClob(4, resumeClob);
+        }
+        pstmt.executeUpdate();
+        }
+        catch (IOException | SQLException e) {
+            throw new SQLException(e);
+        } finally {
+            JDBCUtil.closeStatement(pstmt);
+        }
+    }
+
+    public static void retrievePersonDetails(Connection conn, int personDetailId, String picturePath, String resumePath) throws SQLException {
+
+        String SQL = "select person_id, picture, resume from person_detail where person_detail_id = ?";
+        PreparedStatement pstmt = null;
+        try {
+            pstmt = conn.prepareStatement(SQL);
+            pstmt.setInt(1, personDetailId);
+            ResultSet rs = pstmt.executeQuery();
+        while (rs.next()) {
+            int personId = rs.getInt("person_id");
+            Blob pictureBlob = rs.getBlob("picture");
+            if (pictureBlob != null) {
+                savePicture(pictureBlob, picturePath);
+                pictureBlob.free();
+            }
+            Clob resumeClob = rs.getClob("resume");
+            if (resumeClob != null) {
+                saveResume(resumeClob, resumePath);
+                resumeClob.free();
+            }
+        }
+        } catch (IOException | SQLException e) {
+            throw new SQLException(e);
+        } finally {
+            JDBCUtil.closeStatement(pstmt);
+        }
+    }
+
+## Batch Updates
+
+The update commands that you can use in a batch update are SQL INSERT, UPDATE, DELETE, and stored procedures. **A command in a batch should not produce a result set.** Otherwise, the JDBC driver will throw a SQLException. A command should generate an update count that will indicate the number of rows affected in the database by the execution of that command.
+If you are using a Statement to execute a batch of commands, you can have heterogeneous commands in the same batch. For example, one command could be a SQL INSERT statement and another could be a SQL UPDATE statement.
+
+511
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
