@@ -707,21 +707,88 @@ The data for LOB columns is usually not stored in a database table itself. The d
 
 When you retrieve the data for a column of a LOB type, usually a JDBC driver retrieves only the locator for the LOB. When you need the actual data, you need to perform some more operations on the locator to fetch the data.
 
-500
+## Retrieving LOB Data
+
+You can retrieve Blob, Clob and NClob column’s data from a result set using the getBlob(), getClob(), and getNClob() methods of the ResultSet interface, respectively.
+
+    ResultSet rs = pstmt.executeQuery();
+        while(rs.next()) {
+            int personId = rs.getInt("person_id");
+            Blob pictureBlob = rs.getBlob("picture");
+            Clob resumeClob = rs.getClob("resume");
+        }
+
+Most of the time, you will not read the Blob’s and Clob’s data in an array or a String object. They may contain big amounts of data. The Blob and Clob interfaces let you read their data in chunks using an InputStream and a Reader, respectively.
+
+    InputStream in = pictureBlob.getBinaryStream();
+    Reader reader = resumeClob.getCharacterStream();
+
+## Creating a LOB Data
+
+The Connection interface contains three methods to create a LOB:
+* Blob createBlob() throws SQLException
+* Clob createClob() throws SQLException
+* NClob createNClob() throws SQLException
+
+You can use one of the methods to create an empty LOB of a specific type. For example, to store a picture and resume in a database, you would create a Blob object and a Clob object as follows:
+
+    Connection conn = JDBCUtil.getConnection();
+    Blob pictureBlob = conn.createBlob();
+    Clob resumeClob = conn.createClob();
+
+Once you get the Blob and Clob objects you can write data to them in two ways:
+* int setBytes(long pos, byte[] bytes) throws SQLException
+* OutputStream setBinaryStream(long pos) throws SQLException
 
 
+        // Get the output stream of the Blob object to write the picture data to it.
+        int startPosition = 1; // start writing from beginning
+        OutputStream out = pictureBlob.setBinaryStream(startPosition);
+        // Get ready to read from a file
+        String picturePath = "picture.jpg";
+        FileInputStream fis = new FileInputStream(picturePath);
+        // Read from the file and write to the Blob object
+        int b = -1;
+        while ((b = fis.read()) != -1) {
+            out.write(b);
+        }
+        fis.close();
+        out.close();
 
 
+For Clob:
+
+    // Get the Character output stream of the Clob object to write the resume data to it.
+    int startPosition = 1; // start writing from beginning
+    Writer writer = resumeClob.setCharacterStream(startPosition);
+    // Get ready to read from a file
+    String resumePath = "resume.txt";
+    FileReader fr = new FileReader(resumePath);
+    // Read from the file and write to the Clob object
+    int b = -1;
+    while ((b = fr.read()) != -1) {
+        writer.write(b);
+    }
+    fr.close();
+    writer.close();
 
 
+Finally, it is time to write the LOB’s data to a database. You can use the setBlob() and setClob() methods of the PreparedStatement interface to set the Blob and Clob data as shown:
 
-
-
-
-
-
-
-
+    Connection conn = JDBCUtil.getConnection();
+    String SQL = "insert into person_detail (person_detail_id, person_id, picture, resume) values (?, ?, ?, ?)";
+    PreparedStatement pstmt = null;
+    pstmt = conn.prepareStatement(SQL);
+    pstmt.setInt(1, 1); // set person_detail_id
+    pstmt.setInt(2, 101); // Set person_id
+    Blob pictureBlob = conn.createBlob();
+    // Write data to pictureBlob object here
+    pstmt.setBlob(3, pictureBlob);
+    Clob resumeClob = conn.createClob();
+    // Write data to resumeClob object here
+    pstmt.setClob(4, resumeClob);
+    // Insert the record into the database
+    pstmt.executeUpdate();
 
 
 
