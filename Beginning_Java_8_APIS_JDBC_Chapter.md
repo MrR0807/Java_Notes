@@ -855,59 +855,131 @@ The ResultSet interface also includes the updateBlob() and updateClob() methods,
 
 The update commands that you can use in a batch update are SQL INSERT, UPDATE, DELETE, and stored procedures. **A command in a batch should not produce a result set.** Otherwise, the JDBC driver will throw a SQLException. A command should generate an update count that will indicate the number of rows affected in the database by the execution of that command.
 If you are using a Statement to execute a batch of commands, you can have heterogeneous commands in the same batch. For example, one command could be a SQL INSERT statement and another could be a SQL UPDATE statement.
+If you are using a PreparedStatement or CallableStatement to execute a batch of commands, you will execute one command with multiple set of input parameters.
 
-511
+It is important to understand the behavior of the executeBatch() method of the Statement interface. It returns an array of int if all commands in the batch are executed successfully. The array contains as many elements as the number of commands in the batch. Each element in the array contains the update count that is returned from the command. The order of the element in the array is the same as the order of commands in the batch.
+
+The following snippet of code shows how to use a Statement object to execute a batch update.
+
+    Connection conn = JDBCUtil.getConnection();
+    Statement stmt = conn.createStatement();
+    // Add batch update commands
+    stmt.addBatch("insert into t1...);
+    stmt.addBatch("insert into t2...);
+    stmt.addBatch("update t3 set...);
+    stmt.addBatch("delete from t4...);
+    // Execute the batch updates
+    int[] updateCount = null;
+    try {
+        updatedCount = stmt.executeBatch();
+        System.out.println("Batch executed successfully.");
+    }
+    catch (BatchUpdateException e) {
+        System.out.println("Batch failed.");
+    }
+
+The following snippet of code shows how to use a PreparedStatement object to execute a batch update.
+
+    String sql = "delete from person where person_id = ?";
+    Connection conn = JDBCUtil.getConnection();
+    PreparedStatement pstmt = conn.prepareStatement(sql);
+    // Add two commands to the batch.
+    // Command #1: Set the input parameter and add it to the batch.
+    pstmt.setInt(201);
+    pstmt.addBatch();
+    // Command #1: Set the input parameter and add it to the batch.
+    pstmt.setInt(301);
+    pstmt.addBatch();
+    // Execute the batch update
+    int[] updateCount = null;
+    try {
+        updatedCount = pstmt.executeBatch();
+        System.out.println("Batch executed successfully.");
+    }
+    catch (BatchUpdateException e) {
+        System.out.println("Batch failed.");
+    }
+
+## Savepoints in a Transaction
+
+A database transaction consists of one or more changes as a unit of work. A savepoint in a transaction is like a marker that marks a point in a transaction so that, if needed, the transaction can be rolled back (or undone) up to that point.
+
+    Connection conn = JDBCUtil.getConnection();
+    Statement stmt = conn.createStatement();
+    stmt.execute("insert into person..."); // insert 1
+    Savepoint sp1 = conn.setSavepoint(); // savepoint 1
+    stmt.execute("insert into person..."); // insert 2
+    Savepoint sp2 = conn.setSavepoint(); // savepoint 2
+    stmt.execute("insert into person..."); // insert 3
+    Savepoint sp3 = conn.setSavepoint(); // savepoint 3
+    stmt.execute("insert into person..."); // insert 4
+    Savepoint sp4 = conn.setSavepoint(); // savepoint 4
+    stmt.execute("insert into person..."); // insert 5
+
+At this point, you have finer control on the transaction if you want to undo any of the above five inserts into the person table. Now you can use another version of the rollback() method of the Connection object, which accepts a Savepoint object. If you want to undo all changes that were made after savepoint 4, you can do so as follows:
+
+    // Rolls back insert 5 only
+    conn.rollback(sp4);
+    If you want to undo all changes that were made after savepoint 2, you can do so as follows:
+    // Rolls back inserts 3, 4, and 5
+    conn.rollback(sp2);
+
+## Using a DataSource
+
+A factory for connections to the physical data source that this DataSource object represents. An alternative to the DriverManager facility, a DataSource object is the preferred means of getting a connection. An object that implements the DataSource interface will typically be registered with a naming service based on the Java™ Naming and Directory (JNDI) API.
+
+Usually, you configure and deploy a DataSource on a server, which is available using a JNDI service. The following is a sample snippet of code that you can use to configure and deploy a DataSource programmatically. It creates a DataSource provided by MYSQL JDBC driver.
+
+    import com.mySQL.jdbc.jdbc2.optional.MySQLDataSource;
+    import javax.naming.InitialContext;
+    import javax.naming.Context;
+    ...
+    // Create a DataSource object
+    MySQLDataSource mds = new MySQLDataSource();
+    mds.setServerName("localhost");
+    mds.setPortNumber(3306);
+    mds.setUser("root");
+    mds.setPassword("chanda");
+    // Get the initial context
+    Context ctx = new InitialContext();
+    // Bind (or register) the DataSource object under a logical name "jdbc/mydb"
+    ctx.bind("jdbc.mydb", mds);
 
 
+The Java application that needs a connection to a database will perform a lookup using the logical name of the DataSource that was given to it at the time of binding. Here is a typical snippet of Java code that you need to write when you need a Connection object:
 
+    import javax.sql.DataSource;
+    import java.sql.Connection;
+    import javax.naming.InitialContext;
+    import javax.naming.Context;
+    ...
+    // Get the initial context
+    Context ctx = new InitialContext();
+    // Perform a lookup for the DataSource using its logical name "jdbc/mydb"
+    DataSource ds = (DataSource)ctx.lookup("jdbc/mydb");
+    // Get a Connection object from the DataSource object
+    Connection conn = ds.getConnection();
+    // Perform other database related tasks...
+    // Close the connection
+    conn.close()
 
+The JDBC API provides two other types of data source interfaces: javax.sql.ConnectionPoolDataSource and javas.sql.XADataSource:
+* An implementation of the ConnectionPoolDataSource interface provides the connection pooling feature to improve the application’s performance;
+* The implementation of the XADataSource interface provides support for distributed transactions, which involve multiple databases.
 
+## Enabling JDBC Trace
 
+You can enable JDBC tracing that will log JDBC activities to a PrintWriter object. You can use the setLogWriter(PrintWriter out) static method of the DriverManager to set a log writer if you are using the DriverManager to connect to a database. If you are using a DataSource, you can use its setLogWriter(PrintWriter out) method to set a log writer.
 
+## Summary
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+* The **DriverManager** class facilitates registration of JDBC drivers to connect to different types of databases. When passed in database connection properties such as the server location, protocol, database names, user id, password, etc., the DriverManager uses the registered JDBC drivers to connect to the database and returns an object of the **Connection** interface that represents a connection to the database.
+* You can use the **getMetaData()** method for a **Connection** object to get a **DatabaseMetaData** object.
+* A **Statement** is used to execute SQL statements in string forms from a Java program. The result set returned by a SQL statement is made available in the Java program as an object of the **ResultSet** interface.
+* A **PreparedStatement** is used to execute SQL statement with parameters. The SQL statement is pre-compiled to provide a faster execution on repeated use of the same SQL statement with different parameters. Using input parameters in the SQL statement as placeholders also prevents attacks from hackers that use SQL injections.
+* A **CallableStatement** is used to call a SQL stored procedure or a function in a database.
+* A **ResultSet** represents tabular data defined in terms of rows and columns. Typically, you get a ResultSet by executing a SQL statement that returns a result set from the database. A ResultSet may scroll only in the forward direction or in both forward and backward directions. All JDBC drivers will support at least a forward-only ResultSet. A ResultSet may also be used to update data in the database.
+* A **RowSet** is a wrapper for a **ResultSet**. A RowSet hides the complexities that are involved in working with a ResultSet. A **JdbcRowSet**, which is also known as a connected rowset, maintains a database connection all the time. A **CachedRowSet**, which is also called a disconnected rowset, uses a database connection only for the duration it is needed. A **WebRowSet** is a CachedRowSet that supports importing data from an XML document and exporting its data to an XML document. A FilteredRowSet is a WebRowSet that provides filtering capability at the client side. A JoinRowSet is a WebRowSet that provides the ability to combine (or join) two or more disconnected rowsets into one rowset.
+* The JDBC provides support for working with database large objects, typically called, Blob, Clob, and NClob.
+* For a better performance, you can send multiple SQL commands to the database in one shot using the batch update feature of the JDBC API. **Batch updates are supported through the Statement, PreparedStatement, and CallableStatement interfaces.** The addBatch() method of the Statement object is used to add a SQL command to the batch. The executeBatch() method sends all SQL commands in the batch to the database for execution.
+* A database transaction consists of one or more changes as a unit of work. A savepoint in a transaction is a marker that marks a point in a transaction so that, if needed, the transaction can be rolled back up to the marked point. An instance of the **Savepoint** interface represents a savepoint. You can create a savepoint in a transaction using the **setSavepoint()** method of the Connection object. You can specify a savepoint in the rollback() method of the Connection object to roll back the transaction to the specified savepoint.
