@@ -63,7 +63,178 @@ BufferedReader br = Files.newBufferedReader(path);
 List<Complaint> litany = Collections.list(legacyLitany);
 ```
 
+# Item 2: CREATING AND DESTROYING OBJECTS Consider a builder when faced with many constructor parameters
 
+Static factories and constructors share a limitation: they do not scale well to large numbers of optional parameters. There are three options:
+* Telescoping constructor
+* JavaBean convetions
+* Builder pattern
+```
+// Builder Pattern  (Page 13)
+public class NutritionFacts {
+    private final int servingSize;
+    private final int servings;
+    private final int calories;
+    private final int fat;
+    private final int sodium;
+    private final int carbohydrate;
+
+    public static class Builder {
+        // Required parameters
+        private final int servingSize;
+        private final int servings;
+
+        // Optional parameters - initialized to default values
+        private int calories      = 0;
+        private int fat           = 0;
+        private int sodium        = 0;
+        private int carbohydrate  = 0;
+
+        public Builder(int servingSize, int servings) {
+            this.servingSize = servingSize;
+            this.servings    = servings;
+        }
+
+        public Builder calories(int val)
+        { calories = val;      return this; }
+        public Builder fat(int val)
+        { fat = val;           return this; }
+        public Builder sodium(int val)
+        { sodium = val;        return this; }
+        public Builder carbohydrate(int val)
+        { carbohydrate = val;  return this; }
+
+        public NutritionFacts build() {
+            return new NutritionFacts(this);
+        }
+    }
+```
+
+The Builder pattern is well suited to class hierarchies. Use a parallel hierarchy of builders, each nested in the corresponding class. Abstract classes have abstract builders; concrete classes have concrete builders.
+
+```
+public abstract class Pizza {
+    public enum Topping { HAM, MUSHROOM, ONION, PEPPER, SAUSAGE }
+    final Set<Topping> toppings;
+
+    abstract static class Builder<T extends Builder<T>> {
+        EnumSet<Topping> toppings = EnumSet.noneOf(Topping.class);
+        public T addTopping(Topping topping) {
+            toppings.add(Objects.requireNonNull(topping));
+            return self();
+        }
+
+        abstract Pizza build();
+
+        // Subclasses must override this method to return "this"
+        protected abstract T self();
+    }
+    
+    Pizza(Builder<?> builder) {
+        toppings = builder.toppings.clone(); // See Item 50
+    }
+}
+```
+```
+// Subclass with hierarchical builder (Page 15)
+public class NyPizza extends Pizza {
+    public enum Size { SMALL, MEDIUM, LARGE }
+    private final Size size;
+
+    public static class Builder extends Pizza.Builder<Builder> {
+        private final Size size;
+
+        public Builder(Size size) {
+            this.size = Objects.requireNonNull(size);
+        }
+
+        @Override public NyPizza build() {
+            return new NyPizza(this);
+        }
+
+        @Override protected Builder self() { return this; }
+    }
+
+    private NyPizza(Builder builder) {
+        super(builder);
+        size = builder.size;
+    }
+
+    @Override public String toString() {
+        return "New York Pizza with " + toppings;
+    }
+}
+```
+```
+public class Calzone extends Pizza {
+    private final boolean sauceInside;
+
+    public static class Builder extends Pizza.Builder<Builder> {
+        private boolean sauceInside = false; // Default
+
+        public Builder sauceInside() {
+            sauceInside = true;
+            return this;
+        }
+
+        @Override public Calzone build() {
+            return new Calzone(this);
+        }
+
+        @Override protected Builder self() { return this; }
+    }
+
+    private Calzone(Builder builder) {
+        super(builder);
+        sauceInside = builder.sauceInside;
+    }
+
+    @Override public String toString() {
+        return String.format("Calzone with %s and sauce on the %s",
+                toppings, sauceInside ? "inside" : "outside");
+    }
+}
+```
+
+This technique, wherein a subclass method is declared to return a subtype of the return type declared in the superclass, is known as **covariant return typing.** It allows clients to use these builders without the need for casting.
+
+**It’s often better to start with a builder in the first place. In summary, the Builder pattern is a good choice when designing classes whose constructors or static factories would have more than a handful of parameters.**
+
+# Item 3: Enforce the singleton property with a private constructor or an enum type
+
+Making a class a singleton can make it difficult to test its clients because it’s impossible to substitute a mock implementation for a singleton unless it implements an interface that serves as its type.
+
+There are two common ways to implement singletons.
+```
+// Singleton with public final field
+public class Elvis {
+    public static final Elvis INSTANCE = new Elvis();
+    private Elvis() { ... }
+    public void leaveTheBuilding() { ... }
+}
+
+// Singleton with static factory
+public class Elvis {
+    private static final Elvis INSTANCE = new Elvis();
+    private Elvis() { ... }
+    public static Elvis getInstance() { return INSTANCE; }
+    public void leaveTheBuilding() { ... }
+}
+```
+Nothing that a client does can change this, with one caveat: a privileged client can invoke the private constructor reflectively (Item 65) with the aid of the AccessibleObject.setAccessible method.
+
+Third way is to use single-element enum:
+
+```
+// Enum singleton - the preferred approach
+public enum Elvis {
+    INSTANCE;
+    public void leaveTheBuilding() { ... }
+}
+```
+This approach may feel a bit unnatural, but a single-element enum type is often the best way to implement a singleton.
+
+# Item 4: Enforce noninstantiability with a private constructor
 
 
 
