@@ -38,7 +38,7 @@ Date d = Date.from(instant);
 ```
 Set<Rank> faceCards = EnumSet.of(JACK, QUEEN, KING);
 ```
-* **valueOf** A more verbose alternative to from and of , for example:
+* **valueOf** A more verbose alternative to from and of, for example:
 ```
 BigInteger prime = BigInteger.valueOf(Integer.MAX_VALUE);
 ```
@@ -54,7 +54,7 @@ Object newArray = Array.newInstance(classObject, arrayLen);
 ```
 FileStore fs = Files.getFileStore(path);
 ```
-* **new Type** Like newInstance , but used if the factory method is in a different class. Type is the type of object returned by the factory method, for example:
+* **new Type** Like newInstance, but used if the factory method is in a different class. Type is the type of object returned by the factory method, for example:
 ```
 BufferedReader br = Files.newBufferedReader(path);
 ```
