@@ -236,12 +236,30 @@ This approach may feel a bit unnatural, but a single-element enum type is often 
 
 # Item 4: Enforce noninstantiability with a private constructor
 
+Occasionally you’ll want to write a class that is just a grouping of static methods and static fields. Such classes have acquired a bad reputation because some people abuse them to avoid thinking in terms of objects, but they do have valid uses.
 
+### A class can be made noninstantiable by including a private constructor.
 
+# Item 5: Prefer dependency injection to hardwiring resources
+```
+// Dependency injection provides flexibility and testability
+public class SpellChecker {
+    private final Lexicon dictionary;
+    public SpellChecker(Lexicon dictionary) {
+        this.dictionary = Objects.requireNonNull(dictionary);
+    }
+    public boolean isValid(String word) { ... }
+    public List<String> suggestions(String typo) { ... }
+}
+```
+A useful variant of the pattern is to pass a resource factory to the constructor. The Supplier<T> interface, introduced in Java 8, is perfect for representing factories. Methods that take a Supplier<T> on input should typically constrain the factory’s type parameter using a bounded wildcard type (Item 31) to allow the client to pass in a factory that creates any subtype of a specified type. For example, here is a method that makes a mosaic using a client-provided factory to produce each tile:
 
+```
+Mosaic create(Supplier<? extends Tile> tileFactory) { ... }
+```
+In summary, do not use a singleton or static utility class to implement a class that depends on one or more underlying resources whose behavior affects that of the class, and do not have the class create these resources directly. Instead, pass the resources, or factories to create them, into the constructor (or static factory or builder).
 
-
-
+# Item 6: Avoid creating unnecessary objects
 
 
 
