@@ -261,9 +261,21 @@ In summary, do not use a singleton or static utility class to implement a class 
 
 # Item 6: Avoid creating unnecessary objects
 
+It is often appropriate to reuse a single object instead of creating a new function- ally equivalent object each time it is needed. Reuse can be both faster and more stylish. **An object can always be reused if it is immutable (Item 17).**
 
+Some object creations are much more expensive than others. **If you’re going to need such an “expensive object” repeatedly, it may be advisable to cache it for reuse.**
 
+**Another way to create unnecessary objects is autoboxing**, which allows the programmer to mix primitive and boxed primitive types, boxing and unboxing automatically as needed. Autoboxing blurs but does not erase the distinction between primitive and boxed primitive types.
 
+### Prefer primitives to boxed primitives, and watch out for unintentional autoboxing.
+
+# Item 7: Eliminate obsolete object references
+
+Generally speaking, **whenever a class manages its own memory, the programmer should be alert for memory leaks.** Whenever an element is freed, any object references contained in the element should be nulled out.
+**Another common source of memory leaks is caches.**
+**A third common source of memory leaks is listeners and other callbacks.**
+
+# Item 8: Avoid finalizers and cleaners
 
 
 
