@@ -277,6 +277,35 @@ Generally speaking, **whenever a class manages its own memory, the programmer sh
 
 # Item 8: Avoid finalizers and cleaners
 
+### Finalizers are unpredictable, often dangerous, and generally unnecessary.
+
+### The Java 9 replacement for finalizers is cleaners. Cleaners are less dangerous than finalizers, but still unpredictable, slow, and generally unnecessary.
+
+One shortcoming of finalizers and cleaners is that there is no guarantee they’ll be executed promptly [JLS, 12.6]. It can take arbitrarily long between the time that an object becomes unreachable and the time its finalizer or cleaner runs. This means that you should never do anything time-critical in a finalizer or cleaner.
+
+So what should you do instead of writing a finalizer or cleaner for a class whose objects encapsulate resources that require termination, such as files or threads? **Just have your class implement AutoCloseable, and require its clients to invoke the close method on each instance when it is no longer needed.**
+
+# Item 9: Prefer try-with-resources to try - finally
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
