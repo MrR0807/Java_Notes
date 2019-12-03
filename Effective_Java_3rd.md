@@ -63,7 +63,7 @@ BufferedReader br = Files.newBufferedReader(path);
 List<Complaint> litany = Collections.list(legacyLitany);
 ```
 
-# Item 2: CREATING AND DESTROYING OBJECTS Consider a builder when faced with many constructor parameters
+# Item 2: Consider a builder when faced with many constructor parameters
 
 Static factories and constructors share a limitation: they do not scale well to large numbers of optional parameters. There are three options:
 * Telescoping constructor
@@ -287,13 +287,49 @@ So what should you do instead of writing a finalizer or cleaner for a class whos
 
 # Item 9: Prefer try-with-resources to try - finally
 
+Always use try -with-resources in preference to try-finally when working with resources that must be closed. The resulting code is shorter and clearer, and the exceptions that it generates are more useful.
+
+# Item 10: Obey the general contract when overriding equals
+
+The easiest way to avoid problems is not to override the equals method, in **which case each instance of the class is equal only to itself.** This is the right thing to do if any of the following conditions apply:
+* **Each instance of the class is inherently unique.**
+* **There is no need for the class to provide a “logical equality” test.**
+* **A superclass has already overridden equals , and the superclass behavior is appropriate for this class.**
+* **The class is private or package-private, and you are certain that its equals method will never be invoked.**
+
+So when is it appropriate to override equals? It is when a class has a notion of logical equality that differs from mere object identity and a superclass has not already overridden equals. **This is generally the case for *value classes*. A value class is simply a class that represents a value, such as Integer or String.**
+
+**When you are finished writing your equals method, ask yourself three questions: Is it symmetric? Is it transitive? Is it consistent?**
+
+Here are a few final caveats:
+* **Always override hashCode when you override equals**
+* **Don’t try to be too clever. If you simply test fields for equality, it’s not hard to adhere to the equals contract**
+
+**IDEs generate equals (and hashCode) methods is generally preferable to implementing them manually because IDEs do not make careless mistakes, and humans do.**
+
+# Item 11: Always override hashCode when you override equals
+
+**You must override hashCode in every class that overrides equals.**
+
+### The key provision that is violated when you fail to override hashCode is the second one: equal objects must have equal hash codes.
+
+This one, for example, is always legal but should never be used:
+```
+// The worst possible legal hashCode implementation - never use!
+@Override public int hashCode() { return 42; }
+```
+It’s legal because it ensures that equal objects have the same hash code. It’s atrocious because it ensures that every object has the same hash code. Therefore, every object hashes to the same bucket, and hash tables degenerate to linked lists.
 
 
+The Objects class has a static method that takes an arbitrary number of objects and returns a hash code for them. This method, named hash , lets you write one-line hashCode methods whose quality is comparable to those written according to the recipe in this item.
+```
+// One-line hashCode method - mediocre performance
+@Override public int hashCode() {
+return Objects.hash(lineNum, prefix, areaCode);
+}
+```
 
-
-
-
-
+# Item 12: Always override toString
 
 
 
