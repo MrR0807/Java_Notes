@@ -331,6 +331,92 @@ return Objects.hash(lineNum, prefix, areaCode);
 
 # Item 12: Always override toString
 
+### Providing a good toString implementation makes your class much more pleasant to use and makes systems using the class easier to debug.
+
+The toString method is automatically invoked when an object is passed to println, printf, the string concatenation operator, or assert, or is printed by a debugger.
+
+Nor should you write a toString method in most enum types because Java provides a perfectly good one for you. You should, however, **write a toString method in any abstract class whose subclasses share a common string representation.** For example, the toString methods on most collection implementations are inherited from the abstract collection classes.
+
+To recap, override Object’s toString implementation in every instantiable class you write, unless a superclass has already done so. It makes classes much more pleasant to use and aids in debugging.
+
+# Item 13: Override clone judiciously
+
+So what does Cloneable do, given that it contains no methods? It determines the behavior of Object’s protected clone implementation: if a class implements Cloneable, Object’s clone method returns a field-byfield copy of the object; otherwise it throws CloneNotSupportedException.
+
+A class implementing Cloneable is expected to provide a properly functioning public clone method. In order to achieve this, the class and all of its superclasses must obey a complex, unenforceable, thinly documented protocol. **The resulting mechanism is fragile, dangerous, and extralinguistic: it creates objects without calling a constructor.**
+
+**Immutable classes should never provide a clone method because it would merely encourage wasteful copying.**
+
+In effect, the clone method functions as a constructor; you must ensure that it does no harm to the original object and that it properly establishes invariants on the clone.
+
+### A better approach to object copying is to provide a copy constructor or copy factory.
+
+### Given all the problems associated with Cloneable, new interfaces should not extend it, and new extendable classes should not implement it.
+
+# Item 14: Consider implementing Comparable
+
+By implementing Comparable, you allow your class to interoperate with all of the many generic algorithms and collection implementations that depend on this interface. You gain a tremendous amount of power for a small amount of effort.
+
+If you are writing a value class with an obvious natural ordering, such as alphabetical order, numerical order, or chronological order, you should implement the Comparable.
+
+Let’s go over the provisions of the compareTo contract:
+* The first provision says that if you reverse the direction of a comparison between two object references, the expected thing happens: **if the first object is less than the second, then the second must be greater than the first**; if the first object is equal to the second, then the second must be equal to the first; and if the first object is greater than the second, then the second must be less than the first.
+* The second provision says that **if one object is greater than a second and the second is greater than a third, then the first must be greater than the third.**
+* The final provision says that **all objects that compare as equal must yield the same results when compared to any other object.**
+
+### If you want to add a value component to a class that implements Comparable, don’t extend it; write an unrelated class containing an instance of the first class. Then provide a “view” method that returns the contained instance.
+
+This frees you to implement whatever compareTo method you like on the containing class, while allowing its client to view an instance of the containing class as an instance of the contained class when needed.
+
+For example, consider the BigDecimal class, whose compareTo method is inconsistent with equals. If you create an empty HashSet instance and then add new BigDecimal("1.0") and new BigDecimal("1.00"), the set will contain two elements because the two BigDecimal instances added to the set are unequal when compared using the equals method. If, however, you perform the same procedure using a TreeSet instead of a HashSet, the set will contain only one element because the two BigDecimal instances are equal when compared using the compareTo method. (See the BigDecimal documentation for details.)
+
+**In Java 7, static compare methods were added to all of Java’s boxed primitive classes.**
+
+If a class has multiple significant fields, the order in which you compare them is critical. Start with the most significant field and work your way down.
+```
+// Multiple-field Comparable with primitive fields
+public int compareTo(PhoneNumber pn) {
+    int result = Short.compare(areaCode, pn.areaCode);
+    if (result == 0) {
+        result = Short.compare(prefix, pn.prefix);
+        if (result == 0)
+            result = Short.compare(lineNum, pn.lineNum);
+        }
+    return result;
+}
+```
+**In Java 8, the Comparator interface was outfitted with a set of comparator construction methods, which enable fluent construction of comparators.**
+
+```
+private static final Comparator<PhoneNumber> COMPARATOR = 
+    comparingInt((PhoneNumber pn) -> pn.areaCode)
+    .thenComparingInt(pn -> pn.prefix)
+    .thenComparingInt(pn -> pn.lineNum);
+
+public int compareTo(PhoneNumber pn) {
+    return COMPARATOR.compare(this, pn);
+}
+```
+
+**In summary, whenever you implement a value class that has a sensible ordering, you should have the class implement the Comparable interface so that its instances can be easily sorted, searched, and used in comparison-based collections. When comparing field values in the implementations of the compareTo methods, avoid the use of the < and > operators. Instead, use the static compare methods in the boxed primitive classes or the comparator construction methods in the Comparator interface.**
+
+# Item 15: Minimize the accessibility of classes and members
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
