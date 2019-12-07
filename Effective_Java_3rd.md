@@ -402,19 +402,67 @@ public int compareTo(PhoneNumber pn) {
 
 # Item 15: Minimize the accessibility of classes and members
 
+A well-designed component hides all its implementation details, cleanly separating its API from its implementation.
 
+### The rule of thumb is simple: make each class or member as inaccessible as possible.
 
+**If a top-level class or interface can be made package-private, it should be.**
+The need for protected members should be relatively rare.
 
+**It is acceptable to make a private member of a public class package-private in order to test it**, but it is not acceptable to raise the accessibility any higher. In other words, it is not acceptable to make a class, interface, or member a part of a package’s exported API to facilitate testing.
 
+To summarize, you should reduce accessibility of program elements as much as possible (within reason). After carefully designing a minimal public API, you should prevent any stray classes, interfaces, or members from becoming part of the API. With the exception of public static final fields, which serve as constants, public classes should have no public fields. Ensure that objects referenced by public static final fields are immutable.
 
+# Item 16: In public classes, use accessor methods, not public fields
 
+Occasionally, you may be tempted to write degenerate classes that serve no purpose other than to group instance fields:
 
+```
+// Degenerate classes like this should not be public!
+class Point {
+    public double x;
+    public double y;
+}
+```
 
+**If a class is accessible outside its package, provide accessor methods**.
 
+**However, if a class is package-private or is a private nested class, there is nothing inherently wrong with exposing its data fields.**
 
+# Item 17: Minimize mutability
 
+To make a class immutable, follow these five rules:
+* **Don’t provide methods that modify the object’s state**
+* **Ensure that the class can’t be extended**
+* **Make all fields final**
+* **Make all fields private**
+* **Ensure exclusive access to any mutable components. If your class has any fields that refer to mutable objects, ensure that clients of the class cannot obtain references to these objects.**
 
+Notice how the arithmetic operations create and return a new Complex instance rather than modifying this instance. This pattern is known as the ***functional approach* because methods return the result of applying a function to their operand, without modifying it. Contrast it to the *procedural or imperative approach* in which methods apply a procedure to their operand, causing its state to change.**
 
+### Immutable objects are inherently thread-safe; they require no synchronization.
+
+An immutable class can provide static factories (Item 1) that cache frequently requested instances to avoid creating new instances when existing ones would do.
+
+**The major disadvantage of immutable classes is that they require a separate object for each distinct value.** Creating these objects can be costly, especially if they are large.
+
+The performance problem is magnified if you perform a multistep operation that generates a new object at every step, eventually discarding all objects except the final result.
+
+However, you could solve it via package-private mutable companion class.
+
+Few design alternatives:
+* Recall that to guarantee immutability, a class must not permit itself to be subclassed. This can be done by making the class final, but there is another, more flexible alternative. **Instead of making an immutable class final, you can make all of its constructors private or package-private and add public static factories in place of the public constructors.**
+
+**This approach is often the best alternative. It is the most flexible because it allows the use of multiple package-private implementation classes.** To its clients that reside outside its package, the immutable class is effectively final because it is impossible to extend a class that comes from another package and that lacks a public or protected constructor.
+
+However, some immutable classes have one or more nonfinal fields in which they cache the results of expensive computations the first time they are needed. If the same value is requested again, the cached value is returned, saving the cost of recalculation. This trick works precisely because the object is immutable, which guarantees that the computation would yield the same result if it were repeated.
+
+### Classes should be immutable unless there’s a very good reason to make them mutable.
+### Declare every field private final unless there’s a good reason to do otherwise
+
+# Item 18: Favor composition over inheritance
+
+**Unlike method invocation, inheritance violates encapsulation.** The superclass’s implementation may change from release to release, and if it does, the subclass may break, even though its code has not been touched.
 
 
 
