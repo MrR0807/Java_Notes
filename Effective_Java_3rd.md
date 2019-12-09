@@ -464,6 +464,68 @@ However, some immutable classes have one or more nonfinal fields in which they c
 
 **Unlike method invocation, inheritance violates encapsulation.** The superclass’s implementation may change from release to release, and if it does, the subclass may break, even though its code has not been touched.
 
+Instead of extending an existing class, give your new class a private field that references an instance of the existing class. This design is called *composition* because the existing class becomes a component of the new one. Each instance method in the new class invokes the corresponding method on the contained instance of the existing class and returns the results. This is known as *forwarding*, and the methods in the new class are known as *forwarding methods*.
+
+The disadvantages of wrapper classes are few:
+* One caveat is that wrapper classes are not suited for use in callback frameworks, wherein objects pass selfreferences to other objects for subsequent invocations (“callbacks”).
+```
+// basic class which we will wrap
+public class Model{ 
+    Controller controller;
+
+    Model(Controller controller){
+        this.controller = controller; 
+        controller.register(this); //Pass SELF reference
+    }
+
+    public void makeChange(){
+        ... 
+    }
+} 
+
+public class Controller{
+    private final Model model;
+
+    public void register(Model model){
+        this.model = model;
+    }
+
+    // Here the wrapper just fails to count changes, 
+    // because it does not know about the wrapped object 
+    // references leaked
+    public void doChanges(){
+        model.makeChange(); 
+    } 
+}
+
+// wrapper class
+public class ModelChangesCounter{
+    private final Model; 
+    private int changesMade;
+
+    ModelWrapper(Model model){
+        this.model = model;
+    }
+
+    // The wrapper is intended to count changes, 
+    // but those changes which are invoked from 
+    // Controller are just skipped    
+    public void makeChange(){
+        model.makeChange(); 
+        changesMade++;
+    } 
+}
+```
+
+
+* Some people worry about the performance impact of forwarding method invocations or the memory footprint impact of wrapper objects. Neither turn out to have much impact in practice. It’s tedious to write forwarding methods, but you have to write the reusable forwarding class for each interface only once, and forwarding classes may be provided for you.
+
+**Inheritance is appropriate only in circumstances where the subclass really is a subtype of the superclass. In other words, a class B should extend a class A only if an “is-a” relationship exists between the two classes.** If you are tempted to have a class B extend a class A, ask yourself the question: Is every B really an A? If you cannot truthfully answer yes to this question, B should not extend A.
+
+### To summarize, inheritance is powerful, but it is problematic because it violates encapsulation. It is appropriate only when a genuine subtype relationship exists between the subclass and the superclass. Even then, inheritance may lead to fragility if the subclass is in a different package from the superclass and the superclass is not designed for inheritance. To avoid this fragility, use composition and forwarding instead of inheritance, especially if an appropriate interface to implement a wrapper class exists. Not only are wrapper classes more robust than subclasses, they are also more powerful.
+
+# Item 19: Design and document for inheritance or else prohibit it
+
 
 
 
