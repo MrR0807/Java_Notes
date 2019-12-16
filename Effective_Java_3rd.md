@@ -526,9 +526,23 @@ public class ModelChangesCounter{
 
 # Item 19: Design and document for inheritance or else prohibit it
 
+First, the class must document precisely the effects of overriding any method. In other words, the class must document its self-use of overridable methods.
 
+But doesn’t this violate the dictum that good API documentation should describe what a given method does and not how it does it? Yes, it does! **This is an unfortunate consequence of the fact that inheritance violates encapsulation. To document a class so that it can be safely subclassed, you must describe implementation details that should otherwise be left unspecified.** The **@implSpec** tag was added in Java 8 and used heavily in Java 9.
 
+To allow programmers to write efficient subclasses without undue pain, a class may have to provide hooks into its internal workings in the form of judiciously chosen protected methods or, in rare instances, protected fields.
 
+**The only way to test a class designed for inheritance is to write subclasses. Experience shows that three subclasses are usually sufficient to test an extendable class.**
+
+### Constructors must not invoke overridable methods, directly or indirectly.
+
+**The Cloneable and Serializable interfaces present special difficulties when designing for inheritance. It is generally not a good idea for a class designed for inheritance to implement either of these interfaces.**
+
+### Designing a class for inheritance requires great effort and places substantial limitations on the class.
+
+**The best solution to this problem is to prohibit subclassing in classes that are not designed and documented to be safely subclassed.** There are two ways to prohibit subclassing. The easier of the two is to **declare the class final.** The alternative is to make all the **constructors private or package-private and to add public static factories** in place of the constructors.
+
+# Item 20: Prefer interfaces to abstract classes
 
 
 
