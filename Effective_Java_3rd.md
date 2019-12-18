@@ -544,11 +544,32 @@ To allow programmers to write efficient subclasses without undue pain, a class m
 
 # Item 20: Prefer interfaces to abstract classes
 
+### Existing classes can easily be retrofitted to implement a new interface.
 
+Existing classes cannot, in general, be retrofitted to extend a new abstract class. Even if you managed, this can cause great collateral damage to the type hierarchy, forcing all descendants of the new abstract class to subclass it, whether or not it is appropriate.
 
+### Interfaces are ideal for defining mixins. Loosely speaking, a mixin is a type that a class can implement in addition to its “primary type,” to declare that it provides some optional behavior. For example, Comparable is a mixin interface.
 
+### Interfaces allow for the construction of nonhierarchical type frameworks.
 
+Type hierarchies are great for organizing some things, but other things don’t fall neatly into a rigid hierarchy. For example:
+```
+public interface Singer {
+    AudioClip sing(Song s);
+}
 
+public interface Songwriter {
+    Song compose(int chartPosition);
+}
+
+```
+**In real life, some singers are also songwriters. Because we used interfaces rather than abstract classes to define these types, it is perfectly permissible for a single class to implement both Singer and Songwriter.**
+
+You can, however, combine the advantages of interfaces and abstract classes by providing an abstract skeletal implementation class to go with an interface. The interface defines the type, perhaps providing some default methods, while the skeletal implementation class implements the remaining non-primitive interface methods atop the primitive interface methods. Extending a skeletal implementation takes most of the work out of implementing an interface. This is the Template Method pattern
+
+Collections Framework provides a skeletal implementation to go along with each main collection interface: AbstractCollection, AbstractSet, AbstractList, and AbstractMap.
+
+# Item 21: Design interfaces for posterity
 
 
 
