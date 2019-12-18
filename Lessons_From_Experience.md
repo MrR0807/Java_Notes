@@ -32,3 +32,5 @@ List<Author> authors = q.getResultList();
 If you don’t like to cast the Fetch to a Join interface, you can use an EntityGraph instead. It’s another way to tell Hibernate to initialize the association.
 
 [Source](https://thoughts-on-java.org/hibernate-tip-left-join-fetch-join-criteriaquery/)
+
+-----------
