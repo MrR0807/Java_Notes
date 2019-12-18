@@ -571,6 +571,38 @@ Collections Framework provides a skeletal implementation to go along with each m
 
 # Item 21: Design interfaces for posterity
 
+### It is not always possible to write a default method that maintains all invariants of every conceivable implementation.
+
+For example, consider the removeIf method, which was added to the Collection interface in Java 8.
+
+This is the best general-purpose implementation one could possibly write for the removeIf method, but sadly, it fails on some real-world Collection implementations. For example, consider org.apache.commons.collections4.collection.SynchronizedCollection. This class, from the Apache Commons library, is similar to the one returned by the static factory Collections.synchronizedCollection in java.util. The Apache version additionally provides the ability to use a client-supplied object for locking, in place of the collection. In other words, it is a wrapper class (Item 18), all of whose methods synchronize on a locking object before delegating to the wrapped collection. The Apache SynchronizedCollection class is still being actively maintained, but as of this writing, it does not override the removeIf method. If this class is used in conjunction with Java 8, it will therefore inherit the default implementation of removeIf, which does not, indeed cannot, maintain the class’s fundamental promise: to automatically synchronize around each method invocation.
+
+### In the presence of default methods, existing implementations of an interface may compile without error or warning but fail at runtime.
+
+**Using default methods to add new methods to existing interfaces should be avoided unless the need is critical.**
+
+# Item 22: Use interfaces only to define types
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
