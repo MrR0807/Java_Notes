@@ -45,6 +45,98 @@ Containers must run on a Linux host. Neither Windows or Mac can run containers n
 
 More information: https://docs.docker.com/v17.09/machine/overview/
 
+# Chapter 3. Working with Containers
+
+Test docker ```docker -v```. Then try to run:
+```
+docker container run alpine echo "Hello World"
+```
+Result similar to this:
+```
+Unable to find image 'alpine:latest' locally
+latest: Pulling from library/alpine
+2fdfe1cd78c2: Pull complete
+Digest: sha256:ccba511b...
+Status: Downloaded newer image for alpine:latest
+Hello World
+```
+# Starting, stopping, and removing containers
+
+```
+docker container run alpine echo "Hello World"
+```
+This command contains multiple parts. First and foremost, we have the word **docker**. This is the name of the Docker command-line interface (CLI), which we are using to interact with the Docker engine that is responsible to run containers. Next, we have the word **container**, which indicates the context we are working with. As we want to run a container, our context is the word container. Next is the actual **command we want to execute in the given context, which is run**.
+
+Now we also need to tell Docker which container to run. In this case, this is the so-called **alpine** container. Finally, we need to define what kind of process or task shall be executed inside the container when it is running. In our case, this is the last part of the command, echo "Hello World".
+
+Now, let's run this in an alpine container as a daemon in the background.
+
+```
+$ docker container run -d --name quotes alpine /bin/sh -c "while :; do wget -qO- https://talaikis.com/api/quotes/random; printf '\n'; sleep 5; done"
+```
+In the preceding expression, we have used two new command-line parameters, **-d** and **--name**. 
+The -d tells Docker to run the process running in the container as a Linux daemon. 
+The --name parameter in turn can be used to give the container an explicit name. In the preceding sample, the name we chose is quotes.
+
+**One important takeaway is that the container name has to be unique on the system.**
+
+### Listing containers
+
+**docker container ls** - List of all containers running on the system
+**docker container ls -a** - List not only the currently running containers but all containers that are defined on our system
+**docker container ls -q** - List the IDs of all containers
+**docker container rm -f $(docker container ls -a -q)** - Remove all containers
+**docker container ls -h** - Invoke help for the list command
+
+### Stopping and starting containers
+
+**docker container stop quotes**. When you try to stop the quotes container, you will probably note that it takes a while until this command is executed. To be precise, it takes about 10 seconds. Why is this the case?
+
+Docker sends a Linux SIGTERM signal to the main process running inside the container. If the process doesn't react to this signal and terminate itself, Docker waits for 10 seconds and then sends SIGKILL, which will kill the process forcefully and terminate the container.
+
+**How do we get the ID of a container?**
+```
+export CONTAINER_ID = $(docker container ls | grep quotes | awk '{print $1}')
+docker container stop $CONTAINER_ID
+```
+
+### Removing containers
+
+```
+docker container rm <container ID>
+#Or
+docker container rm <container name>
+```
+Sometimes, removing a container will not work as it is still running. If we want to force a removal, no matter what the condition of the container currently is, we can use the command-line parameter -f or --force.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
