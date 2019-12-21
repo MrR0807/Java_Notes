@@ -39,6 +39,12 @@ The container runtime on a Docker host consists of:
 * runc - low-level functionality of the container runtime
 * containerd - based on runc, provides the higher-level functionality
 
+# Chapter 2. Setting up a Working Environment
+
+Containers must run on a Linux host. Neither Windows or Mac can run containers natively. Thus, we need to run a Linux VM on our laptop, where we can then run our containers. This is essentially what is ```docker-machine```. It enables to set up environment in which Docker (the Engine) can actually work.
+
+More information: https://docs.docker.com/v17.09/machine/overview/
+
 
 
 
