@@ -33,7 +33,11 @@ In the preceding diagram, we see three essential parts:
 * In the middle dark gray, we have the container runtime
 * On the top, we have the Docker engine
 
+Containers are only possible due to the fact that the Linux OS provides some primitives, such as **namespaces, control groups, layer capabilities**, and more which are leveraged in a very specific way by the container runtime and the Docker engine. Linux kernel namespaces such as **process ID (pid) namespaces or network(net) namespaces** allow Docker to encapsulate or sandbox processes that run inside the container. Control groups make sure that containers cannot suffer from the noisy neighbor syndrome, where a single application running in a container can consume most or all of the available resources of the whole Docker host.
 
+The container runtime on a Docker host consists of:
+* runc - low-level functionality of the container runtime
+* containerd - based on runc, provides the higher-level functionality
 
 
 
