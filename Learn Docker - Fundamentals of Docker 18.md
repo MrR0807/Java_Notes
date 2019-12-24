@@ -109,6 +109,68 @@ docker container rm <container name>
 ```
 Sometimes, removing a container will not work as it is still running. If we want to force a removal, no matter what the condition of the container currently is, we can use the command-line parameter -f or --force.
 
+# Inspecting containers
+
+We have to provide either the container ID or name to identify the container of which we want to obtain the data:
+```
+docker container inspect quotes 
+```
+Sometimes, we need just a tiny bit of the overall information, and to achieve this, we can either use the grep tool or a filter. **The former method does not always result in the expected answer**, so let's look into the latter approach:
+```
+docker container inspect -f "{{json .State}}" quotes
+```
+The -f or --filter parameter is used to define the filter. The filter expression itself uses the Go template syntax.
+
+# Exec into a running container
+
+Sometimes, we want to run another process inside an already-running container. A typical reason could be to try to debug a misbehaving container. 
+```
+docker container exec -i -t quotes /bin/sh
+```
+
+The flag **-i** signifies that we want to run the additional process interactively, and **-t** tells Docker that we want it to provide us with a TTY (a terminal emulator) for the command. Finally, the process we run is **/bin/sh**.
+
+We can also execute processes non-interactive:
+```
+docker container exec quotes ps
+```
+
+# Attaching to a running container
+
+We can use the attachcommand to attach our Terminal's standard input, output, and error (or any combination of the three) to a running container using the ID or name of the container. Let's do this for our quotes container:
+```
+docker container attach quotes
+```
+
+To quit the container without stopping or killing it, we can press the key combination **Ctrl+P Ctrl+Q**. This **detaches us from the container while leaving it running** in the background. On the other hand, if we want to **detach and stop the container** at the same time, we can just press **Ctrl+C**.
+
+# Retrieving container logs
+If the logging output is directed to STDOUT and STDERR, then Docker can collect this information and keep it ready for consumption by a user or any other external system.
+```
+docker container logs quotes
+```
+
+If we want to only get a few of the latest entries, we can use the -t or --tail parameter, as follows:
+```
+docker container logs --tail 5 quotes
+```
+Sometimes, we want to follow the log that is produced by a container. This is possible when using the parameter -f or --follow.
+```
+docker container logs --tail 5 --follow quotes
+```
+
+# Anatomy of containers
+
+Many individuals wrongly compare containers to VMs. However, this is a questionable comparison. **Containers are not just lightweight VMs.**
+
+Containers are specially encapsulated and secured processes running on the host system.
+
+Containers leverage a lot of features and primitives available in the Linux OS. The most important ones are **namespaces and cgroups**. All processes running in containers **share the same Linux kernel** of the underlying host operating system. This is fundamentally different compared with VMs, as **each VM contains its own full-blown operating system.**
+
+
+
+
+
 
 
 
