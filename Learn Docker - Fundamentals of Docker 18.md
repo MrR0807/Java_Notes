@@ -170,6 +170,7 @@ Containers leverage a lot of features and primitives available in the Linux OS. 
 ### Architecture
 
 ---
+
 **Docker Engine**
 Rest Interface -> libcontainerd; libnetwork; graph; plugins
 
@@ -177,6 +178,7 @@ Rest Interface -> libcontainerd; libnetwork; graph; plugins
 
 **Linux Operating System**
 Namespaces (pid, net, ipc, mnt, ufs); Control Groups (cgroups); Layer Capabilities (Union Filesystem: Overlay, AUFS, Device Mapper); Other OS Functionality.
+
 ---
 
 We have the Linux operating system with its cgroups, namespaces, and layer capabilities as well as other functionality that we do not need to explicitly mention here. Then, there is an intermediary layer composed of containerd and runc. On top of all that now sits the Docker engine. The Docker engine offers a RESTful interface to the outside world that can be accessed by any tool, such as the Docker CLI, Docker for Mac, and Docker for Windows or Kubernetes to just name a few.
