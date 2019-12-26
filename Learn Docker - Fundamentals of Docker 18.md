@@ -314,10 +314,34 @@ CMD ["python", "main.py"]
 ```
 Each line of the Dockerfile results in a layer in the resulting image.
 
+## The FROM keyword
+
+**Every Dockerfile starts with the ```FROM``` keyword.**
+
+---
+
+**From Docker and Kubernetes for Java Developers**
+
+The syntax for the FROM instruction is straightforward. It's just:
+```
+FROM <image>
+```
+or
+```
+FROM <image>:<tag>
+```
+or 
+
+```
+FROM <image>@<digest>
+```
+The FROM instruction takes a tag or digest as a parameter. **If you decide to skip them, Docker will assume you want to build your image from the *latest* tag**. Be aware that latest will not always be the latest version of the image you want to build upon.
 
 
 
 
+
+---
 
 
 
