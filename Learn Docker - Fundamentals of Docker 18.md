@@ -282,8 +282,37 @@ C /var/cache/misc
 * **D - deleted**
 
 We can now use the ``docker container commit`` command to persist our modifications and create a new image from them:
+```
+docker container commit sample my-alpine sha256:44bca4141130ee8702e8e8efd1beb3cf4fe5aadb62a0c69a6995afd49c2e7419
+```
+With the preceding command, we have specified that the new image shall be called my-alpine. To verify that image has been created:
+```
+docker image ls
+```
+```
+REPOSITORY TAG      IMAGE ID        CREATED               SIZE
+my-alpine  latest   44bca4141130    About a minute ago    5.64MB
+...
+```
+If we want to see how our custom image has been built, we can use the history command as follows:
+```
+docker image history my-alpine
+```
 
+## Using Dockerfiles
 
+**Manually creating custom images** as shown in the previous section of this chapter is very **helpful when doing exploration, creating prototypes, or making feasibility studies.** But it has a serious **drawback: it is a manual process and thus is not repeatable or scalable.** It is also as **error-prone** as any task executed manually by humans.
+
+Let's look at a sample Dockerfile:
+```
+FROM python:2.7
+RUN mkdir -p /app
+WORKDIR /app
+COPY ./requirements.txt /app/
+RUN pip install -r requirements.txt
+CMD ["python", "main.py"]
+```
+Each line of the Dockerfile results in a layer in the resulting image.
 
 
 
