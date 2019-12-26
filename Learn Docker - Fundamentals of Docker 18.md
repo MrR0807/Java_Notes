@@ -215,6 +215,13 @@ Runc is a low-level implementation of a container runtime; containerd builds on 
 
 # Chapter 4. Creating and Managing Container Images
 
+## What are images?
+
+In Linux, **everything is a file.** The whole operating system is basically a filesystem with files and folders stored on the local disk. This is an important fact to remember when looking at what container images are. As we will see, an **image** is basically a big tarball containing a filesystem. More specifically, it **contains a layered filesystem.**
+
+### The layered filesystem
+
+Container images are templates from which containers are created. These images are not just one monolithic block, but are composed of many layers. The first layer in the image is also called the base layer.
 
 
 
