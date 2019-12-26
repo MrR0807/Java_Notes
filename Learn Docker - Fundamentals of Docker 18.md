@@ -337,15 +337,36 @@ FROM <image>@<digest>
 ```
 The FROM instruction takes a tag or digest as a parameter. **If you decide to skip them, Docker will assume you want to build your image from the *latest* tag**. Be aware that latest will not always be the latest version of the image you want to build upon.
 
+---
 
+### RUN
 
-
-
+The argument for ```RUN``` is any valid Linux command, such as the following:
+```
+RUN yum install -y wget
+```
+The preceding command is using the CentOS package manager yum to install the wget package into the running container. Ubuntu:
+```
+RUN apt-get update && apt-get install -y wget
+```
+More complex RUN:
+```
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libexpat1 \
+    libffi6 \
+    libgdbm3 \
+    libreadline7 \
+    libsqlite3-0 \
+    libssl1.1 \
+  && rm -rf /var/lib/apt/lists/*
+```
 ---
 
 
 
-
+---
 
 
 
