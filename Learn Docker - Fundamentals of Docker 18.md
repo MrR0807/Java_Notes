@@ -223,6 +223,40 @@ In Linux, **everything is a file.** The whole operating system is basically a fi
 
 Container images are templates from which containers are created. These images are not just one monolithic block, but are composed of many layers. The first layer in the image is also called the base layer.
 
+Each individual layer contains files and folders. Each layer only contains the changes to the filesystem with respect to the underlying layers. Docker uses a union filesystem to create a virtual filesystem out of the set of layers. 
+
+As has been said previously, **each image starts with a base image.** **Typically**, this **base image is one of the official images found on Docker Hub, such as a Linux distro, Alpine, Ubuntu, or CentOS.**
+
+### The writable container layer
+
+As we have discussed, a container image is made of a stack of immutable or read-only layers. When the Docker engine creates a container from such an image, it adds a writable container layer on top of this stack of immutable layers. Example:
+
+***ContainerLayer***
+**3. Add static files**
+**2. Add Nginx**
+**1. Apline Linux**
+
+**The container layer is marked as read/write.** Another advantage of the immutability of image layers is that they can be shared among many containers created from this image. **All that is needed is a thin, writable container layer for each container.**
+
+# Creating images
+
+There are three ways to create a new container image on your system:
+* Interactively building a container that contains all the additions and changes one desires and then committing those changes into a new image
+* Most important way is to use a Dockerfile to describe what's in the new image and then build this image using that Dockerfile as a manifest
+* Creating an image by importing it into the system from a tarball
+
+## Interactive image creation
+
+The first way we can create a custom image is by interactively building a container. That is, we start with a base image that we want to use as a template and run a container of it interactively.
+```
+docker container run -it --name sample alpine /bin/sh
+```
+
+By default, the alpine container does not have the ping tool installed. Let's assume we want to create a new custom image that has ping installed. Inside the container, we can then run the following command:
+```
+/apk update && apk add iputils
+```
+This uses the Alpine package manager apk to install the iputils library, of which ping is a part.
 
 
 
