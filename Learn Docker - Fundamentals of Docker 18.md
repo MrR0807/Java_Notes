@@ -256,13 +256,32 @@ By default, the alpine container does not have the ping tool installed. Let's as
 ```
 /apk update && apk add iputils
 ```
-This uses the Alpine package manager apk to install the iputils library, of which ping is a part.
+This uses the Alpine package manager apk to install the iputils library, of which ping is a part. Once we have finished our customization, we can quit the container by typing exit at the prompt.
 
+If we want to see what has changed in our container in relation to the base image, we can use the docker container diff command as follows:
+```
+docker container diff sample
+```
+The output should present a list of all modifications done on the filesystem of the container:
+```
+C /bin
+C /bin/ping
+C /bin/ping6
+A /bin/traceroute
+A /root/.ash_history
+C /usr/lib
+...
+C /var/cache/apk
+A /var/cache/apk/APKINDEX.5022a8a2.tar.gz
+A /var/cache/apk/APKINDEX.70c88391.tar.gz
+C /var/cache/misc
+```
 
+* **A - added**
+* **C - changed**. 
+* **D - deleted**
 
-
-
-
+We can now use the ``docker container commit`` command to persist our modifications and create a new image from them:
 
 
 
