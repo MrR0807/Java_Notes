@@ -318,10 +318,6 @@ Each line of the Dockerfile results in a layer in the resulting image.
 
 **Every Dockerfile starts with the ```FROM``` keyword.**
 
----
-
-**From Docker and Kubernetes for Java Developers**
-
 The syntax for the FROM instruction is straightforward. It's just:
 ```
 FROM <image>
@@ -336,8 +332,6 @@ or
 FROM <image>@<digest>
 ```
 The FROM instruction takes a tag or digest as a parameter. **If you decide to skip them, Docker will assume you want to build your image from the *latest* tag**. Be aware that latest will not always be the latest version of the image you want to build upon.
-
----
 
 ### RUN
 
@@ -387,8 +381,6 @@ Wildcards and single character symbols ```?``` are allowed in the source path. F
 COPY ./sample* /mydir/
 ```
 
----
-
 What ADD basically does is copy the files from the source into the container's own filesystem at the desired destination.
 ```
 ADD <source path or URL> <destination path>
@@ -410,20 +402,78 @@ The <destination directory> is either an absolute path or a path which is relati
 
 COPY is almost the same as the ADD instruction, with one difference. COPY supports only the basic copying of local files into the container.
 
----
+### The WORKDIR keyword
 
+The WORKDIR keyword defines the working directory or context that is used when a container is run from our custom image. The WORKDIR instruction adds a working directory for any CMD, RUN, ENTRYPOINT, COPY, and ADD instructions that comes after it in the Dockerfile.
 
+So, if I want to set the context to the /app/bin folder inside the image, my expression in the Dockerfile would have to look as follows:
+```
+WORKDIR /app/bin
+```
+All activity that happens inside the image after the preceding line will use this directory as the working directory. It is very important to note that the following two snippets from a Dockerfile are not the same:
+```
+RUN cd /app/bin
+RUN touch sample.txt
+```
+Compare the preceding code with the following code:
+```
+WORKDIR /app/bin
+RUN touch sample.txt
+```
+The former will create the file in the root of the image filesystem, while the latter will create the file at the expected location in the /app/bin folder. Only the WORKDIR keyword sets the context across the layers of the image. **The cd command alone is not persisted across layers.**
 
+### The CMD and ENTRYPOINT keywords
 
+The CMD and ENTRYPOINT keywords are special. **While all other keywords defined for a Dockerfile are executed at the time the image is built by the Docker builder, these two are actually definitions of what will happen when a container is started from the image we define.**
 
+To better understand how to use the two keywords, let's analyze what a typical Linux command or expression looks like—for example, let's take the ping utility as an example, as follows:
+```
+ping 8.8.8.8 -c 3
+```
+In the preceding expression, ping is the command and 8.8.8.8 -c 3 are the parameters to this command. Let's look at another expression:
+```
+wget -O - http://example.com/downloads/script.sh
+```
+Again, in the preceding expression, wget is the command and -O - http://example.com/downloads/script.sh are the parameters.
 
+Now that we have dealt with this, we can get back to CMD and ENTRYPOINT. **ENTRYPOINT is used to define the command of the expression while CMD is used to define the parameters for the command.**
+```
+FROM alpine:latest
+ENTRYPOINT ["ping"]
+CMD ["8.8.8.8", "-c", "3"]
+```
 
+The beauty of this is that I can now override the CMD part that I have defined in the Dockerfile (remember, it was ["8.8.8.8", "-c", "3"]) when I create a new container by adding the new values at the end of the docker container run expression:
+```
+docker container run --rm -it pinger -w 5 127.0.0.1
+```
+If we want to override what's defined in the ENTRYPOINT in the Dockerfile, we need to use the --entrypoint parameter in the docker container run expression.
 
+Alternatively, one can also use what's called the **shell form**, for example:
+```
+CMD command param1 param2
+```
+Example:
+```
+FROM alpine:latest
+CMD wget -O - http://www.google.com
+```
 
+#### CMD
 
+```CMD ["executable","parameter1","parameter2"]``` - This is a so called exec form. It's also the preferred and recommended form. The parameters are JSON array, and they need to be enclosed in square brackets.
 
+**Because CMD is the same as a starting point for the Docker engine when running a container, there can only be one single CMD instruction in a Dockerfile.**
 
+CMD vs RUN. CMD is executed at runtime while RUN is executed at build time.
 
+#### ENTRYPOINT
+
+The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
+
+`ENTRYPOINT ["executable", "parameter1", "parameter2"]`
+
+is the exec form, preferred and recommended.
 
 
 
