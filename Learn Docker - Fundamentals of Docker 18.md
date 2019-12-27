@@ -735,8 +735,9 @@ IP address management (IPAM) - software that is used to track IP addresses that 
 
 **By default, only traffic from the egress is allowed, and all ingress is blocked. What this means is that while containerized applications can reach the internet, they cannot be reached by any outside traffic.**
 
-ingress: traffic entering or uploaded into container
-egress: traffic exiting or downloaded from container
+* **ingress:** traffic entering or uploaded into container
+* **egress:** traffic exiting or downloaded from container
+
 
 
 
