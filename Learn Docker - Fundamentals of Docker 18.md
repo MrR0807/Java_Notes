@@ -711,6 +711,54 @@ Since creating SDNs is cheap, and each network provides added security by isolat
 
 ## The bridge network
 
+List all networks on the host:
+```
+docker network ls
+```
+
+The **scope** being **local** just means that this type of network is **restricted to a single host and cannot span across multiple hosts.** 
+
+IP address management (IPAM) - software that is used to track IP addresses that are used on a computer. The important part in the IPAM block is the **Config node with its values for Subnet and Gateway.** The subnet for the bridge network is defined by default as 172.17.0.0/16. This means that all containers attached to this network will get an IP address assigned by Docker that is taken from the given range, which is 172.17.0.2 to 172.17.255.255. **The 172.17.0.1 address is reserved for the router of this network whose role in this type of network is taken by the Linux bridge.**
+
+```
+"IPAM": {
+    "Driver": "default",
+    "Options": null,
+    "Config": [
+        {
+            "Subnet": "172.17.0.0/16",
+            "Gateway": "172.17.0.1"
+        }
+    ]
+}
+```
+
+**By default, only traffic from the egress is allowed, and all ingress is blocked. What this means is that while containerized applications can reach the internet, they cannot be reached by any outside traffic.**
+
+ingress: traffic entering or uploaded into container
+egress: traffic exiting or downloaded from container
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
