@@ -314,7 +314,7 @@ CMD ["python", "main.py"]
 ```
 Each line of the Dockerfile results in a layer in the resulting image.
 
-## The FROM keyword
+### The FROM keyword
 
 **Every Dockerfile starts with the ```FROM``` keyword.**
 
@@ -475,6 +475,8 @@ The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 
 `ENTRYPOINT command parameter1 parameter2` is a a shell form. Normal shell processing will occur. This form will also ignore any CMD or docker run command line arguments.
 
+ENTRYPOINT can be also overridden when starting the container using the --entrypoint parameter for the docker run command. Note that you can override the ENTRYPOINT setting using --entrypoint, but this can only set the binary to execute (no sh -c will be used). 
+
 #### CMD vs ENTRYPOINT
 
 -- No ENTRYPOINT
@@ -519,28 +521,164 @@ The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 ╚════════════════════════════╩═════════════════════════════════════════════════╝
 ```
 
+For example, if your Dockerfile is:
 
+```
+FROM debian:wheezy
+ENTRYPOINT ["/bin/ping"]
+CMD ["localhost"]
+```
+Running the image without any argument will ping the localhost:
+```
+docker run -it test
+PING localhost (127.0.0.1): 48 data bytes
+56 bytes from 127.0.0.1: icmp_seq=0 ttl=64 time=0.096 ms
+56 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.088 ms
+56 bytes from 127.0.0.1: icmp_seq=2 ttl=64 time=0.088 ms
+^C--- localhost ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max/stddev = 0.088/0.091/0.096/0.000 ms
+```
+Now, running the image with an argument will ping the argument:
+```
+docker run -it test google.com
+PING google.com (173.194.45.70): 48 data bytes
+56 bytes from 173.194.45.70: icmp_seq=0 ttl=55 time=32.583 ms
+56 bytes from 173.194.45.70: icmp_seq=2 ttl=55 time=30.327 ms
+56 bytes from 173.194.45.70: icmp_seq=4 ttl=55 time=46.379 ms
+^C--- google.com ping statistics ---
+5 packets transmitted, 3 packets received, 40% packet loss
+round-trip min/avg/max/stddev = 30.327/36.430/46.379/7.095 ms
+```
+For comparison, if your Dockerfile is:
+```
+FROM debian:wheezy
+CMD ["/bin/ping", "localhost"]
+```
+Running the image without any argument will ping the localhost:
+```
+docker run -it test
+PING localhost (127.0.0.1): 48 data bytes
+56 bytes from 127.0.0.1: icmp_seq=0 ttl=64 time=0.076 ms
+56 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.087 ms
+56 bytes from 127.0.0.1: icmp_seq=2 ttl=64 time=0.090 ms
+^C--- localhost ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max/stddev = 0.076/0.084/0.090/0.000 ms
+```
+But running the image with an argument will run the argument:
+```
+docker run -it test bash
+root@e8bb7249b843:/#
+```
 
+## Building an image
 
+Dockerfile content:
+```
+FROM centos:7
+RUN yum install -y wget
+```
 
+To build a new container image using the preceding Dockerfile as a manifest or construction plan:
+```
+docker image build -t my-centos .
+```
+Please note that there is a period at the end of the preceding command. This command means that the Docker builder is creating a new image called my-centos using the Dockerfile that is present in the current directory.
 
+## Multistep builds
 
+Let's take a Hello World application written in C. Here is the code found inside the hello.c file:
+```
+#include <stdio.h>
+int main (void)
+{
+  printf ("Hello, world!\n");
+  return 0;
+}
+```
 
+Now, we want to containerize this application and write this Dockerfile:
+```
+FROM alpine:3.7
+RUN apk update &&
+apk add --update alpine-sdk
+RUN mkdir /app
+WORKDIR /app
+COPY . /app
+RUN mkdir bin
+RUN gcc -Wall hello.c -o bin/hello
+CMD /app/bin/hello
+```
+Now, let's build this image:
+```
+docker image build -t hello-world .
+```
 
+Once the build is done we can list the image and see its size shown as follows:
+```
+$ docker image ls | grep hello-world
+hello-world      latest      e9b...     2 minutes ago     176MB
+```
+The reason for it being so big is that the image not only contains the Hello World binary, but also all the tools to compile and link the application from the source code.
+It is precisely for this reason that we should define Dockerfiles as multistage. We have some stages that are used to build the final artifacts and then a final stage where we use the minimal necessary base image and copy the artifacts into it. This results in very small images. Have a look at this revised Dockerfile:
+```
+FROM alpine:3.7 AS build
+RUN apk update && \
+    apk add --update alpine-sdk
+RUN mkdir /app
+WORKDIR /app
+COPY . /app
+RUN mkdir bin
+RUN gcc hello.c -o bin/hello
 
+FROM alpine:3.7
+COPY --from=build /app/bin/hello /app/hello
+CMD /app/hello
+```
+Here, we have a first stage with an alias build that is used to compile the application, and then the second stage uses the same base image alpine:3.7, but does not install the SDK, and only copies the binary from the build stage, using the --from parameter, into this final image.
 
+Let's build the image again as follows:
+```
+$ docker image ls | grep hello-world
+hello-world-small   latest    f98...    20 seconds ago     4.16MB
+hello-world         latest    469...    10 minutes ago     176MB
+```
 
+## Dockerfile best practices
 
+Keep the number of layers that make up your image relatively small.
+Reduce the image size is to use a .dockerignore file. We want to avoid copying unnecessary files and folders into an image to keep it as lean as possible.
 
+# Chapter 5. Data Volumes and System Management
+TODO
 
+# Chapter 6. Distributed Application Architecture
 
+## Defining the terminology
 
+* **VM** - Acronym for virtual machine. This is a virtual computer.
+* **Node** - Individual server used to run applications. This can be a physical server, often called bare metal, or a VM. A node can be a mainframe, supercomputer, standard business server, or even a Raspberry Pi. Nodes can be computers in a company's own data center or in the cloud. Normally, a node is part of a cluster.
+* **Cluster** - Group of nodes connected by a network used to run distributed applications.
+* **Network** - Physical and software-defined communication paths between individual nodes of a cluster and programs running on those nodes.
 
+## Patterns and best practices
 
+### Loosely coupled components
 
+### Stateful versus stateless
 
+In a distributed application architecture, stateless components are much simpler to handle than stateful components. Stateless components can be easily scaled up and scaled down.
 
+### Service discovery
 
+In the preceding figure, we see how Service A wants to communicate with Service B. But it can't do this directly; it has to first query the external authority, a registry service, here called a DNS Service, about the whereabouts of Service B. The registry service will answer with the requested information and hand out the IP address and port number with which Service A can reach Service B.
+
+### Load balancing
+
+If we have multiple instances of a service such as Service B running in our system, we want to make sure that every, of those instances gets an equal amount of workload assigned to it. 
+
+## Running in production
 
 
 
