@@ -738,17 +738,88 @@ IP address management (IPAM) - software that is used to track IP addresses that 
 * **ingress:** traffic entering or uploaded into container
 * **egress:** traffic exiting or downloaded from container
 
+We are not limited to just the bridge network, as Docker allows us to define our own custom bridge networks. **This is not just a feature that is nice to have, but it is a recommended best practice to not run all containers on the same network, but to use additional bridge networks to further isolate containers that have no need to communicate with each other.** To create a custom bridge network calledsample-net, use the following command:
+```
+docker network create --driver bridge sample-net
+```
+**On user-defined networks like alpine-net, containers can not only communicate by IP address, but can also resolve a container name to an IP address.**
 
+### Use the default bridge network
 
+https://docs.docker.com/network/network-tutorial-standalone/
 
+Start two alpine containers running ash, which is Alpine’s default shell rather than bash. The -dit flags mean to start the container detached (in the background), interactive (with the ability to type into it), and with a TTY (so you can see the input and output). Since you are starting it detached, you won’t be connected to the container right away. Instead, the container’s ID will be printed. Because you have not specified any --network flags, the containers connect to the default bridge network.
 
+```
+docker run -dit --name alpine1 alpine ash
+docker run -dit --name alpine2 alpine ash
+```
 
+Inspect the bridge network to see what containers are connected to it.
+```
+"Containers": {
+    "602dbf1edc81813304b6cf0a647e65333dc6fe6ee6ed572dc0f686a3307c6a2c": {
+        "Name": "alpine2",
+        "EndpointID": "03b6aafb7ca4d7e531e292901b43719c0e34cc7eef565b38a6bf84acf50f38cd",
+        "MacAddress": "02:42:ac:11:00:03",
+        "IPv4Address": "172.17.0.3/16",
+        "IPv6Address": ""
+    },
+    "da33b7aa74b0bf3bda3ebd502d404320ca112a268aafe05b4851d1e3312ed168": {
+        "Name": "alpine1",
+        "EndpointID": "46c044a645d6afc42ddd7857d19e9dcfb89ad790afb5c239a35ac0af5e8a5bc5",
+        "MacAddress": "02:42:ac:11:00:02",
+        "IPv4Address": "172.17.0.2/16",
+        "IPv6Address": ""
+    }
+}
+```
 
+From within alpine1, make sure you can connect to the internet by pinging google.com. The -c 2 flag limits the command to two ping attempts.
+```
+ping -c 2 google.com
 
+PING google.com (172.217.3.174): 56 data bytes
+64 bytes from 172.217.3.174: seq=0 ttl=41 time=9.841 ms
+64 bytes from 172.217.3.174: seq=1 ttl=41 time=9.897 ms
+```
+Now try to ping the second container. First, ping it by its IP address, 172.17.0.3:
+```
+# ping -c 2 172.17.0.3
 
+PING 172.17.0.3 (172.17.0.3): 56 data bytes
+64 bytes from 172.17.0.3: seq=0 ttl=64 time=0.086 ms
+64 bytes from 172.17.0.3: seq=1 ttl=64 time=0.094 ms
+```
+This succeeds. Next, try pinging the alpine2 container by container name. This will fail.
+```
+# ping -c 2 alpine2
 
+ping: bad address 'alpine2'
+```
 
+### Use user-defined bridge networks
+Create the alpine-net network. You do not need the --driver bridge flag since it’s the default, but this example shows how to specify it.
+```
+docker network create --driver bridge alpine-net
+```
+Inspect the alpine-net network. Notice that this network’s gateway is 172.18.0.1, as opposed to the default bridge network, whose gateway is 172.17.0.1.
 
+Create your four containers. Notice the --network flags. You can only connect to one network during the docker run command, so you need to use docker network connect afterward to connect alpine4 to the bridge network as well.
+```
+docker run -dit --name alpine1 --network alpine-net alpine ash
+docker run -dit --name alpine2 --network alpine-net alpine ash
+docker run -dit --name alpine3 alpine ash
+docker run -dit --name alpine4 --network alpine-net alpine ash
+docker network connect bridge alpine4
+```
+Check if you can call from one to another.
+
+Remove all containers.
+```
+docker container rm -f $(docker container ls -aq)
+```
+## The host network
 
 
 
