@@ -362,11 +362,74 @@ RUN apt-get update \
     libssl1.1 \
   && rm -rf /var/lib/apt/lists/*
 ```
+
+### The COPY and ADD keywords
+
+These two keywords are used to copy files and folders from the host into the image that we're building. The two keywords are very similar, with the exception that the ```ADD``` keyword also lets us copy and unpack TAR files, as well as provide a URL as a source for the files and folders to copy.
+
+Example:
+```
+COPY . /app
+COPY ./web /app/web
+COPY sample.txt /data/my-sample.txt
+ADD sample.tar /app/bin/
+ADD http://example.com/sample.txt /data/
+```
+
+* The first line copies all files and folders from the current directory recursively to the /app folder inside the container image
+* The second line copies everything in the web subfolder to the target folder, /app/web
+* The third line copies a single file, sample.txt, into the target folder, /data, and at the same time, renames it to my-sample.txt
+* The fourth statement unpacks the sample.tar file into the target folder, /app/bin
+* Finally, the last statement copies the remote file, sample.txt, into the target file, /data
+
+Wildcards and single character symbols ```?``` are allowed in the source path. For example, the following statement copies all files starting with sample to the mydir folder inside the image:
+```
+COPY ./sample* /mydir/
+```
+
+---
+
+What ADD basically does is copy the files from the source into the container's own filesystem at the desired destination.
+```
+ADD <source path or URL> <destination path>
+```
+
+If you need, **you can specify multiple source paths, and separate them with a comma.** All of them must be relative to the build context.
+
+**If the source path doesn't end with a trailing slash, it will be considered a single file and just copied into the destination. If the source path ends with a trailing slash, it will be considered a directory: its whole contents will then be copied into the destination path, but the directory itself will not be created at the destination path.**
+
+**Note that file archives that were downloaded from the network will not be decompressed.**
+
+The <destination directory> is either an absolute path or a path which is relative to the directory specific by the ```WORKDIR``` instruction:
+
+* ```ADD config.json projectRoot/``` will add the config.json file to <WORKDIR>/projectRoot/
+
+* ```ADD config.json /absoluteDirectory/``` will add the config.json file to the /absoluteDirectory/
+
+**Note that ADD shouldn't be used if you don't need its special features, such as unpacking archives, you should use COPY instead.**
+
+COPY is almost the same as the ADD instruction, with one difference. COPY supports only the basic copying of local files into the container.
+
 ---
 
 
 
----
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
