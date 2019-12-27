@@ -845,14 +845,20 @@ Alternatively, we can define several containers in same network namespace.
 ╚════════════════════════════════╝     ╚══════════════╝
 ```
 
+In the preceding image, we can see that in the leftmost network namespace, we have two containers. The two containers, since they share the same namespace, can communicate on localhost with each other.
 
+This is useful when we want to debug the network of an existing container without running additional processes inside that container. We can just attach a special utility container to the network namespace of the container to inspect. This feature is also used by Kubernetes when it creates a pod.
 
+Example:
+```
+docker network create --driver bridge test-net
+docker container run --name web -d --network test-net nginx:alpine
+docker container run -it --rm --network container:web alpine:latest /bin/sh
+```
 
+Specifically, note how we define the network: ``--network container:web``. This tells Docker that our new container shall use the same network namespace as the container called web.
 
-
-
-
-
+## Port management
 
 
 
