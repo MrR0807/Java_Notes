@@ -478,7 +478,8 @@ The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 #### CMD vs ENTRYPOINT
 
 -- No ENTRYPOINT
-`
+
+```
 ╔════════════════════════════╦═════════════════════════════╗
 ║ No CMD                     ║ error, not allowed          ║
 ╟────────────────────────────╫─────────────────────────────╢
@@ -488,10 +489,11 @@ The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 ╟────────────────────────────╫─────────────────────────────╢
 ║ CMD exec_cmd p1_cmd        ║ /bin/sh -c exec_cmd p1_cmd  ║
 ╚════════════════════════════╩═════════════════════════════╝
-`
+```
 
 -- ENTRYPOINT exec_entry p1_entry
-`
+
+```
 ╔════════════════════════════╦══════════════════════════════════╗
 ║ No CMD                     ║ /bin/sh -c exec_entry p1_entry   ║
 ╟────────────────────────────╫──────────────────────────────────╢
@@ -501,10 +503,11 @@ The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 ╟────────────────────────────╫──────────────────────────────────╢
 ║ CMD exec_cmd p1_cmd        ║ /bin/sh -c exec_entry p1_entry   ║
 ╚════════════════════════════╩══════════════════════════════════╝
-`
+```
 
 -- ENTRYPOINT [“exec_entry”, “p1_entry”]
-`
+
+```
 ╔════════════════════════════╦═════════════════════════════════════════════════╗
 ║ No CMD                     ║ exec_entry p1_entry                             ║
 ╟────────────────────────────╫─────────────────────────────────────────────────╢
@@ -514,7 +517,7 @@ The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 ╟────────────────────────────╫─────────────────────────────────────────────────╢
 ║ CMD exec_cmd p1_cmd        ║ exec_entry p1_entry /bin/sh -c exec_cmd p1_cmd  ║
 ╚════════════════════════════╩═════════════════════════════════════════════════╝
-`
+```
 
 
 
