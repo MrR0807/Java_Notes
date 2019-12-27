@@ -821,16 +821,29 @@ docker container rm -f $(docker container ls -aq)
 ```
 ## The host network
 
+There exist occasions where we want to run a container in the network namespace of the host. This can be necessary when we need to run some software in a container that is used to analyze or debug the host network's traffic. **But keep in mind that these are very specific scenarios. When running business software in containers, there is no good reason to ever run the respective containers attached to the host's network.**
 
+## The null network
 
+Sometimes, we need to run a few application services or jobs that do not need any network connection at all to execute the task. It is strongly advised that you run those applications in a container that is attached to the none network. This container will be completely isolated, and thus safe from any outside access. Let's run such a container:
+```
+docker container run --rm -it --network none alpine:latest /bin/sh
+```
+## Running in an existing network namespace
 
+Normally, Docker creates a new network namespace for each container we run.
 
+Alternatively, we can define several containers in same network namespace.
 
-
-
-
-
-
+```
+                           Network Namespace
+                           /               \
+╔════════════════════════════════╗     ╔══════════════╗
+  ╔════════════╗  ╔════════════╗        ╔════════════╗
+  ║Container #1║  ║Container #2║        ║Container #3║
+  ╚════════════╝  ╚════════════╝        ╚════════════╝
+╚════════════════════════════════╝     ╚══════════════╝
+```
 
 
 
