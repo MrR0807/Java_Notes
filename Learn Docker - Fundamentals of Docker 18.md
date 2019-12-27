@@ -680,9 +680,36 @@ If we have multiple instances of a service such as Service B running in our syst
 
 ## Running in production
 
+### Application updates
 
+#### Blue-green deployments
 
+Once green is installed, one can execute smoke tests against this new service and, if those succeed, the router can be configured to funnel all traffic that previously went to blue to the new service, green. The behavior of green is then observed closely and, if all success criteria are met, blue can be decommissioned.
 
+#### Canary releases
+
+Route 1% of traffic to new version. Monitor. Increase traffic. Monitor. Up until 100%.
+
+# Chapter 7. Single-Host Networking
+
+## The container network model
+
+Docker has defined a very simple networking model, the so-called **container network model (CNM)**. 
+The CNM has three elements—sandbox, endpoint, and network:
+
+* **Sandbox**: The sandbox perfectly isolates a container from the outside world. No inbound network connection is allowed into the sandboxed container.
+* **Endpoint**: An endpoint is a controlled gateway from the outside world into the network's sandbox that shields the container. The endpoint connects the network sandbox (but not the container) to the third element of the model, which is the network.
+* **Network**: The network is the pathway that transports the data packets of an instance of communication from endpoint to endpoint, or ultimately from container to container.
+
+## Network firewalling
+
+**Software-defined networks (SDN)** are easy and cheap to create.
+
+Example: Application consisting of three services: webAPI, productCatalog, and database. We want webAPI to be able to communicate with productCatalog, but not with the database, and we want productCatalog to be able to communicate with the database service. We can solve this situation by placing webAPI and the database on different networks and attach productCatalog to both of these networks.
+
+Since creating SDNs is cheap, and each network provides added security by isolating resources from unauthorized access, it is highly recommended that you design and run applications so that they use multiple networks and run only services on the same network that absolutely need to communicate with each other.
+
+## The bridge network
 
 
 
