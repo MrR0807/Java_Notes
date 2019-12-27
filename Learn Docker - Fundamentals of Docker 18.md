@@ -471,9 +471,85 @@ CMD vs RUN. CMD is executed at runtime while RUN is executed at build time.
 
 The syntax for the ENTRYPOINT instruction can have two forms, similar to CMD.
 
-`ENTRYPOINT ["executable", "parameter1", "parameter2"]`
+`ENTRYPOINT ["executable", "parameter1", "parameter2"]` - is the exec form, preferred and recommended.
 
-is the exec form, preferred and recommended.
+`ENTRYPOINT command parameter1 parameter2` is a a shell form. Normal shell processing will occur. This form will also ignore any CMD or docker run command line arguments.
+
+#### CMD vs ENTRYPOINT
+
+-- No ENTRYPOINT
+`
+╔════════════════════════════╦═════════════════════════════╗
+║ No CMD                     ║ error, not allowed          ║
+╟────────────────────────────╫─────────────────────────────╢
+║ CMD [“exec_cmd”, “p1_cmd”] ║ exec_cmd p1_cmd             ║
+╟────────────────────────────╫─────────────────────────────╢
+║ CMD [“p1_cmd”, “p2_cmd”]   ║ p1_cmd p2_cmd               ║
+╟────────────────────────────╫─────────────────────────────╢
+║ CMD exec_cmd p1_cmd        ║ /bin/sh -c exec_cmd p1_cmd  ║
+╚════════════════════════════╩═════════════════════════════╝
+`
+
+-- ENTRYPOINT exec_entry p1_entry
+`
+╔════════════════════════════╦══════════════════════════════════╗
+║ No CMD                     ║ /bin/sh -c exec_entry p1_entry   ║
+╟────────────────────────────╫──────────────────────────────────╢
+║ CMD [“exec_cmd”, “p1_cmd”] ║ /bin/sh -c exec_entry p1_entry   ║
+╟────────────────────────────╫──────────────────────────────────╢
+║ CMD [“p1_cmd”, “p2_cmd”]   ║ /bin/sh -c exec_entry p1_entry   ║
+╟────────────────────────────╫──────────────────────────────────╢
+║ CMD exec_cmd p1_cmd        ║ /bin/sh -c exec_entry p1_entry   ║
+╚════════════════════════════╩══════════════════════════════════╝
+`
+
+-- ENTRYPOINT [“exec_entry”, “p1_entry”]
+`
+╔════════════════════════════╦═════════════════════════════════════════════════╗
+║ No CMD                     ║ exec_entry p1_entry                             ║
+╟────────────────────────────╫─────────────────────────────────────────────────╢
+║ CMD [“exec_cmd”, “p1_cmd”] ║ exec_entry p1_entry exec_cmd p1_cmd             ║
+╟────────────────────────────╫─────────────────────────────────────────────────╢
+║ CMD [“p1_cmd”, “p2_cmd”]   ║ exec_entry p1_entry p1_cmd p2_cmd               ║
+╟────────────────────────────╫─────────────────────────────────────────────────╢
+║ CMD exec_cmd p1_cmd        ║ exec_entry p1_entry /bin/sh -c exec_cmd p1_cmd  ║
+╚════════════════════════════╩═════════════════════════════════════════════════╝
+`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
