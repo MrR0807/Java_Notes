@@ -860,11 +860,23 @@ Specifically, note how we define the network: ``--network container:web``. This 
 
 ## Port management
 
-
-
-
-
-
+Container ports and host ports exist completely independently, and by default have nothing in common at all.
+Map a container port to a host port. Different ways:
+* Let Docker decide which host port our container port shall be mapped to. Docker will then select one of the free host ports in the range of 32xxx. This automatic mapping is done by using the -P parameter.
+```
+docker container run --name web -P -d nginx:alpine
+```
+The preceding command runs an Nginx server in a container. Nginx is listening at port 80 inside the container. With the -P parameter, we're telling Docker to map all the exposed container ports to a free port in the 32xxx range. Find out which host port Docker is using by using the docker container port command:
+```
+docker container port web
+```
+*  Map a container port to a very specific host port. To do this, use parameter -p (or--publish):
+```
+docker container run --name web2 -p 8080:80 -d nginx:alpine
+```
+The value of the -p parameter is in the form of **<host port>:<container port>**.
+  
+  doc
 
 
 
