@@ -55,35 +55,17 @@ After changing the rabbitmq-env.conf file, we have to restart the RabbitMQ serve
 | RABBITMQ_SERVICENAME | On Unix: rabbitmq-server | This variable specifies the service name that is installed on the service system of operating system. |
 | RABBITMQ_SERVER_START_ARGS | None | Erlang parameters are used for the erl command when invoking the RabbitMQ server. This variable will not override RABBITMQ_SERVER_ERL_ARGS. |
 
+### Unix-specific default location
 
+Default locations of environment variables for Unix:
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+| Name | Location |
+| --- | --- |
+| RABBITMQ_BASE | This variable is not used for Unix |
+| RABBITMQ_CONFIG_FILE | ${install_prefix}/etc/rabbitmq/rabbitmq |
+| RABBITMQ_LOGS | $RABBITMQ_LOG_BASE/$RABBITMQ_NODENAME.log |
+| RABBITMQ_LOG_BASE | ${install_prefix}/var/log/rabbitmq |
+| RABBITMQ_MNESIA_BASE | ${install_prefix}/var/lib/rabbitmq/mnesia |
+| RABBITMQ_MNESIA_DIR | $RABBITMQ_MNESIA_BASE/$RABBITMQ_NODENAME |
+| RABBITMQ_PLUGINS_DIR | $RABBITMQ_HOME/plugins |
+| RABBITMQ_SASL_LOGS | $RABBITMQ_LOG_BASE/$RABBITMQ_NODENAME-sasl.log |
