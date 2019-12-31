@@ -43,24 +43,10 @@ After changing the rabbitmq-env.conf file, we have to restart the RabbitMQ serve
 | RABBITMQ_BASE | * | This is the directory in which RabbitMQ server's database and log files are located. |
 | RABBITMQ_CONFIG_FILE | * | This is the name of configuration file. The name doesn't consist of the extension ".config". |
 | RABBITMQ_CONSOLE_LOG | | This variable can have one of the two values: "new" or "reuse". These variables are used to decide the console log file whether create a new log file or reuse the old log file. If these variables are not set, the console output will not be saved.|
+| RABBITMQ_LOGS | * | This is the directory of the RabbitMQ log file. |
+| RABBITMQ_LOG_BASE | * | This is the base directory that holds the log files. If RABBITMQ_LOGS or RABBITMQ_SASL_LOGS is set, then this variable has no effect on configuration. |
+| RABBITMQ_MNESIA_BASE | * | This expresses the base location of the Mnesia databases files. If RABBITMQ_MNESIA_DIR is set, then this variable has no effect on configuration. |
 
-RABBITMQ_LOGS
-
-*
-
-This is the directory of the RabbitMQ log file.
-
-RABBITMQ_LOG_BASE
-
-*
-
-This is the base directory that holds the log files. If RABBITMQ_LOGS or RABBITMQ_SASL_LOGS is set, then this variable has no effect on configuration.
-
-RABBITMQ_MNESIA_BASE
-
-*
-
-This expresses the base location of the Mnesia databases files. If RABBITMQ_MNESIA_DIR is set, then this variable has no effect on configuration.
 
 RABBITMQ_MNESIA_DIR
 
