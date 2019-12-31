@@ -34,3 +34,42 @@ If you don’t like to cast the Fetch to a Join interface, you can use an Entity
 [Source](https://thoughts-on-java.org/hibernate-tip-left-join-fetch-join-criteriaquery/)
 
 -----------
+
+# 2019.12.31
+
+**Spring, Spring Fox, Swagger, Optional**
+
+To show correct representation in Swagger of Optional type:
+```
+  return new Docket(DocumentationType.SWAGGER_2)
+    .useDefaultResponseMessages(false)
+    .groupName("sample-api")
+    .apiInfo(apiInfo())
+    .select()
+    .paths(regex("/api.*"))
+    .build()
+    .genericModelSubstitutes(Optional.class); // add this
+```
+
+-----------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
