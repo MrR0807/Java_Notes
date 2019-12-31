@@ -97,3 +97,24 @@ Important variables with given default values:
 | ssl_options | This variable specifies the configuration for the SSL type. Default value: \[\] |
 | reverse_dns_lookup | This variable specifies whether RabbitMQ performs a reverse DNS lookup on client connections or not. Default value: False | 
 | vm_memory_high_watermark | This variable specifies the memory threshold. Default value: 0.4, that is, 4/10 |
+
+## Runtime parameters
+
+To find out runtime parameters, run:
+```
+rabbitmqctl help
+```
+
+# Chapter 3. Architecture and Messaging
+
+
+
+
+
+
+
+
+
+
+
+
