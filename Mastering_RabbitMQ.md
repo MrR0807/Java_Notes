@@ -46,65 +46,16 @@ After changing the rabbitmq-env.conf file, we have to restart the RabbitMQ serve
 | RABBITMQ_LOGS | * | This is the directory of the RabbitMQ log file. |
 | RABBITMQ_LOG_BASE | * | This is the base directory that holds the log files. If RABBITMQ_LOGS or RABBITMQ_SASL_LOGS is set, then this variable has no effect on configuration. |
 | RABBITMQ_MNESIA_BASE | * | This expresses the base location of the Mnesia databases files. If RABBITMQ_MNESIA_DIR is set, then this variable has no effect on configuration. |
+| RABBITMQ_MNESIA_DIR | * | This variable specifies the location of Mnesia database files. |
+| RABBITMQ_NODE_IP_ADDRESS | The empty string means that this binds to all network interfaces. | This is the binding address. You should change this attribute when you'd like to bind to a single network interface. |
+| RABBITMQ_NODENAME | On Unix: rabbit@hostname | This is the node name of RabbitMQ server. This should be unique per Erlang node and machine combination. |
+| RABBITMQ_NODE_PORT | 5672 | This is the binding port of RabbitMQ server. |
+| RABBITMQ_PLUGINS_DIR | * | The location where plugins of RabbitMQ server are located. |
+| RABBITMQ_SASL_LOGS | * | This is the location of RabbitMQ server's System Application Support Libraries' log files. |
+| RABBITMQ_SERVICENAME | On Unix: rabbitmq-server | This variable specifies the service name that is installed on the service system of operating system. |
+| RABBITMQ_SERVER_START_ARGS | None | Erlang parameters are used for the erl command when invoking the RabbitMQ server. This variable will not override RABBITMQ_SERVER_ERL_ARGS. |
 
 
-RABBITMQ_MNESIA_DIR
-
-*
-
-This variable specifies the location of Mnesia database files.
-
-RABBITMQ_NODE_IP_ADDRESS
-
-The empty string means that this binds to all network interfaces.
-
-This is the binding address. You should change this attribute when you'd like to bind to a single network interface.
-
-RABBITMQ_NODENAME
-
-On Unix: rabbit@hostname
-
-On Windows:
-
-rabbit@%COMPUTERNAME%
-
-This is the node name of RabbitMQ server. This should be unique per Erlang node and machine combination.
-
-RABBITMQ_NODE_PORT
-
-5672
-
-This is the binding port of RabbitMQ server.
-
-RABBITMQ_PLUGINS_DIR
-
-*
-
-The location where plugins of RabbitMQ server are located.
-
-RABBITMQ_SASL_LOGS
-
-*
-
-This is the location of RabbitMQ server's System Application Support Libraries' log files.
-
-RABBITMQ_SERVICENAME
-
-On Windows Service:
-
-RabbitMQ
-
-On Unix:
-
-rabbitmq-server
-
-This variable specifies the service name that is installed on the service system of operating system.
-
-RABBITMQ_SERVER_START_ARGS
-
-None
-
-Erlang parameters are used for the erl command when invoking the RabbitMQ server. This variable will not override RABBITMQ_SERVER_ERL_ARGS.
 
 
 
