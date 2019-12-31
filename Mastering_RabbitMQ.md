@@ -69,3 +69,35 @@ Default locations of environment variables for Unix:
 | RABBITMQ_MNESIA_DIR | $RABBITMQ_MNESIA_BASE/$RABBITMQ_NODENAME |
 | RABBITMQ_PLUGINS_DIR | $RABBITMQ_HOME/plugins |
 | RABBITMQ_SASL_LOGS | $RABBITMQ_LOG_BASE/$RABBITMQ_NODENAME-sasl.log |
+
+## The configuration file
+
+**The RabbitMQ environment variables mostly gives the control of location of files and directories, whereas the RabbitMQ configuration file gives the control of the engine, such as authentication, performance, memory limit, disc limit, exchanges, queues, bindings, and so on.** The configuration file is by default located in /etc/rabbitmq/rabbitmq.config for Unix-based computers.
+
+Important variables with given default values:
+
+| Variable Name | Description |
+| --- | --- | 
+| auth_mechanisms | This variable specifies the SASL authentication mechanisms. Default value: ['PLAIN', 'AMQPLAIN'] |
+| auth_backends | This variable specifies the authentication databases to use in SASL. Other databases would be used with this plugin support. Default value: [rabbit_auth_backend_internal] |
+| collect_statistics | This variable specifies the statistics collection mode. Default value: none Possible values: none; coarse; fine. |
+| collect_statistics_interval | This variable specifies the statistics collection interval in miliseconds. Default value: 5000 |
+| default_pass | This variable specifies the default password for the RabbitMQ server to create a user in a scratched database. Default value: Guest |
+| default_permission | This variable specifies the default permissions of the default user. Default value: \[".\*", ".\*", ".\*"\] |
+| default_user | This variable specifies the default username for the RabbitMQ server to create a user in a scratched database. |
+| disk_free_limit | This variable specifies the disk's free space limit of the partition on which RabbitMQ has stored the data. If available disk space is lower than the disk free limit, then flow control is triggered. Moreover, the value should be related to the memory size. Default value: 50000000 |
+| heartbeat | This variable specifies the heartbeat delay in seconds. Default value: 580. Possible values: 0 means heartbeats are disabled |
+| hipe_compile | This variable specifies whether precompile parts of RabbitMQ with the high performance Erlang compiler or not. This variable directly affects the performance of the message rate. Hipe is supported only on Unix-based machines. Default value: False |
+| log_levels | This variable specifies the granularity of logging. Default value: \[{connection, info}\] Possible values: none; error; warning; info. |
+| msg_store_file_size_limit | This variable specifies the file size limit of storing each message. Default value: 16777216 |
+| tcp_listeners | This variable specifies the ports that listen for AMQP connections without SSL. This variable may contain integers like 5672 that describes only the port and dictionary structure that describes both the IP and the port, for example, {"127.0.0.1", 5672}. Default value: \[5672\]
+| tcp_listen_options | This variable specifies the socket options. Default value: \[binary, {packet, raw},
+             {reuseaddr, true},
+             {backlog, 128},
+             {nodelay, true},
+        {exit_on_close, false}\] | 
+| server_properties | This variable specifies the key-value pairs that is to announce to clients on starting connection. Default Value: \[\] |
+| ssl_listeners | This variable specifies the ports that listen for AMQP connections with SSL. This variable may contain integers like 5672 that describes only the port and dictionary structure that describes both the ip and port, such as, {"127.0.0.1", 5672}. Default value: \[\] |
+| ssl_options | This variable specifies the configuration for the SSL type. Default value: \[\] |
+| reverse_dns_lookup | This variable specifies whether RabbitMQ performs a reverse DNS lookup on client connections or not. Default value: False | 
+| vm_memory_high_watermark | This variable specifies the memory threshold. Default value: 0.4, that is, 4/10 |
