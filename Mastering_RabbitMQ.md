@@ -107,6 +107,38 @@ rabbitmqctl help
 
 # Chapter 3. Architecture and Messaging
 
+## Messaging and its use cases
+
+Messaging is simply defined as communication between the message producer and the consumer of the message. **Message broker** is defined as a module that controls messaging flow. Controlling action isn't that simple, so message brokers needs lots of skills to accomplish this messaging functionality.
+
+### Coupling of the software systems
+
+Architectural coupling can be solved with message brokers. We need to create an abstraction between modules for messaging issue.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
