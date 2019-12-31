@@ -91,15 +91,7 @@ Important variables with given default values:
 | log_levels | This variable specifies the granularity of logging. Default value: \[{connection, info}\] Possible values: none; error; warning; info. |
 | msg_store_file_size_limit | This variable specifies the file size limit of storing each message. Default value: 16777216 |
 | tcp_listeners | This variable specifies the ports that listen for AMQP connections without SSL. This variable may contain integers like 5672 that describes only the port and dictionary structure that describes both the IP and the port, for example, {"127.0.0.1", 5672}. Default value: \[5672\]
-| tcp_listen_options | This variable specifies the socket options. Default value: 
-```
-[binary, {packet, raw},
-             {reuseaddr, true},
-             {backlog, 128},
-             {nodelay, true},
-        {exit_on_close, false}]
-``` 
-| 
+| tcp_listen_options | This variable specifies the socket options. Default value: \[binary, {packet, raw}, {reuseaddr, true}, {backlog, 128}, {nodelay, true}, {exit_on_close, false}\] | 
 | server_properties | This variable specifies the key-value pairs that is to announce to clients on starting connection. Default Value: \[\] |
 | ssl_listeners | This variable specifies the ports that listen for AMQP connections with SSL. This variable may contain integers like 5672 that describes only the port and dictionary structure that describes both the ip and port, such as, {"127.0.0.1", 5672}. Default value: \[\] |
 | ssl_options | This variable specifies the configuration for the SSL type. Default value: \[\] |
