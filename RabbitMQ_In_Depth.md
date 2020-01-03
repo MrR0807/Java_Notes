@@ -12,3 +12,45 @@
 * Plugins for higher-latency environments - Because not all network topologies and architectures are the same, RabbitMQ provides for messaging in low-latency environments and plugins for higher-latency environments, such as the internet. This allows for RabbitMQ to be clustered on the same local network and share federated messages across multiple data centers.
 * Layers of security
 
+# How to speak Rabbit: the AMQ Protocol
+
+## AMQP as an RPC transport
+
+As an AMQP broker, RabbitMQ speaks a strict dialect for communication, utilizing a **remote procedure call (RPC)** pattern in nearly every aspect of communication with the core product.
+
+### Kicking off the conversation
+
+When you’re communicating with someone new in a foreign country, it’s inevitable that one of you will kick off the conversation with a greeting, something that lets you and the other person know if you’re both capable of speaking the same language. When speaking AMQP, this greeting is the protocol header, and it’s sent by the client to the server. This greeting shouldn’t be considered a request, however, as unlike the rest of the conversation that will take place, it’s not a command. RabbitMQ starts the command/response sequence by replying to the greeting with a Connection.Start command, and the client responds to the RPC request with Connection.StartOk response frame (figure 2.1).
+```
+Client       Server
+  | ----1---->  |
+  |             |
+  | <----2----  |
+  |             |
+  | ----3---->  |
+  |             |
+
+1. Protocol header;
+2. Connection.Start;
+3. Connection.StartOk;
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
