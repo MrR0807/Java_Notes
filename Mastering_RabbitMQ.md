@@ -115,6 +115,169 @@ Messaging is simply defined as communication between the message producer and th
 
 Architectural coupling can be solved with message brokers. We need to create an abstraction between modules for messaging issue.
 
+## Enterprise messaging
+
+In enterprise messaging, we have to guarantee that the message is sent and received, since each of the messages is very important for our system's robustness. Message Brokers have a functionality to store all messages permanently to satisfy this kind of requirement.
+
+## Messaging-related software architectures
+
+### Message oriented middleware – Architecture
+
+Message Oriented Middleware is simply defined as a component that allows software components, which have been placed on the same or different network, to communicate with one another. In a Producer/Consumer pattern, producers send their message to different consumers with the help of Message Oriented Middleware, **guaranteeing the message received**.
+
+### Event-driven architecture
+
+In an asynchronous system, operations take place independent of other operations; therefore, operations can take place without waiting for others. Since Message Broker's support asynchronous operations, they can be easily used in an Event Driven Architecture (EDA).
+EDA is a push-based communication between producer and consumer. The structure of EDA consists of four elements:
+* Event creator is just the source of event
+* Event consumer is a listener of event that needs to know the event has occurred
+* Event manager is a middleware between creator and consumer, which is the controller of the events and triggers the related event consumers
+* Event is an action that is detected by a Event listener or consumer
+
+## Messaging concepts
+
+We have:
+* **Producers** - who are responsible for creation of messages; 
+* **Message Brokers** - who are responsible for ensuring the message sending from Producer to Consumer; 
+* **Consumers** - who are responsible for receiving the messages; 
+* **Messages** - who are the entity that will be sent and received. Messages have headers, which have information about the sender, receiver, and message format. Moreover, messages have bodies, which have the exact information that producers send to the consumers. Message bodies could be in different types of formats such as XML, JSON, binary data, and so on.
+
+## Advanced Message Queuing Protocol (AMQP)
+
+### AMQ elements
+
+AMQ stands for Advanced Message Queuing. We can express the main architecture of the middleware as follows: producer/publisher creates or sends messages; then, messages arrive at Exchanges; after that, messages are routed through the Message Queues with related Bindings to the right consumer. So, we have four model elements:
+* **Message Flow** - It explains the message life cycle
+* **Exchanges** - It accepts messages from publisher, and then routes to the Message Queues
+* **Message Queues** - It stores messages in memory or disk and delivers messages to the consumers
+* **Bindings** - It specifies the relationship between an exchange and a message queue that tells how to route messages to the right Message Queues
+
+### Message flow
+
+* **Message** - This is produced by the Publisher application using AMQP Client with placing related information such as Content, Properties, and Routing Information to the Message.
+* **Exchange** - This receives the Message, which is sent from the Producer, then routes message to the right Queues, which is set on the message's Routing Information. Message will be sent to multiple queues, since it is determined with the Bindings.
+* **Message Queue** - This receives the Message and adds it to their waiting list. As soon as possible, Message Queue sends message to the related consumer. If Message Queue cannot send the Message, it stores the Message in a disk or memory.
+* **Consumer** - This receives the Message and sends Acknowledgement Message (usually it is sent automatically) to the Publisher.
+
+### Exchanges in AMQ
+
+**Exchanges generally take message and route it into zero or more message queues.** The routing algorithm can be determined with the bindings. Exchanges are declared with following important properties:
+* **Name** - Usually, server gives its name automatically
+* **Durable** - Message Queue remains present or not, depending on whether durable is set or transient is set
+* **Auto-delete** - When all queues finish, exchanges are deleted automatically
+
+### Message queues
+
+They store the messages in a **First-In-First-Out (FIFO)** way that is well defined in the queue data structure. Different from Queue data structure, if multiple readers from a queue is active, then one of the reader sometimes has a priority over another. Then, prior one takes the message before the other readers. Therefore, message queue in AMQ model is called as weak-FIFO.
+
+Message Queues have the properties like Exchanges:
+* **Name** - Defines the name of Message Queue
+* **Durable** - If set, the Message Queue can't lose any message
+* **Exclusive** - If set, the Message Queue will be deleted after connection is closed
+* **Auto-delete** - If set, the Message Queue is deleted after last consumer has unsubscribed
+
+### Bindings
+
+**Bindings** are rules that Exchanges use to route messages between message queues. Thus, bindings clarify in which message queue the message will be sent. The binding is determined with **routing key**.
+
+### AMQP messages
+
+A Message consists of these following attributes:
+* Content that is a binary data
+* Header
+* Properties
+
+### Exchange types
+
+#### The direct exchange type – amq.direct
+
+* A message queue binds to the exchange using a **routing key**, K.
+* Then, a publisher sends the Exchange a message with the routing key, R.
+* The message is passed to the message queue if K equals to R.
+
+#### The fan-out exchange type – amq.fanout
+
+* A message queue binds to the exchange with no arguments.
+* Whenever a publisher sends the Exchange a message, the message is passed to the message queues unconditionally.
+
+#### The topic exchange type – amq.topic
+
+* A message queue binds to the Exchange using a **routing *pattern***, P.
+* A publisher sends the exchange a message with the routing key, R.
+* The message is passed to the message queue if R matches P.
+* Matching algorithm works as follows: The routing key used for a topic exchange must consist of zero or more words delimited by dots such as "news.tech". The routing pattern works like a regular expression such as "*" matches single word and # matches zero or more words. For instance, "news.*" matches the "news.tech".
+
+#### The headers exchange type – amq.match
+
+Headers Exchange Type is the most powerful exchange type in AMQP. Headers exchange route messages based on the matching message headers. Exchange ignores the routing key. Whenever creating the exchanges, we specify the related headers on the exchanges, so message's headers are matched with the exchange headers using "x-match" argument.
+
+# Chapter 4. Clustering and High Availability
+
+RabbitMQ has great skills to handle lots of messages in a single machine, such as more than 50k messages per second according. However, there are cases when that is not enought - so we have to have multiple RabbitMQ servers.
+
+## High reliability in RabbitMQ
+
+### Federation in RabbitMQ
+
+The main goal of Federation is to transmit messages between brokers without the need of clustering. The Federation plugin is available with the standard RabbitMQ server installation. You can enable the Federation plugin using the following command:
+```
+rabbitmq-plugins enable rabbitmq_federation
+```
+Moreover, if you use the management plugin of the RabbitMQ server, you have a chance to monitor the federation using the same management plugin using the following command:
+```
+rabbitmq-plugins enable rabbitmq_federation_management
+```
+
+Three levels of configuration are involved in federation according to the RabbitMQ website:
+* Upstreams: This defines how to connect to another RabbitMQ
+* Upstream sets: This sets the upstream groups
+* Policies: This is a set of rules of the Federation
+
+## Clustering in RabbitMQ
+
+Clustering is our main solution for handling client requests over the server applications. The RabbitMQ server also gives us cluster mechanism. Cluster mechanism replicates all the data/states across all the nodes for reliability and scalability. The general structure of the clusters would be changed dynamically, according to the addition or removal of any clusters from the systems. Furthermore, RabbitMQ tolerates the failure of each node.
+
+Nodes should choose one of the Node type that affect the storage place; these are disk nodes or RAM nodes. If an administrator chooses a RAM node, RabbitMQ stores its state in memory. However, if an administrator chooses to store its state in a disk, then RabbitMQ stores its state on both, memory and disk.
+
+# Chapter 5. Plugins and Plugin Development
+TODO
+
+# Chapter 6. Managing Your RabbitMQ Server
+TODO
+
+# Chapter 7. Monitoring
+TODO
+
+# Chapter 8. Security in RabbitMQ
+TODO
+
+# Chapter 9. Java RabbitMQ Client Programming
+TODO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
