@@ -57,6 +57,52 @@ As figure 2.3 illustrates, a low-level AMQP frame is composed of five distinct c
 
 ![AMQP_Frame_Anatomy](AMQP_Frame_Anatomy.PNG).
 
+A low-level AMQP frame starts off with three fields, referred to as a **frame header** when combined:
+* First field is a single byte indicating the frame type
+* Second field specifies the channel the frame is for
+* Third field carries the byte size of the frame payload
+
+### Types of frames
+
+The AMQP specification defines five types of frames:
+* **Protocol header frame** is only used once, when connecting to RabbitMQ.
+* **Method frame** carries with it the RPC request or response that’s being sent to or received from RabbitMQ.
+* **Content header frame** contains the size and properties for a message.
+* **Body frames** contain the content of messages.
+* **Heartbeat frame** is sent to and from RabbitMQ as a check to ensure that both sides of the connection are available and working properly.
+
+***NOTE***. Oftentimes developers in single-threaded or asynchronous development environments will want to increase the timeout to some large value. To turn off - set heartbeat interval to 0. 
+
+### Marshaling messages into frames
+
+**When publishing a message to RabbitMQ, the method, header, and body frames are used.** The **first frame sent is the method frame carrying the command** and the parameters required to execute it, such as the exchange and routing key. **Following the method frame are the content frames: a content header and body.** The content header frame contains the message properties along with the body size. AMQP has a maximum frame size, and if the body of your message exceeds that size, the content will be split into multiple body frames.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
