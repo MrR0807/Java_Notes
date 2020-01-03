@@ -42,7 +42,7 @@ Similar in concept to channels on a two-way radio, the AMQP specification define
 ## AMQP’s RPC frame structure
 
 Very similar in concept to object-oriented programming in languages such as C++, Java, and Python, AMQP uses classes and methods, referred to as AMQP commands, to create a common language between clients and servers. The classes in AMQP define a scope of functionality, and each class contains methods that perform different tasks.
-![AMQP_Class_Function]().
+![AMQP_Class_Function](AMQP_Class_Function.PNG).
 
 
 
