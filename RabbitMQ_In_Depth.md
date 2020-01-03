@@ -44,6 +44,39 @@ Similar in concept to channels on a two-way radio, the AMQP specification define
 Very similar in concept to object-oriented programming in languages such as C++, Java, and Python, AMQP uses classes and methods, referred to as AMQP commands, to create a common language between clients and servers. The classes in AMQP define a scope of functionality, and each class contains methods that perform different tasks.
 ![AMQP_Class_Function](AMQP_Class_Function.PNG).
 
+### AMQP frame components
+
+When commands are sent to and from RabbitMQ, all of the arguments required to execute them are encapsulated in **data structures called frames** that encode the data for transmission.
+
+As figure 2.3 illustrates, a low-level AMQP frame is composed of five distinct components:
+* Frame type
+* Channel number
+* Frame size in bytes
+* Frame payload
+* End-byte marker (ASCII value 206)
+
+![AMQP_Frame_Anatomy](AMQP_Frame_Anatomy.PNG).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
