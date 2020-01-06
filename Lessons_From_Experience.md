@@ -52,6 +52,12 @@ To show correct representation in Swagger of Optional type:
 ```
 
 -----------
+# 2020.01.06
+
+**Spring, Spring Boot, Controller, Type Convertion, Casting, RequetParams, RequestBody**
+
+https://docs.spring.io/spring/docs/current/spring-framework-reference/core.html#core-convert
+
 
 
 
