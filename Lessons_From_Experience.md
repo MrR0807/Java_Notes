@@ -58,7 +58,42 @@ To show correct representation in Swagger of Optional type:
 
 https://docs.spring.io/spring/docs/current/spring-framework-reference/core.html#core-convert
 
+```
+import org.springframework.core.convert.converter.Converter;
 
+@Component
+public class TradeIdToTradeConverter implements Converter<String, Trade> {
+
+    private TradeService tradeService;
+
+    public TradeIdToTradeConverter (TradeService tradeService) {
+        this.tradeService = tradeService;
+    }
+
+    @Override
+    public Trade convert (String id) {
+        try {
+            Long tradeId = Long.valueOf(id);
+            return tradeService.getTradeById(tradeId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    
+
+@RestController
+@RequestMapping
+public class Controller {
+
+    @GetMapping
+    public void doSomething(@RequestParam Trade trade) {
+        //access trade which is converter from String
+    }
+
+}
+    
+
+```
 
 
 
