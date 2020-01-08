@@ -94,9 +94,83 @@ public class Controller {
     
 
 ```
+# 2020.01.08
 
+Problem:
+When using Spring's RestTemplate and @JsonCreator (Jackson Annotation) to fetch and deserialize JSON, exception is thrown: Could not extract response: no suitable HttpMessageConverter found for response type.
 
+Code:
 
+Not working.
+```
+@RestController
+@RequestMapping("test1")
+public class TestOne {
+
+    @PostMapping
+    public Person postPerson(@RequestBody Person person) {
+        RestTemplate restTemplate = new RestTemplate();
+        ResponseEntity<Person> response = restTemplate.getForEntity("http://localhost:8080/test1", Person.class);
+
+        return new Person(response.getBody());
+    }
+
+    @GetMapping
+    public Person getPerson() {
+        return new Person("first", "last");
+    }
+}
+```
+
+Person.class
+```
+public class Person {
+
+    private String firstName;
+    private String lastName;
+
+    public Person(Person person) {
+        this.firstName = person.firstName + " modified";
+        this.lastName = person.lastName + " modified";
+    }
+
+    @JsonCreator
+    public Person(String firstName, String lastName) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+    }
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+}
+```
+
+Solution:
+
+https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-features-resttemplate-customization
+
+> To make the scope of any customizations as narrow as possible, inject the auto-configured RestTemplateBuilder and then call its methods as required. Each method call returns a new RestTemplateBuilder instance, so the customizations only affect this use of the builder.
+
+```
+ @RequestMapping("test1")
+ public class TestOne {
+ 
+       private final RestTemplate restTemplate;
+
+       public TestOne(RestTemplateBuilder restTemplateBuilder) {
+               this.restTemplate = restTemplateBuilder.build();
+       }
+
+     @PostMapping
+     public Person postPerson(@RequestBody Person person) {
+         ResponseEntity<Person> response = restTemplate.getForEntity("http://localhost:8080/test1", Person.class);
+         return new Person(response.getBody());
+     }
+```
 
 
 
