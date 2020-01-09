@@ -96,7 +96,7 @@ public class Controller {
 ```
 # 2020.01.08
 
-**Jackson, Deserialize, JSON, @JsonCreator, Spring, RestTemplate, RestTemplateBuilder, HttpMessageConverter**
+**Jackson, Deserialize, JSON, @JsonCreator, Spring, Spring Boot, RestTemplate, RestTemplateBuilder, HttpMessageConverter**
 
 Problem:
 When using Spring's RestTemplate and @JsonCreator (Jackson Annotation) to fetch and deserialize JSON, exception is thrown: Could not extract response: no suitable HttpMessageConverter found for response type.
