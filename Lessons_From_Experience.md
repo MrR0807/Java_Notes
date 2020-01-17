@@ -177,8 +177,154 @@ https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-featu
 **ALWAYS USE RestTemplateBuilder.**
 https://medium.com/@TimvanBaarsen/spring-boot-why-you-should-always-use-the-resttemplatebuilder-to-create-a-resttemplate-instance-d5a44ebad9e9
 
+# 2020.01.17
 
+**Hibernate, JPQL, JOIN FETCH, FETCH, DISTINCT, SQL**
 
+**Taken from [Source](https://vladmihalcea.com/jpql-distinct-jpa-hibernate/)**.
+
+The DISTINCT keyword has a different purpose when it comes to entity queries. Without using DISTINCT, the JPA specification states that the returning entities resulting from a parent-child JOIN might contain object reference duplicates.
+
+To visualize this behavior, consider the following JPQL query:
+```
+List<Post> posts = entityManager
+.createQuery(
+    "select p " +
+    "from Post p " +
+    "left join fetch p.comments " +
+    "where p.title = :title", Post.class)
+.setParameter(
+    "title",
+    "High-Performance Java Persistence eBook has been released!"
+)
+.getResultList();
+ 
+LOGGER.info(
+    "Fetched the following Post entity identifiers: {}",
+    posts.stream().map(Post::getId).collect(Collectors.toList())
+);
+```
+
+When running the JPQL query above, Hibernate generate the following output:
+```
+SELECT p.id AS id1_0_0_,
+       pc.id AS id1_1_1_,
+       p.created_on AS created_2_0_0_,
+       p.title AS title3_0_0_,
+       pc.post_id AS post_id3_1_1_,
+       pc.review AS review2_1_1_,
+       pc.post_id AS post_id3_1_0__
+FROM   post p
+LEFT OUTER JOIN
+       post_comment pc ON p.id=pc.post_id
+WHERE
+       p.title='High-Performance Java Persistence eBook has been released!'
+
+-- Fetched the following Post entity identifiers: [1, 1]
+```
+As illustrated by the log message, the returned posts List contains two references of the same Post entity object. This is because the JOIN duplicates the parent record for every child row that’s going to be fetched.
+
+To remove the entity reference duplicates, we need to use the DISTINCT JPQL keyword:
+```
+List<Post> posts = entityManager
+.createQuery(
+    "select distinct p " +
+    "from Post p " +
+    "left join fetch p.comments " +
+    "where p.title = :title", Post.class)
+.setParameter(
+    "title",
+    "High-Performance Java Persistence eBook has been released!"
+)
+.getResultList();
+ 
+LOGGER.info(
+    "Fetched the following Post entity identifiers: {}",
+    posts.stream().map(Post::getId).collect(Collectors.toList())
+);
+```
+
+When executing the JPQL query above, Hibernate will now generate the following output:
+```
+SELECT DISTINCT
+       p.id AS id1_0_0_,
+       pc.id AS id1_1_1_,
+       p.created_on AS created_2_0_0_,
+       p.title AS title3_0_0_,
+       pc.post_id AS post_id3_1_1_,
+       pc.review AS review2_1_1_,
+       pc.post_id AS post_id3_1_0__
+FROM   post p
+LEFT OUTER JOIN
+       post_comment pc ON p.id=pc.post_id
+WHERE
+       p.title='High-Performance Java Persistence eBook has been released!'
+ 
+-- Fetched the following Post entity identifiers: [1]
+```
+
+So, the duplicates were removed from the posts List, but the DISTINCT keyword was also passed to the underlying SQL statement. For this SQL query, the DISTINCT keyword serves no purpose since the result set will contain unique parent-child records.
+
+If we analyze the execution plan for the previous SQL statement, we can see that a quicksort execution is being added to the plan:
+```
+Unique  (cost=23.71..23.72 rows=1 width=1068) (actual time=0.131..0.132 rows=2 loops=1)
+  ->  Sort  (cost=23.71..23.71 rows=1 width=1068) (actual time=0.131..0.131 rows=2 loops=1)
+        Sort Key: p.id, pc.id, p.created_on, pc.post_id, pc.review
+        Sort Method: quicksort  Memory: 25kB
+        ->  Hash Right Join  (cost=11.76..23.70 rows=1 width=1068) (actual time=0.054..0.058 rows=2 loops=1)
+              Hash Cond: (pc.post_id = p.id)
+              ->  Seq Scan on post_comment pc  (cost=0.00..11.40 rows=140 width=532) (actual time=0.010..0.010 rows=2 loops=1)
+              ->  Hash  (cost=11.75..11.75 rows=1 width=528) (actual time=0.027..0.027 rows=1 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    ->  Seq Scan on post p  (cost=0.00..11.75 rows=1 width=528) (actual time=0.017..0.018 rows=1 loops=1)
+                          Filter: ((title)::text = 'High-Performance Java Persistence eBook has been released!'::text)
+                          Rows Removed by Filter: 3
+Planning time: 0.227 ms
+Execution time: 0.179 ms
+```
+The quicksort execution adds an unneeded overhead to our statement execution since we don’t need to eliminate any duplicates since the result set contains unique parent-child row combinations.
+
+Using the hibernate.query.passDistinctThrough JPQL query hint
+**To avoid passing the DISTINCT keyword to the underlying SQL statement, we need to activate the hibernate.query.passDistinctThrough JPQL query hint as illustrated by the following example:**
+```
+List<Post> posts = entityManager
+.createQuery(
+    "select distinct p " +
+    "from Post p " +
+    "left join fetch p.comments " +
+    "where p.title = :title", Post.class)
+.setParameter(
+    "title",
+    "High-Performance Java Persistence eBook has been released!"
+)
+.setHint("hibernate.query.passDistinctThrough", false)
+.getResultList();
+ 
+LOGGER.info(
+    "Fetched the following Post entity identifiers: {}",
+    posts.stream().map(Post::getId).collect(Collectors.toList())
+);
+```
+When running the JPQL with the hibernate.query.passDistinctThrough hint activated, Hibernate executes the following SQL query:
+```
+SELECT
+       p.id AS id1_0_0_,
+       pc.id AS id1_1_1_,
+       p.created_on AS created_2_0_0_,
+       p.title AS title3_0_0_,
+       pc.post_id AS post_id3_1_1_,
+       pc.review AS review2_1_1_,
+       pc.post_id AS post_id3_1_0__
+FROM   post p
+LEFT OUTER JOIN
+       post_comment pc ON p.id=pc.post_id
+WHERE
+       p.title='High-Performance Java Persistence eBook has been released!'
+ 
+-- Fetched the following Post entity identifiers: [1]
+```
+
+Therefore, the DISTINCT keyword is no longer passed to the SQL query, but entity duplicates are removed from the returning posts List.
 
 
 
