@@ -181,7 +181,7 @@ https://medium.com/@TimvanBaarsen/spring-boot-why-you-should-always-use-the-rest
 
 **Hibernate, JPQL, JOIN FETCH, FETCH, DISTINCT, SQL**
 
-**Taken from [Source](https://vladmihalcea.com/jpql-distinct-jpa-hibernate/)**.
+**Taken from [Vlad Mihalcea blog](https://vladmihalcea.com/jpql-distinct-jpa-hibernate/)**.
 
 The DISTINCT keyword has a different purpose when it comes to entity queries. Without using DISTINCT, the JPA specification states that the returning entities resulting from a parent-child JOIN might contain object reference duplicates.
 
