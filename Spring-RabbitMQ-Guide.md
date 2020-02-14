@@ -29,7 +29,29 @@ It is important to understand that the cache size is (by default) not a limit bu
 
 Is available only in the unit test code of the framework. It is simpler than CachingConnectionFactory, since it does not cache channels, but it is not intended for practical usage outside of simple tests due to its lack of performance and resilience.
 
-### Naming Connections.
+### Naming Connections
+
+The connection name is displayed in the management UI if the RabbitMQ server supports it. This value does not have to be unique and cannot be used as a connection identifier — for example, in HTTP API requests. You can use a simple Lambda, as follows:
+```
+connectionFactory.setConnectionNameStrategy(connectionFactory -> "MY_CONNECTION");
+```
+An implementation of SimplePropertyValueConnectionNameStrategy sets the connection name to an application property. You can declare it as a @Bean and inject it into the connection factory, as the following example shows:
+```
+@Bean
+public ConnectionNameStrategy cns() {
+    return new SimplePropertyValueConnectionNameStrategy("spring.application.name");
+}
+
+@Bean
+public ConnectionFactory rabbitConnectionFactory(ConnectionNameStrategy cns) {
+    CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
+    ...
+    connectionFactory.setConnectionNameStrategy(cns);
+    return connectionFactory;
+}
+```
+
+When using Spring Boot and its autoconfigured connection factory, you need only declare the ConnectionNameStrategy @Bean. Boot auto-detects the bean and wires it into the factory.
 
 ### Blocked Connections and Resource Constraints
 
