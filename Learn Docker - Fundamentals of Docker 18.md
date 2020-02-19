@@ -1075,32 +1075,4 @@ docker container port web
 ```
 docker container run --name web2 -p 8080:80 -d nginx:alpine
 ```
-The value of the -p parameter is in the form of **<host port>:<container port>**.
-  
-  doc
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+The value of the ```-p``` parameter is in the form of **```<host port>:<container port>```**.
