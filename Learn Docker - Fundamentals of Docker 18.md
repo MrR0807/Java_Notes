@@ -1081,6 +1081,32 @@ The value of the ```-p``` parameter is in the form of **```<host port>:<containe
 
 ## Demystifying declarative versus imperative
 
+Docker Compose uses files formatted in YAML as input. By default, Docker Compose expects these files to be called docker-compose.yml, but other names are possible. The content of a **```docker-compose.yml```** is said to be a declarative way of describing and running a containerized application potentially consisting of more than a single container.
+
+**Imperative:** It's a way in which we can solve problems by specifying the exact procedure which has to be followed by the system.
+**Declarative:** It's a way in which we can solve problems without requiring the programmer to specify an exact procedure to be followed.
+
+## Running a multi-service app
+
+When using Docker containers, each application service runs in its own container. When we want to run such a multi-service application, we can of course start all the participating containers with the well-known ```docker container run``` command. But this is inefficient at best. With the Docker Compose tool, we are given a way to define the application in a declarative way in a file that uses the YAML format.
+
+Let's have a look at the content of a simple docker-compose.yml file:
+```
+version: "3.5"
+services:
+  web:
+    image: fundamentalsofdocker/ch08-web:1.0
+    ports:
+      - 3000:3000
+  db:
+    image: fundamentalsofdocker/ch08-db:1.0
+    volumes:
+      - pets-data:/var/lib/postgresql/data
+
+volumes:
+  pets-data:
+```
+
 
 
 
