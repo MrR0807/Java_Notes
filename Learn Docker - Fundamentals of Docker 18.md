@@ -651,7 +651,208 @@ Keep the number of layers that make up your image relatively small.
 Reduce the image size is to use a .dockerignore file. We want to avoid copying unnecessary files and folders into an image to keep it as lean as possible.
 
 # Chapter 5. Data Volumes and System Management
-TODO
+
+## Creating and mounting data volumes
+
+Volumes have a life cycle that goes beyond the life cycle of containers. When a container that uses a volume dies, the volume continues to exist.
+
+To create a new data volume, we can use:
+```
+docker volume create my-data
+```
+The easiest way to find out where the data is stored on the host is by using the inspect command on the volume we just created:
+```
+docker volume inspect my-data
+```
+
+### Mounting a volume
+
+Once we have created a named volume, we can mount it into a container. For this, we can use the ```-v``` parameter in the docker container run command:
+```
+$ docker container run --name test -it -v my-data:/data alpine /bin/sh
+```
+The preceding command mounts the  my-data volume to the /data folder inside the container.
+
+### Removing volumes
+
+Volumes can be removed using the ```docker volume rm``` command. It is important to remember that removing a volume destroys the containing data irreversibly and thus is to be considered a dangerous command. 
+The following command deletes our my-data volume that we created earlier:
+```
+$ docker volume rm my-data
+```
+
+## Sharing data between containers
+
+Say an application running in container A produces some data that will be consumed by another application running in container B. How can we achieve this? Well I'm sure you've already guessed it—we can use Docker volumes for this purpose. We can create a volume and mount it to container A as well as to container B. In this way, both applications A and B have access to the same data.
+
+Now, as always when multiple applications or processes concurrently access data, we have to be very careful to avoid inconsistencies. To avoid concurrency problems, such as race conditions, we ideally have only one application or process that is creating or modifying data, while all other processes concurrently accessing this data only read it. We can enforce a process running in a container to only be able to read the data in a volume by mounting this volume as read only. Have a look at the following command:
+```
+$ docker container run -it --name writer \
+    -v shared-data:/data \
+    alpine /bin/sh
+```
+Here we create a container called writer which has a volume, shared-data, mounted in default read/write mode. It should succeed. Exit this container and then execute the following command:
+```
+$ docker container run -it --name reader \
+    -v shared-data:/app/data:ro \
+    ubuntu:17.04 /bin/bash
+```
+And we have a container called reader that has the same volume mounted as **read-only (ro)**.
+
+## Using host volumes
+
+In certain scenarios, such as when developing new containerized applications or when a containerized application needs to consume data from a certain folder. To use volumes that mount a specific host folder. Let's look at the following example:
+```
+$ docker container run --rm -it \
+    -v $(pwd)/src:/app/src \
+    alpine:latest /bin/sh
+```
+The preceding expression interactively starts an alpine container with a shell and mounts the subfolder src of the current directory into the container at /app/src. We need to use $(pwd) (or 'pwd' for that matter) which is the current directory, as when working with volumes we always need to use absolute paths.
+
+## Defining volumes in images
+
+To defining volumes in the Dockerfil use **VOLUME** keyword.
+
+```
+VOLUME /app/data 
+VOLUME /app/data, /app/profiles, /app/config 
+VOLUME ["/app/data", "/app/profiles", "/app/config"] 
+```
+The first line defines a single volume to be mounted at /app/data. The second line defines three volumes as a comma-separated list and the last one defines the same as the second line, but this time the value is formatted as a JSON array.
+
+When a container is started, Docker automatically creates a volume and mounts it to the corresponding target folder of the container for each path defined in the Dockerfile.
+
+We can use the docker image inspect command to get information about the volumes defined in the Dockerfile. Let's see what MongoDB gives us. First, we pull the image with the following command:
+```
+$ docker image pull mongo:3.7
+```
+Then we inspect this image and use the --format parameter to only extract the essential part from the massive amount of data:
+```
+ $ docker image inspect \
+   --format='{{json .ContainerConfig.Volumes}}' \
+    mongo:3.7 | jq
+```
+Which will return the following result:
+```
+{
+"/data/configdb": {},
+"/data/db": {}
+}
+```
+Evidently, the Dockerfile for MongoDB defines two volumes at /data/configdb and /data/db.
+Now, let's run an instance of MongoDB as follows:
+```
+$ docker run --name my-mongo -d mongo:3.7
+```
+We can now use the docker container inspect command to get information about the volumes that have been created, among other things. Use this command to just get the volume information:
+```
+$ docker inspect --format '{{json .Mounts}}' my-mongo | jq
+```
+The expression should output something like this:
+```
+[
+  {
+    "Type": "volume",
+    "Name": "b9ea0158b5...",
+    "Source": "/var/lib/docker/volumes/b9ea0158b.../_data",
+    "Destination": "/data/configdb",
+    "Driver": "local",
+    "Mode": "",
+    "RW": true,
+    "Propagation": ""
+  },
+  {
+    "Type": "volume",
+    "Name": "5becf84b1e...",
+    "Source": "/var/lib/docker/volumes/5becf84b1.../_data",
+    "Destination": "/data/db",
+    "Driver": "local",
+    "Mode": "",
+    "RW": true,
+    "Propagation": ""
+  }
+]
+```
+The **Source** field gives us the path to the host directory where the data produced by the MongoDB inside the container will be stored.
+
+## Listing resource consumption
+
+Over time, a Docker host can accumulate quite a bit of resources such as images, containers, and volumes in memory and on disk. As in every good household, we should keep our environment clean and free unused resources to reclaim space.
+
+The Docker CLI provides a handy little system command that lists how much resources currently are used on our system and how much of this space can possibly be reclaimed. The command is:
+```
+$ docker system df
+```
+If you execute this command on your system, you should see an output similar to this:
+```
+TYPE          TOTAL   ACTIVE   SIZE      RECLAIMABLE
+Images        21      9        1.103GB   845.3MB (76%)
+Containers    14      11       9.144kB   4.4kB (48%)
+Local Volumes 14      14       340.3MB   0B (0%)
+Build Cache                    0B        0B
+```
+In my case, the output tells me that on my system I am currently having 21 images locally cached of which 9 are in active use. An image is considered to be in active use if currently at least one running or stopped container is based on it. These images occupy 1.1 GB disk space. Close to 845 MB can technically be reclaimed since the corresponding images are not currently used.
+
+If I want even more detailed information about the resource consumption on my system, I can run the same command in verbose mode using the -v flag:
+```
+$ docker system df -v
+```
+
+## Pruning unused resources
+
+### Pruning containers
+
+In this section we want to regain unused system resources by pruning containers:
+```
+$ docker container prune
+```
+The preceding command will remove all containers from the system that are not in running status. Docker will ask for confirmation before deleting the containers that are currently in  exited or created status. If you want to skip this confirmation step you can use the -f (or --force) flag:
+```
+$ docker container prune -f
+```
+
+Under certain circumstances, we might want to remove all containers from our system, even the running ones. We cannot use the prune command for this. Instead we should use a command, such as the following combined expression:
+```
+$ docker container rm -f $(docker container ls -aq) 
+```
+### Pruning images
+
+Next in line are images. If we want to free all space occupied by unused image layers we can use the following command:
+```
+$ docker image prune
+```
+
+On a system where we often build images, the number of orphaned image layers can increase substantially over time. All these orphaned layers are removed with the preceding prune command.
+
+Similar to the prune command for containers, we can avoid Docker asking us for a confirmation by using the force flag:
+```
+$ docker image prune -f
+```
+There is an even more radical version of the image prune command. Sometimes we do not just want to remove orphaned image layers but all images that are not currently in use on our system. For this, we can use the -a (or --all) flag:
+```
+$ docker image prune --force --all
+```
+### Pruning volumes
+If you know that you want to reclaim space occupied by volumes and with it irreversibly destroy the underlying data, you can use the following command:
+```
+$ docker volume prune
+```
+To avoid system corruption or malfunctioning applications, Docker does not allow you to remove volumes that are currently in use by at least one container. This applies even to the situation where a volume is used by a stopped container.
+
+### Pruning networks
+
+To remove all unused networks, we use the following command:
+```
+$ docker network prune
+```
+This will remove the networks on which currently no container or service is attached. 
+
+### Pruning everything
+
+If we just want to prune everything at once without having to enter multiple commands, we can use the following command:
+```
+$ docker system prune
+```
 
 # Chapter 6. Distributed Application Architecture
 
