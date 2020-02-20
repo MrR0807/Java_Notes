@@ -1107,17 +1107,82 @@ volumes:
   pets-data:
 ```
 
+The lines in the file are explained as follows:
+* **version**: In this line, we specify the version of the Docker Compose format we want to use. At the time of writing, this is version 3.5.
+* **services**: In this section, we specify the services that make up our application in the services block. In our sample, we have two application services and we call them web and db:
+* **web**: The web service is using the image fundamentalsofdocker/ch08-web:1.0 from the Docker Hub and is publishing container port 3000 to the host port, also 3000.
+* **db**: The db service, on the other hand, is using the image  fundamentalsofdocker/ch08-db:1.0, which is a customized PostgreSQL database. We are mounting a volume called pets-data into the container of the db service.
+* **volumes**: The volumes used by any of the services have to be declared in this section. In our sample, this is the last section of the file. The first time the application is run, a volume called pets-data will be created by Docker and then, in subsequent runs, if the volume is still there, it will be reused. This could be important when the application, for some reason, crashes and has to be restarted. Then, the previous data is still around and ready to be used by the restarted database service.
 
+Start Docker Compose:
+```
+$ docker-compose up
+```
+If we enter the preceding command, then the tool will assume that there must be a file in the current directory called docker-compose.yml and it will use that one to run.
 
+As the application is running in interactive mode and thus the Terminal where we ran Docker Compose is blocked, we can cancel the application by pressing Ctrl+C.
 
+We can also run the application in the background. All containers will run as daemons. For this, we just need to use the -d parameter, as shown in the following code:
+```
+$ docker-compose up -d
+```
+Docker Compose offers us many more commands than just up. We can use it to list all services that are part of the application:
+```
+$ docker-compose ps
+```
+To stop and clean up the application, we use the docker-compose down command:
+```
+docker-compose down
+```
+If we also want to remove the volume for the database, then we can use the following command:
+```
+$ docker volume rm ch08_pets-data
+```
 
+## Scaling a service
 
+Running more instances is also called scaling up. We can use this tool to scale our web service up to, say, three instances:
+```
+$ docker-compose up --scale web=3
+```
+If we do this, we are in for a surprise. This fails, because the second and third instances of the web service fail to start. The error message tells us why: we cannot use the same host port more than once.
 
+If, in the ports section of the compose file, we only specify the container port and leave out the host port, then Docker automatically selects an ephemeral port. Let's do exactly this:
+```
+version: "3.5"
+services:
+  web:
+    image: fundamentalsofdocker/ch08-web:1.0
+    ports:
+      - 3000
+  db:
+    image: fundamentalsofdocker/ch08-db:1.0
+    volumes:
+      - pets-data:/var/lib/postgresql/data
 
+volumes:
+  pets-data:
+```
 
+# Chapter 9. Orchestrators
 
+## The tasks of an orchestrator
 
+### Reconciling the desired state
 
+When using an orchestrator, one tells it in a declarative way how one wants it to run a given application or application service. This declaration of the properties of our application service is what we call the **desired state**. 
+
+Each time the orchestrator discovers a discrepancy between the actual state of the service and its desired state, it again tries its best to reconcile the desired state.
+
+### Replicated and global services
+
+There are two quite different types of services that we might want to run in a cluster managed by an orchestrator:
+* **replicated services** - A replicated service is a service which is required to run in a specific number of instances, say 10
+* **global services** - A global service, in turn, is a service that is required to have an instance running on every single worker node of the cluster
+
+In a cluster managed by an orchestrator, we typically have two types of nodes:
+* **manager** - usually exclusively used by the orchestrator to manage the cluster and does not run any other workload
+* **worker** - used to run the actual applications
 
 
 
