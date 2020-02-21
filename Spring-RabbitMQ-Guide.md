@@ -58,9 +58,16 @@ When using Spring Boot and its autoconfigured connection factory, you need only 
 
 ### Blocked Connections and Resource Constraints
 
-Setup RabbitMQ 
+Setup RabbitMQ
 
 Start RabbitMQ container:
+```
+docker run --detach -p 15672:15672 -p 5672:5672 --name rabbit-instance --hostname my-rabbit rabbitmq:3-management
+```
+
+Now you can connect to RabbitMQ via http://localhost:15672. Credentials - ```guest:guest```.
+
+
 # TODO
 Join running container:
 ```
