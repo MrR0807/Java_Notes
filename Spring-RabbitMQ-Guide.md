@@ -58,17 +58,16 @@ When using Spring Boot and its autoconfigured connection factory, you need only 
 
 ### Blocked Connections and Resource Constraints
 
-Setup RabbitMQ
+#### Setup RabbitMQ
 
 Start RabbitMQ container:
 ```
 docker run --detach -p 15672:15672 -p 5672:5672 --name rabbit-instance --hostname my-rabbit rabbitmq:3-management
 ```
-
 Now you can connect to RabbitMQ via http://localhost:15672. Credentials - ```guest:guest```.
 
+#### Lower memory threshold
 
-# TODO
 Join running container:
 ```
 docker exec -it <container name> bash
@@ -87,11 +86,53 @@ Set to a small number, so RabbitMQ would not accept connections:
 ```
 rabbitmqctl set_vm_memory_high_watermark absolute "80MB"
 ```
-
 Or when the threshold or absolute limit is set to 0, it makes the memory alarm go off immediately and thus eventually blocks all publishing connections:
 ```
 rabbitmqctl set_vm_memory_high_watermark 0
 ```
+
+ConnectionFactory example. When connection is blocked it will print "Connection is blocked". When connection is unblocked it will print "Connection is unblocked":
+```
+@Bean
+public ConnectionFactory connectionFactory() {
+CachingConnectionFactory factory = new CachingConnectionFactory("localhost");
+factory.setUsername("guest");
+factory.setPassword("guest");
+factory.setPort(5672);
+factory.addConnectionListener(connection -> {
+    Channel channel = connection.createChannel(false);
+    channel.getConnection().addBlockedListener(new BlockedListener() {
+	@Override
+	public void handleBlocked(String reason) throws IOException {
+	    System.out.println("Connection is blocked");
+	}
+
+	@Override
+	public void handleUnblocked() throws IOException {
+	    System.out.println("Connection is unblocked");
+	}
+    });
+});
+factory.setConnectionNameStrategy(cns());
+return factory;
+}
+```
+
+Before blocked connection:
+![running-rabbit-connection](running-rabbit-connection.png)
+
+Once the memory high watermark is set, try to connect to RabbitMQ. You will find in RabbitMQ Management Connections something like this:
+![blocked-rabbit-connection](blocked-rabbit-connection.png)
+
+And Overview page, next to Nodes will have red indication regarding memory:
+![memory-high-watermark-too-low](memory-high-watermark-too-low.PNG)
+
+However, this will not trigger connection listener. Only, if we try to publish messages, then we will get defined messages. Use the same connection factory setup in Producer code.
+
+
+
+
+
 
 
 # TODO. Just a place holder 
