@@ -1,5 +1,7 @@
 # Using Spring AMQP
 
+## 4.1.2. Connection and Resource Management
+
 The central component for managing a connection to the RabbitMQ broker is the ```ConnectionFactory``` interface. The responsibility of a ```ConnectionFactory``` implementation is to provide an instance of ```org.springframework.amqp.rabbit.connection.Connection```, which is a wrapper for ```com.rabbitmq.client.Connection```.
 
 ```ConnectionFactory``` implementations:
@@ -11,6 +13,7 @@ The central component for managing a connection to the RabbitMQ broker is the ``
 ### CachingConnectionFactory
 
 By default, establishes a single connection proxy that can be shared by the application. Sharing of the connection is possible since the “unit of work” for messaging with AMQP is actually a “channel”. The ```CachingConnectionFactory``` implementation supports caching of those channels, and it maintains separate caches for channels based on whether they are transactional.
+However, you can configure the ```CachingConnectionFactory``` to cache connections as well as only channels. In this case, each call to createConnection() creates a new connection (or retrieves an idle one from the cache). Closing a connection returns it to the cache (if the cache size has not been reached). To cache connections, set the cacheMode to CacheMode.CONNECTION.
 
 ### It is best not to use cache mode CONNECTION.
 For reason please look at [documentation:4.1.2. Connection and Resource Management](https://docs.spring.io/spring-amqp/docs/current/reference/html/).
@@ -125,6 +128,8 @@ https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-featu
 
 
 
+
+--------------------------------- Simple Spring Configuration Without Spring Boot ---------------------------------
 
 
 
