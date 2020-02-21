@@ -438,8 +438,30 @@ public class ConsumerNoBoot implements ChannelAwareMessageListener {
 ```
 
 
+----------------------------- Publisher Returns -----------------------------
+```
+@Bean
+    public ConnectionFactory connectionFactory() {
+        CachingConnectionFactory factory = new CachingConnectionFactory("localhost");
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setPort(5672);
+        factory.setPublisherReturns(true);
+        return factory;
+    }
 
-
+    @Bean
+    public AmqpTemplate rabbitTemplate() {
+        RabbitTemplate template = new RabbitTemplate();
+        template.setConnectionFactory(connectionFactory());
+        template.setExchange(EXCHANGE_NAME);
+        template.setRoutingKey(ROUTING_KEY + "Bad");
+        template.setMandatory(true);
+        template.setReturnCallback((message, replyCode, replyText, exchange, routingKey) ->
+                        System.out.println("Message was returned"));
+        return template;
+    }
+```
 
 
 
