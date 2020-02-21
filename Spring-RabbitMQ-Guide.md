@@ -84,10 +84,43 @@ rabbitmqctl set_vm_memory_high_watermark 0
 ```
 
 
+# TODO. Just a place holder 
+## Retry
+
+When using spring boot it is required to set properties:
+```
+spring.rabbitmq.listener.simple.retry.enabled=true
+```
+
+In Spring Boot, it does not work the way Spring AMQP defines:
+```
+@Bean
+public StatefulRetryOperationsInterceptor interceptor() {
+	return RetryInterceptorBuilder.stateful()
+			.maxAttempts(5)
+			.backOffOptions(1000, 2.0, 10000) // initialInterval, multiplier, maxInterval
+			.build();
+}
+```
+
+To make it work you have to:
+```
+spring.rabbitmq.listener.simple.retry.enabled=true
+spring.rabbitmq.listener.simple.retry.max-attempts=1
+```
+
+And:
+```
+@Bean
+public MessageRecoverer messageRecoverer(AmqpTemplate amqpTemplate) {
+    return new RepublishMessageRecoverer(amqpTemplate, DEAD_EXCHANGE, DEAD_ROUTING_KEY);
+}
+```
 
 
+https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-features-using-amqp-receiving
 
-
+> By default, retries are disabled. You can also customize the RetryTemplate programmatically by declaring a RabbitRetryTemplateCustomizer bean.
 
 
 
