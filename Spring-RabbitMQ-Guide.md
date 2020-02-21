@@ -301,9 +301,141 @@ public class DemoApplication {
 #### Asynchronous Consumer
 ##### RabbitConfiguration
 
+```
+@Configuration
+public class RabbitConfigurationNoBoot {
 
+    private static final String EXCHANGE_NAME = "my-test";
+    private static final String QUEUE_NAME = "my-queue";
+    private static final String ROUTING_KEY = "my.key";
 
+    @Bean
+    public Exchange exchange() {
+        return new TopicExchange(EXCHANGE_NAME, true, false);
+    }
 
+    @Bean
+    public Queue queue() {
+        return new Queue(QUEUE_NAME, true, false, false);
+    }
+
+    @Bean
+    public Binding bindQueueToExchange() {
+        return BindingBuilder
+                .bind(queue())
+                .to(exchange())
+                .with(ROUTING_KEY)
+                .noargs();
+    }
+
+    @Bean
+    public ConnectionFactory connectionFactory() {
+        CachingConnectionFactory factory = new CachingConnectionFactory("localhost");
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setPort(5672);
+        return factory;
+    }
+
+    @Bean
+    public SimpleMessageListenerContainer simpleMessageListenerContainer() {
+        SimpleMessageListenerContainer container = new SimpleMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory());
+        container.setQueueNames(QUEUE_NAME);
+        container.setMessageListener(new ConsumerNoBoot());
+        return container;
+    }
+
+    /**
+     * The admin declares all elements (Queue, Exchange, Bindings) when a connection is first opened.
+     */
+    @Bean
+    public AmqpAdmin amqpAdmin() {
+        return new RabbitAdmin(connectionFactory());
+    }
+}
+```
+
+##### Consumer
+```
+public class ConsumerNoBoot implements MessageListener {
+
+    @Override
+    public void onMessage(Message message) {
+        System.out.println(message);
+    }
+}
+```
+
+#### Asynchronous Consumer with manual ack
+##### RabbitConfiguration
+```
+@Configuration
+public class RabbitConfigurationNoBoot {
+
+    private static final String EXCHANGE_NAME = "my-test";
+    private static final String QUEUE_NAME = "my-queue";
+    private static final String ROUTING_KEY = "my.key";
+
+    @Bean
+    public Exchange exchange() {
+        return new TopicExchange(EXCHANGE_NAME, true, false);
+    }
+
+    @Bean
+    public Queue queue() {
+        return new Queue(QUEUE_NAME, true, false, false);
+    }
+
+    @Bean
+    public Binding bindQueueToExchange() {
+        return BindingBuilder
+                .bind(queue())
+                .to(exchange())
+                .with(ROUTING_KEY)
+                .noargs();
+    }
+
+    @Bean
+    public ConnectionFactory connectionFactory() {
+        CachingConnectionFactory factory = new CachingConnectionFactory("localhost");
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setPort(5672);
+        return factory;
+    }
+
+    @Bean
+    public SimpleMessageListenerContainer simpleMessageListenerContainer() {
+        SimpleMessageListenerContainer container = new SimpleMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory());
+        container.setQueueNames(QUEUE_NAME);
+        container.setMessageListener(new ConsumerNoBoot());
+        container.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+        return container;
+    }
+
+    /**
+     * The admin declares all elements (Queue, Exchange, Bindings) when a connection is first opened.
+     */
+    @Bean
+    public AmqpAdmin amqpAdmin() {
+        return new RabbitAdmin(connectionFactory());
+    }
+}
+```
+##### Consumer
+```
+public class ConsumerNoBoot implements ChannelAwareMessageListener {
+
+    @Override
+    public void onMessage(Message message, Channel channel) throws Exception {
+        System.out.println("Message received");
+        long deliveryTag = message.getMessageProperties().getDeliveryTag();
+        channel.basicAck(deliveryTag, false);
+    }
+}
+```
 
 
 
