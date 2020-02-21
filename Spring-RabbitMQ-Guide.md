@@ -131,9 +131,161 @@ https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#boot-featu
 
 --------------------------------- Simple Spring Configuration Without Spring Boot ---------------------------------
 
+#### Producer
+##### RabbitConfiguration
+```
+@Configuration
+public class RabbitConfigurationNoBoot {
+
+    private static final String EXCHANGE_NAME = "my-test";
+    private static final String QUEUE_NAME = "my-queue";
+    private static final String ROUTING_KEY = "my.key";
+
+    @Bean
+    public Exchange exchange() {
+        return new TopicExchange(EXCHANGE_NAME, true, false);
+    }
+
+    @Bean
+    public Queue queue() {
+        return new Queue(QUEUE_NAME, true, false, false);
+    }
+
+    @Bean
+    public Binding bindQueueToExchange() {
+        return BindingBuilder
+                .bind(queue())
+                .to(exchange())
+                .with(ROUTING_KEY)
+                .noargs();
+    }
+
+    @Bean
+    public ConnectionFactory connectionFactory() {
+        CachingConnectionFactory factory = new CachingConnectionFactory("localhost");
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setPort(5672);
+        return factory;
+    }
+
+    @Bean
+    public RabbitTemplate rabbitTemplate() {
+        RabbitTemplate template = new RabbitTemplate();
+        template.setConnectionFactory(connectionFactory());
+        template.setExchange(EXCHANGE_NAME);
+        template.setRoutingKey(ROUTING_KEY);
+        return template;
+    }
+
+    @Bean
+    public ConsumerNoBoot consumerNoBoot(RabbitTemplate template) {
+        return new ConsumerNoBoot(template, QUEUE_NAME);
+    }
+}
+```
+
+
+##### Main
+```
+public class DemoApplication {
+
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.register(RabbitConfigurationNoBoot.class);
+        context.refresh();
+        AmqpTemplate rabbitTemplate = context.getBean("rabbitTemplate", AmqpTemplate.class);
+        rabbitTemplate.convertAndSend("Hello");
+    }
+}
+```
 
 
 
+#### Consumer
+##### RabbitConfiguration
+```
+@Configuration
+public class RabbitConfigurationNoBoot {
+
+    private static final String EXCHANGE_NAME = "my-test";
+    private static final String QUEUE_NAME = "my-queue";
+    private static final String ROUTING_KEY = "my.key";
+
+    @Bean
+    public Exchange exchange() {
+        return new TopicExchange(EXCHANGE_NAME, true, false);
+    }
+
+    @Bean
+    public Queue queue() {
+        return new Queue(QUEUE_NAME, true, false, false);
+    }
+
+    @Bean
+    public Binding bindQueueToExchange() {
+        return BindingBuilder
+                .bind(queue())
+                .to(exchange())
+                .with(ROUTING_KEY)
+                .noargs();
+    }
+
+    @Bean
+    public ConnectionFactory connectionFactory() {
+        CachingConnectionFactory factory = new CachingConnectionFactory("localhost");
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setPort(5672);
+        return factory;
+    }
+
+    @Bean
+    public RabbitTemplate rabbitTemplate() {
+        RabbitTemplate template = new RabbitTemplate();
+        template.setConnectionFactory(connectionFactory());
+        template.setExchange(EXCHANGE_NAME);
+        template.setRoutingKey(ROUTING_KEY);
+        return template;
+    }
+
+    @Bean
+    public ConsumerNoBoot consumerNoBoot(RabbitTemplate template) {
+        return new ConsumerNoBoot(template, QUEUE_NAME);
+    }
+}
+```
+##### Consumer
+```
+public class ConsumerNoBoot {
+
+    private final RabbitTemplate template;
+    private final String queueName;
+
+    public ConsumerNoBoot(RabbitTemplate template, String queueName) {
+        this.template = template;
+        this.queueName = queueName;
+    }
+
+    public void consume() {
+        Message receive = template.receive(queueName);
+        System.out.println(receive);
+    }
+}
+```
+##### Main
+```
+public class DemoApplication {
+
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.register(RabbitConfigurationNoBoot.class);
+        context.refresh();
+        ConsumerNoBoot consumer = context.getBean("consumerNoBoot", ConsumerNoBoot.class);
+        consumer.consume();
+    }
+}
+```
 
 
 
