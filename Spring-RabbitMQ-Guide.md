@@ -170,7 +170,7 @@ public class RabbitConfigurationNoBoot {
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate() {
+    public AmqpTemplate rabbitTemplate() {
         RabbitTemplate template = new RabbitTemplate();
         template.setConnectionFactory(connectionFactory());
         template.setExchange(EXCHANGE_NAME);
@@ -178,9 +178,12 @@ public class RabbitConfigurationNoBoot {
         return template;
     }
 
+    /**
+     * The admin declares all elements (Queue, Exchange, Bindings) when a connection is first opened.
+     */
     @Bean
-    public ConsumerNoBoot consumerNoBoot(RabbitTemplate template) {
-        return new ConsumerNoBoot(template, QUEUE_NAME);
+    public AmqpAdmin amqpAdmin() {
+        return new RabbitAdmin(connectionFactory());
     }
 }
 ```
@@ -202,7 +205,7 @@ public class DemoApplication {
 
 
 
-#### Consumer
+#### Consumer with RabbitTemplate
 ##### RabbitConfiguration
 ```
 @Configuration
@@ -253,6 +256,14 @@ public class RabbitConfigurationNoBoot {
     public ConsumerNoBoot consumerNoBoot(RabbitTemplate template) {
         return new ConsumerNoBoot(template, QUEUE_NAME);
     }
+    
+     /**
+     * The admin declares all elements (Queue, Exchange, Bindings) when a connection is first opened.
+     */
+    @Bean
+    public AmqpAdmin amqpAdmin() {
+        return new RabbitAdmin(connectionFactory());
+    }
 }
 ```
 ##### Consumer
@@ -286,6 +297,38 @@ public class DemoApplication {
     }
 }
 ```
+
+#### Asynchronous Consumer
+##### RabbitConfiguration
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
