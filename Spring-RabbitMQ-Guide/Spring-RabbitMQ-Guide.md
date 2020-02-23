@@ -119,13 +119,13 @@ return factory;
 ```
 
 Before blocked connection:
-![running-rabbit-connection](running-rabbit-connection.png)
+![pictures/running-rabbit-connection](running-rabbit-connection.png)
 
 Once the memory high watermark is set, try to connect to RabbitMQ. You will find in RabbitMQ Management Connections something like this:
-![blocked-rabbit-connection](blocked-rabbit-connection.png)
+![pictures/blocked-rabbit-connection](blocked-rabbit-connection.png)
 
 And Overview page, next to Nodes will have red indication regarding memory:
-![memory-high-watermark-too-low](memory-high-watermark-too-low.PNG)
+![pictures/memory-high-watermark-too-low](memory-high-watermark-too-low.PNG)
 
 However, this will not trigger connection listener. Only, if we try to publish messages, then we will get defined messages. Use the same connection factory setup in Producer code.
 
