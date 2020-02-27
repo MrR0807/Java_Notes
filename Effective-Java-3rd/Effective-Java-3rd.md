@@ -583,10 +583,93 @@ This is the best general-purpose implementation one could possibly write for the
 
 # Item 22: Use interfaces only to define types
 
+When a class implements an interface, the interface serves as a type that can be used to refer to instances of the class. That a class implements an interface should therefore say something about what a client can do with instances of the class.
 
+#### The constant interface pattern is a poor use of interfaces.
 
+In summary, interfaces should be used only to define types. They should not be used merely to export constants.
 
+# Item 23: Prefer class hierarchies to tagged classes
+```
+// Tagged class - vastly inferior to a class hierarchy! (Page 109)
+class Figure {
+    enum Shape { RECTANGLE, CIRCLE };
 
+    // Tag field - the shape of this figure
+    final Shape shape;
+
+    // These fields are used only if shape is RECTANGLE
+    double length;
+    double width;
+
+    // This field is used only if shape is CIRCLE
+    double radius;
+
+    // Constructor for circle
+    Figure(double radius) {
+        shape = Shape.CIRCLE;
+        this.radius = radius;
+    }
+
+    // Constructor for rectangle
+    Figure(double length, double width) {
+        shape = Shape.RECTANGLE;
+        this.length = length;
+        this.width = width;
+    }
+
+    double area() {
+        switch(shape) {
+            case RECTANGLE:
+                return length * width;
+            case CIRCLE:
+                return Math.PI * (radius * radius);
+            default:
+                throw new AssertionError(shape);
+        }
+    }
+}
+```
+Tagged classes are verbose, error-prone, and inefficient. A tagged class is just a pallid imitation of a class hierarchy.
+
+#### When you encounter an existing class with a tag field, consider refactoring it into a hierarchy.
+
+# Item 24: Favor static member classes over nonstatic
+
+There are four kinds of nested classes:
+* Static member classes
+* Nonstatic member classes
+* Anonymous classes
+* Local classes
+
+One common use of a static member class is as a public helper class, useful only in conjunction with its outer class. For example, consider an enum describing the operations supported by a calculator (Item 34). The Operation enum should be a public static member class of the Calculator class. Clients of Calculator could then refer to operations using names like Calculator.Operation.PLUS and Calculator.Operation.MINUS.
+
+### Each instance of a nonstatic member class is implicitly associated with an enclosing instance of its containing class.
+
+One common use of a nonstatic member class is to define an Adapter [Gamma95] that allows an instance of the outer class to be viewed as an instance of some unrelated class. For example, implementations of the Map interface typically use nonstatic member classes to implement their collection views, which are returned by Map ’s keySet , entrySet , and values methods. Similarly, implementations of the collection interfaces, such as Set and List , typically use nonstatic member classes to implement their iterators:
+
+```
+// Typical use of a nonstatic member class
+public class MySet<E> extends AbstractSet<E> {
+     ... // Bulk of the class omitted
+     @Override public Iterator<E> iterator() {
+         return new MyIterator();
+     }
+
+     private class MyIterator implements Iterator<E> {
+         ...
+     }
+}
+
+```
+
+#### If you declare a member class that does not require access to an enclosing instance, always put the static modifier in its declaration.
+
+Reference to its enclosing instance can result in the enclosing instance being retained when it would otherwise be eligible for garbage collection (Item 7). The resulting memory leak can be catastrophic. **It is often difficult to detect because the reference is invisible.**
+
+Before lambdas were added to Java (Chapter 6), anonymous classes were the preferred means of creating small function objects and process objects on the fly, but lambdas are now preferred (Item 42). Another common use of anonymous classes is in the implementation of static factory methods (see intArrayAsList in Item 20).
+
+# Item 25: Limit source files to a single top-level class
 
 
 
