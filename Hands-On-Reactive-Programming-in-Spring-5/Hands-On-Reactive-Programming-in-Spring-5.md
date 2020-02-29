@@ -234,6 +234,157 @@ Server-Sent Events (SSE) allows a client to receive automatic updates from a ser
 
 ### Implementing business logic
 
+```
+final class Temperature {
+   private final double value;
+   // constructor & getter...
+}
+```
+
+```
+@Component
+public class TemperatureSensor {
+   private final ApplicationEventPublisher publisher;              // (1)
+   private final Random rnd = new Random();                        // (2)
+   private final ScheduledExecutorService executor =               // (3)
+           Executors.newSingleThreadScheduledExecutor();
+
+   public TemperatureSensor(ApplicationEventPublisher publisher) {
+      this.publisher = publisher;
+   }
+
+   @PostConstruct
+   public void startProcessing() {                                 // (4)
+      this.executor.schedule(this::probe, 1, SECONDS);
+   }
+
+   private void probe() {                                          // (5)
+      double temperature = 16 + rnd.nextGaussian() * 10;
+      publisher.publishEvent(new Temperature(temperature));
+
+      // schedule the next read after some random delay (0-5 seconds)
+      executor
+        .schedule(this::probe, rnd.nextInt(5000), MILLISECONDS);    // (5.1)
+   }
+}
+```
+
+``ApplicationEventPublisherclass`` (1), provided by Spring Framework. This class makes it possible to publish events to the system. 
+
+### Asynchronous HTTP with Spring Web MVC
+
+**The introduced in Servlet 3.0 asynchronous support expands the ability to process an HTTP request in non-container threads.** Such a feature is pretty useful for long-running tasks.
+
+With those changes, in Spring Web MVC we can return not only a value of type ``T`` in ``@Controller`` but also a ``Callable<T>`` or a ``DeferredResult<T>``. The ``Callable<T>`` may be run inside a non-container thread, but still, it would be a blocking call. In contrast, ``DeferredResult<T>`` allows an asynchronous response generation on a non-container thread by calling the ``setResult(T result)`` method so it could be used within the event-loop.
+
+``ResponseBodyEmitter`` behaves similarly to ``DeferredResult``, but can be used to send multiple objects, where each object is written separately with an instance of a message converter (defined by the ``HttpMessageConverter`` interface).
+
+The ``SseEmitter extends ResponseBodyEmitter`` and **makes it possible to send many outgoing messages for one incoming request in accordance with SSE's protocol requirements.** Alongside ``ResponseBodyEmitter`` and ``SseEmitter``, Spring Web MVC also respects the ``StreamingResponseBody`` interface. When returned from ``@Controller``, it allows us to send raw data (payload bytes) asynchronously. ``StreamingResponseBodymay`` be very handy for streaming large files without blocking Servlet threads.
+
+### Exposing the SSE endpoint
+
+```
+@RestController
+public class TemperatureController {
+   private final Set<SseEmitter> clients =                          // (1)
+      new CopyOnWriteArraySet<>();                    
+
+   @RequestMapping(
+      value = "/temperature-stream",                                // (2)
+      method = RequestMethod.GET)
+   public SseEmitter events(HttpServletRequest request) {           // (3)
+      SseEmitter emitter = new SseEmitter();                        // (4)
+      clients.add(emitter);                                         // (5)
+
+      // Remove emitter from clients on error or disconnect
+      emitter.onTimeout(() -> clients.remove(emitter));             // (6)
+      emitter.onCompletion(() -> clients.remove(emitter));          // (7)
+
+      return emitter;                                               // (8)
+   }
+   @Async                                                           // (9)
+   @EventListener                                                   // (10)
+   public void handleMessage(Temperature temperature) {             // (11)
+      List<SseEmitter> deadEmitters = new ArrayList<>();            // (12)
+      clients.forEach(emitter -> {                                      
+         try {
+            emitter.send(temperature, MediaType.APPLICATION_JSON);  // (13)
+         } catch (Exception ignore) {
+            deadEmitters.add(emitter);                              // (14)
+         }
+      });
+      clients.removeAll(deadEmitters);                              // (15)
+   }
+}
+
+```
+
+For the clients' collection, we may use the CopyOnWriteArraySet class from the java.util.concurrent package (1). **Such an implementation allows us to modify the list and iterate over it at the same time.**
+
+The ``SseEmitter`` removes itself from the clients' list when it has finished processing or has reached timeout (6) (7).
+
+We need to be able to receive events about temperature changes. For that purpose, our class has a ``handleMessage()`` method (11). It is decorated with the ``@EventListener`` annotation (10) in order to receive events from Spring. This framework will invoke the ``handleMessage()`` method only when receiving ``Temperature`` events, as this type of method's argument is known as temperature. The ``@Async`` annotation (9) marks a method as a candidate for the asynchronous execution, so it is invoked in the manually configured thread pool.
+
+### Configuring asynchronous support 
+
+```
+@EnableAsync                                                         // (1)
+@SpringBootApplication                                               // (2)
+public class Application implements AsyncConfigurer {
+
+   public static void main(String[] args) {
+      SpringApplication.run(Application.class, args);
+   }
+
+   @Override
+   public Executor getAsyncExecutor() {                              // (3)
+      ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();// (4)
+      executor.setCorePoolSize(2);
+      executor.setMaxPoolSize(100);
+      executor.setQueueCapacity(5);                                  // (5) 
+      executor.initialize();
+      return executor;
+   }
+
+   @Override
+   public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler(){
+      return new SimpleAsyncUncaughtExceptionHandler();              // (6)
+   }
+}
+```
+
+``ThreadPoolTaskExecutor`` with two core threads that may be increased to up to one hundred threads. It is important to note that without a properly configured queue capacity (5), the thread pool is not able to grow. That is because the SynchronousQueuewould be used instead, limiting concurrency.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
