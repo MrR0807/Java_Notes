@@ -173,45 +173,48 @@ public class ConcreteObserverB implements Observer<String> {
 
 We also need to write an implementation of the Subject<String>, which produces String events, as shown in the following code:
    
+```
+public class ConcreteSubject implements Subject<String> {
+   private final Set<Observer<String>> observers =                 // (1)
+           new CopyOnWriteArraySet<>();
 
+   public void registerObserver(Observer<String> observer) {
+      observers.add(observer);
+   }
 
+   public void unregisterObserver(Observer<String> observer) {
+      observers.remove(observer);
+   }
 
+   public void notifyObservers(String event) {                     // (2)
+      observers.forEach(observer -> observer.observe(event));      // (2.1)
+   }
+}
+```
 
+As we can see from the preceding example, the implementation of the Subject holds the Set of observers (1) that are interested in receiving notifications. In turn, a modification (subscription or cancellation of the subscription) of the mentioned Set<Observer> is possible with the support of the registerObserver and unregisterObserver methods. To broadcast events, the Subject has a notifyObservers method (2) that iterates over the list of observers and invokes the observe() method with the actual event (2.1) for each Observer. To be secure in the multithreaded scenario, we use CopyOnWriteArraySet, a thread-safeSetimplementation that creates a new copy of its elements each timethe update operation happens.
+   
+Do keep in mind that when we have a lot of observers that handle events with some noticeable latency—as introduced by downstream processing—we may parallel message propagation using additional threads or Thread pool. This approach may lead to the next implementation of the notifyObservers method:
 
+```
+private final ExecutorService executorService = 
+   Executors.newCachedThreadPool();
 
+public void notifyObservers(String event) {
+   observers.forEach(observer ->
+           executorService.submit(() -> observer.observe(event)));
+}
+```
 
+However, with such improvements, we are stepping on the slippery road of homegrown solutions that are usually not the most efficient, and that most likely hide bugs. 
 
+**To prevent excessive resource usage, we may restrict the thread pool size and violate the *liveness* property of the application.** Situations such as this arise when all available threads attempt to push some events to the same sluggish Observer.
 
+### Publish-Subscribe pattern with @EventListener
 
+Spring now provides an ``@EventListener`` annotation for event handling and the ``ApplicationEventPublisher`` class for event publishing.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Here we need to clarify that the ``@EventListener`` and the ``ApplicationEventPublisher`` implement the Publish-Subscribe pattern, which may be seen as a variation of the Observer pattern.
 
 
 
