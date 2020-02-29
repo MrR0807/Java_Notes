@@ -216,9 +216,23 @@ Spring now provides an ``@EventListener`` annotation for event handling and the 
 
 Here we need to clarify that the ``@EventListener`` and the ``ApplicationEventPublisher`` implement the Publish-Subscribe pattern, which may be seen as a variation of the Observer pattern.
 
+In contrast to the Observer pattern, in the Publish-Subscribe pattern publishers and subscribers don't need to know each other, as is depicted in the following diagram:
 
+![The Observer pattern (on the left) versus the Publish-Subscribe pattern (on the right).png](The Observer pattern (on the left) versus the Publish-Subscribe pattern (on the right).png)
 
+The **Event Channel (also known as a message broker or event bus)** may additionally filter incoming messages and distribute them between subscribers. The filtering and routing may happen based on the message content, message topic, or sometimes even both. Consequently, subscribers in a topic-based system will receive all messages published to the topics of interest. 
 
+The Spring Framework's ``@EventListener`` annotation makes it possible to apply both topic-based and content-based routing.
+
+### Building applications with @EventListener
+
+Server-Sent Events (SSE) allows a client to receive automatic updates from a server, and is commonly used to send message updates or continuous data streams to a browser.
+
+### Bootstrapping a Spring application
+
+**Our application will not use the new features of Spring 5, so it will run similarly on Spring Framework 4.x.** To simplify our development process and even more, we are leveraging Spring Boot.
+
+### Implementing business logic
 
 
 
