@@ -6,7 +6,7 @@ The most popular traditional technique for writing code in Java is **imperative 
 
 Let's consider the next diagram:
 
-![pictures/imperative-programming.png](imperative-programming.png)
+![imperative-programming.png](pictures/imperative-programming.png)
 
 OrdersService callsShoppingCardServicewhile processing the user request. Suppose that under the hood ShoppingCardService executes a long-running I/O operation, for example, an HTTP request or database query. To understand the disadvantages of imperative programming let's consider the following example of the most common implementation of the aforementioned interaction between components:
 
