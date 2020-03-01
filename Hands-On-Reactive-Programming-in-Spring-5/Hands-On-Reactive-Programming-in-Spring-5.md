@@ -342,6 +342,7 @@ public class Application implements AsyncConfigurer {
       executor.setCorePoolSize(2);
       executor.setMaxPoolSize(100);
       executor.setQueueCapacity(5);                                  // (5) 
+      executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy()); //My code (6)
       executor.initialize();
       return executor;
    }
@@ -354,6 +355,203 @@ public class Application implements AsyncConfigurer {
 ```
 
 ``ThreadPoolTaskExecutor`` with two core threads that may be increased to up to one hundred threads. It is important to note that without a properly configured queue capacity (5), the thread pool is not able to grow. That is because the SynchronousQueuewould be used instead, limiting concurrency.
+When ThreadPoolTaskExecutor gets overloaded, it has a policy ``AbortPolicy``, which halts completely. Other policies like ``CallerRunsPolicy`` are more approriate.
+
+### Criticism of the solution
+
+* We are using the Publish-Subscribe infrastructure provided by Spring. In Spring Framework, **this mechanism** was initially introduced for handling application life cycle events, and **was not intended for high-load, high-performance scenarios.**
+* Furthermore, one significant downside of such an approach lies in the fact that we are using an internal Spring mechanism to define and implement our business logic. This leads to a situation in which some minor changes in the framework may break our application.
+* ``@EventListener`` does not define a signal the end of the stream or error between components.
+
+## RxJava as a reactive framework
+
+The RxJava library is a Java VM implementation of Reactive Extensions (also known as ReactiveX). ReactiveX is often defined as a combination of the Observer pattern, the Iterator pattern, and functional programming.
+
+### Observer plus iterator equals Reactive Stream
+
+Let's have a recap of the interfaces defined by that pattern, as shown in the following code:
+```
+public interface Observer<T> {
+   void notify(T event);
+}
+
+public interface Subject<T> {
+   void registerObserver(Observer<T> observer);
+   void unregisterObserver(Observer<T> observer);
+   void notifyObservers(T event);
+}
+```
+
+To retrieve items one by one, ``Iterator`` provides the ``next()`` method and also makes it possible to signal the end of the sequence by returning a false value as a result of the hasNext() call. So what would happen if we tried to mix this idea with an asynchronous execution provided by the Observer pattern? The result would look like the following:
+```
+public interface RxObserver<T> {
+   void onNext(T next);
+   void onComplete();
+   void onError(Exception e);
+}
+```
+
+The ``RxObserver`` is pretty similar to the ``Iterator``, but instead of calling the ``next()`` method of ``Iterator``, ``RxObserver`` would be notified with a new value by the ``onNext()`` callback. And instead of checking whether the result of the ``hasNext()`` method is positive, ``RxObserver`` is informed about the end of the stream through the invoked ``onComplete()`` method.
+
+The ``Observable`` Reactive class is a counterpart to the ``Subject`` from the Observer pattern. As a consequence, ``Observable`` plays a role as an **events source as it emits items.**
+
+A ``Subscriber`` abstract class implements the ``Observer`` interface and consumes items. It is also used as a base for the actual ``Subscriber's`` implementation. The runtime relation between ``Observable`` and ``Subscriber`` controlled by a ``Subscription`` that makes it possible to check the subscription status and cancelit if needed.
+
+### Producing and consuming streams
+
+```
+Observable<String> observable = Observable.create(
+   sub -> {
+      sub.onNext("Hello, reactive world!"); //(1)
+      sub.onCompleted();                    //(2)
+   }
+);
+```
+
+At that moment, our Observer will produce a one string value (1) and then signal the end of the stream to the subscriber (2).
+
+Subscriber:
+```
+Subscriber<String> subscriber = new Subscriber<String>() {
+   @Override
+   public void onNext(String s) {                                    // (1)
+      System.out.println(s);
+   }
+
+   @Override
+   public void onCompleted() {                                       // (2)
+      System.out.println("Done!");
+   }
+
+   @Override
+   public void onError(Throwable e) {                                // (3)
+      System.err.println(e);
+   }
+};
+```
+
+Combine several ``Observable``s:
+```
+Observable<String> observable = Observable.create(
+    sub -> {
+        sub.onNext("Hello");
+        sub.onCompleted();
+    }
+);
+Observable<String> observable2 = Observable.create(
+    sub -> {
+        sub.onNext(" world");
+        sub.onCompleted();
+    }
+);
+
+Observable.concat(observable, observable2, Observable.just("!"))
+    .forEach(System.out::print);
+
+```
+
+### Generating an asynchronous sequence
+
+RxJava makes it possible to generate not only one event in the future, but an asynchronous sequence of events based:
+```
+Observable.interval(1, TimeUnit.SECONDS)
+   .subscribe(e -> System.out.println("Received: " + e));
+Thread.sleep(5000);                                                  // (1)
+```
+
+Also, if we remove Thread.sleep(...) (1), our application will exit without any output. This happens because events would be generated and therefore consumed in a separate daemon thread. So, to prevent the main thread from finishing the execution, we may sleep() or do some other useful tasks.
+
+Of course, there is something that controls theObserver-Subscriber cooperation. This is called Subscription, and has the following interface declaration:
+```
+interface Subscription {
+   void unsubscribe();
+   boolean isUnsubscribed();
+}
+```
+
+To understand the mentioned unsubscribe functionality, let's consider the case where a subscriber is the only party interested in the events, and consumes them until an external signal is propagated by CountDawnLatch:
+```
+CountDownLatch countDownLatch = new CountDownLatch(0);
+
+Subscription subscribe = Observable
+       .interval(100, TimeUnit.MILLISECONDS)
+       .subscribe(System.out::println);
+
+TimeUnit.SECONDS.sleep(2);
+countDownLatch.await();
+subscribe.unsubscribe();
+TimeUnit.SECONDS.sleep(2);
+```
+
+### Stream transformation and marble diagrams
+
+Even though ``Observable`` and ``Subscriber`` alone make it possible to implement a lot of workflows, the whole power of RxJava is hidden in its operators. Operators are used for tweaking elements of the stream or changing the stream structure itself.
+
+#### Map operator
+
+```
+<R> Observable<R> map(Func1<T, R> func)
+```
+
+Applying map transforms ``Observable<T>`` into ``Observable<R>``.
+
+**Marble diagrams** visually present stream transformations. They are so effective for describingthe operator's behavior that almost all RxJava operators containthe image with a marble diagram in Javadoc.
+
+![map-marble-diagram.png](pictures/map-marble-diagram.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
