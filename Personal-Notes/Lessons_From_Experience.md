@@ -352,28 +352,4 @@ public class CustomAsyncConfiguration implements AsyncConfigurer {
 }
 ```
 
-When ThreadPoolTaskExecutor is overloaded by default it will stop taking tasks into queue. However, you can configure that with setRejectedExecutionHandler. More information: [The executor Element](https://docs.spring.io/spring/docs/current/spring-framework-reference/integration.html#scheduling-task-namespace-executor)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+When ThreadPoolTaskExecutor is overloaded by default it will stop taking tasks into queue. However, you can configure that with setRejectedExecutionHandler. More information: [The executor Element](https://docs.spring.io/spring/docs/current/spring-framework-reference/integration.html#scheduling-task-namespace-executor).
