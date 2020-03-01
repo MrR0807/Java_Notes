@@ -326,6 +326,46 @@ WHERE
 
 Therefore, the DISTINCT keyword is no longer passed to the SQL query, but entity duplicates are removed from the returning posts List.
 
+# 2020.03.01
+
+**Spring, @Async, ThreadPoolTaskExecutor, setRejectedExecutionHandler, ThreadPool, Thread**
+
+```
+@Configuration
+public class CustomAsyncConfiguration implements AsyncConfigurer {
+
+    @Override
+    public Executor getAsyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(2);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
+    @Override
+    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+        return new SimpleAsyncUncaughtExceptionHandler();
+    }
+}
+```
+
+When ThreadPoolTaskExecutor is overloaded by default it will stop taking tasks into queue. However, you can configure that with setRejectedExecutionHandler. More information: [The executor Element](https://docs.spring.io/spring/docs/current/spring-framework-reference/integration.html#scheduling-task-namespace-executor)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
