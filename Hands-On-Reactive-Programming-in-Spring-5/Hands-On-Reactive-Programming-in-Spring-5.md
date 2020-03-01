@@ -499,6 +499,84 @@ Applying map transforms ``Observable<T>`` into ``Observable<R>``.
 
 ![map-marble-diagram.png](pictures/map-marble-diagram.png)
 
+#### Filter operator
+
+It only emits those elements that have successfully passedthe predicate test, as shown in the following diagram:
+
+![filter-marble-diagram.png](pictures/filter-marble-diagram.png)
+
+#### Count operator
+
+It emits the only value with the number of elements in the input stream. However, the count emits at the moment when the original stream completes, so, in the case of an **endless stream, the count will not ever finish or return anything, as shown in the following diagram:**
+
+![count-marble-diagram.png](pictures/count-marble-diagram.png)
+
+#### Zip operator
+
+Combines values from two parallel streams by applying a zip function. It is often used for data enrichment, especially when parts of an expected result are retrieved from different sources:
+
+![zip-marble-diagram.png](pictures/zip-marble-diagram.png)
+
+```
+Observable.zip(
+        Observable.just("A", "B", "C"),
+        Observable.just("1", "2", "3"),
+        (x, y) -> x + y
+).forEach(System.out::println);
+```
+**To learn more about operators that are commonly used in reactive programming (not only in RxJava) visithttp://rxmarbles.com.**
+
+### Prerequisites and benefits of RxJava
+
+Different reactive libraries may have slightly different APIs and somewhat various implementation details, but the concept remains the same - the subscriber subscribes to an observable stream that in turn triggers an asynchronous process of event generation. Between the producer and subscriber, there usually exists some subscription that makes it possible to break up the producer-consumer relationship.
+
+### Rebuilding our application with RxJava
+
+#### Implementing business logic
+
+```
+@Component                                                          // (1)
+public class TemperatureSensor {
+   private final Random rnd = new Random();                         // (2)
+
+   private final Observable<Temperature> dataStream =               // (3)
+      Observable
+         .range(0, Integer.MAX_VALUE)                               // (4)
+         .concatMap(tick -> Observable                              // (5)
+            .just(tick)                                             // (6)
+            .delay(rnd.nextInt(5000), MILLISECONDS)                 // (7)
+            .map(tickValue -> this.probe()))                        // (8)
+         .publish()                                                 // (9)
+         .refCount();                                               // (10)
+
+   private Temperature probe() {
+      return new Temperature(16 + rnd.nextGaussian() * 10);         // (11)
+   }
+
+   public Observable<Temperature> temperatureStream() {             // (12)
+      return dataStream;
+   }
+}
+```
+
+Our sensor holds the random number generator rnd to simulate actual hardware sensor measurements (2). In a statement, (3), we define a private field called ``dataStream``, which is returned by the public method ``temperatureStream()``(12). Thus, ``dataStream`` is the only ``Observable`` stream defined by the component. This stream generates an effectively endless flow of numbers (4) by applying the factory method ``range(0, Integer.MAX_VALUE)``. The ``range()`` method generates a sequence of integers starting from 0 that have Integer.MAX_VALUE elements. For each of these values, we apply the transformation (5) ``concatMap(tick -> ...)``. The method ``concatMap()`` receives a function, f, that transforms an tick item into an observable stream of elements, applies the f function to each element of the incoming stream, and joins the resulting streams one by one. In our case, the f function makes a sensor measurement after a random delay (to match the behavior of the previous implementation). To probe a sensor, we create a new stream with only one element tick(6). To simulate a random delay, we apply the ``delay(rnd.nextInt(5000), MILLISECONDS)`` (7) Operator, which shifts elementsforward in time.
+
+For the next step, we probe the sensor and retrieve a temperature value by applying the ``map(tickValue -> this.probe()))`` transformation (8), which in turn calls the ``probe()`` method with the same data generation logic as before (11). In that case, we ignore the tickValue, as it was required only to generate a one-element stream. So, after applying the ``concatMap(tick -> ...)``, we have a stream that returns sensor values with a random interval of up to five seconds between emitted elements.
+
+Actually, we could return a stream without applying operators (9) and (10), but in that case, each subscriber (SSE client) **would trigger a new subscription for the stream and a new sequence of sensor readings.** **This means that sensor readings would not be shared among subscribers** that could lead to hardware overload and degradation. To prevent this, we use the publish() (9) operator, which broadcasts events from a source stream to all destination streams. The publish() operator returns a special kind ofObservablecalled ConnectableObservable. The latter provides the ``refCount()`` (10) operator, which **creates a subscription to the incoming shared stream only when there is at least one outgoing subscription.** In contrast with the Publisher-Subscriber implementation, this one makes it possible not to probe the sensor when nobody listens.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
