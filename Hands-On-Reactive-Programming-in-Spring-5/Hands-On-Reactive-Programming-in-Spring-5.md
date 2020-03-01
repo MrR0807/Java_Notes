@@ -565,10 +565,111 @@ For the next step, we probe the sensor and retrieve a temperature value by apply
 
 Actually, we could return a stream without applying operators (9) and (10), but in that case, each subscriber (SSE client) **would trigger a new subscription for the stream and a new sequence of sensor readings.** **This means that sensor readings would not be shared among subscribers** that could lead to hardware overload and degradation. To prevent this, we use the publish() (9) operator, which broadcasts events from a source stream to all destination streams. The publish() operator returns a special kind ofObservablecalled ConnectableObservable. The latter provides the ``refCount()`` (10) operator, which **creates a subscription to the incoming shared stream only when there is at least one outgoing subscription.** In contrast with the Publisher-Subscriber implementation, this one makes it possible not to probe the sensor when nobody listens.
 
+### Custom SseEmitter
 
+By using TemperatureSensor, which exposes a stream using temperature values, we may subscribe each new SseEmitter to the Observable stream and send the received onNext signals to SSE clients.
 
+```
+class RxSeeEmitter extends SseEmitter {
+   static final long SSE_SESSION_TIMEOUT = 30 * 60 * 1000L;
+   private final Subscriber<Temperature> subscriber;                // (1)
 
+   RxSeeEmitter() {
+      super(SSE_SESSION_TIMEOUT);                                   // (2)
 
+      this.subscriber = new Subscriber<Temperature>() {             // (3)
+         @Override
+         public void onNext(Temperature temperature) {
+            try {
+               RxSeeEmitter.this.send(temperature);                 // (4)
+            } catch (IOException e) {
+               unsubscribe();                                       // (5)
+            }
+         }
+
+         @Override
+         public void onError(Throwable e) { }                       // (6)
+
+         @Override
+         public void onCompleted() { }                              // (7)
+      };
+
+      onCompletion(subscriber::unsubscribe);                        // (8)
+      onTimeout(subscriber::unsubscribe);                           // (9)
+   }
+
+   Subscriber<Temperature> getSubscriber() {                        // (10)
+      return subscriber;
+   }
+}
+```
+
+This subscriber reacts to the received ``onNext`` signals by resending them to an SSE client (4). In cases where the data sending fails, the subscriber unsubscribes itself from the incoming observable stream (5). In the current implementation, we know that the temperature stream is infinite and cannot produce any errors, so the ``onComplete()`` and ``onError()`` handlers are empty (6), (7), but in real applications, it is better to have some handlers there.
+
+Lines (8) and (9) register cleanup actions for SSE session completion or timeout. The ``RxSeeEmitter`` subscribers should cancel the subscription. To use a subscriber, ``RxSeeEmitter`` exposes it by utilizing the ``getSubscriber()`` method (10).
+
+### Exposing the SSE endpoint
+
+```
+@RestController
+public class TemperatureController {
+   private final TemperatureSensor temperatureSensor;                // (1)
+
+   public TemperatureController(TemperatureSensor temperatureSensor) {
+      this.temperatureSensor = temperatureSensor;
+   }
+
+   @RequestMapping(
+      value = "/temperature-stream",
+      method = RequestMethod.GET)
+   public SseEmitter events(HttpServletRequest request) {
+      RxSeeEmitter emitter = new RxSeeEmitter();                     // (2)
+
+      temperatureSensor.temperatureStream()                          // (3)
+         .subscribe(emitter.getSubscriber());                        // (4)
+
+      return emitter;                                                // (5)
+   }
+}
+```
+
+When a new SSE session is created, the controller instantiates our augmented ``RxSeeEmitter`` (2) and subscribes to the ``RxSeeEmitter`` subscribers (4) to the temperature stream referenced from the ``TemperatureSensor`` instance (3). Then the ``RxSeeEmitter`` instance is returned to the Servlet container for processing (5).
+
+### Application configuration
+```
+@SpringBootApplication
+public class Application {
+   public static void main(String[] args) {
+      SpringApplication.run(Application.class, args);
+   }
+}
+```
+
+As we can see with RxJava:
+* REST controller holds less logic, does not manage the dead SseEmitter instances, and does not care about synchronization
+* This implementation does not use Spring's EventBus, so it is more portable and can be tested without initializing a Spring context.
+* Do not need to enable Async Support using the @EnableAsync annotation, 
+* Do not need to configure Spring's Executorfor event handling
+
+### Reactive landscape
+
+**Reactive Streams** standard was designed to unify multiple different libraries and implementations.
+
+# Chapter 3. Reactive Streams - the New Streams' Standard
+
+In this chapter, we are going to cover some of the problems mentioned in the previous chapter, along with those that arise when several reactive libraries meet in one project.
+
+## Reactivity for everyone
+
+### The API's inconsistency problem
+
+On the other hand, the abundance of choices may easily over-complicate the system. For example, the presence of two libraries that rely on an asynchronous non-blocking communication concept but have a different API leads to providing an additional utility class in order to convert one callback into another and vice versa.
+
+Here, the central problem lies in the fact that there is no single method that allows library vendors to build their aligned API.
+
+### Pull versus push
+
+During the early period of the whole reactive landscape evolution, all libraries were designed with the thought that **data is pushed from the source to the subscriber.** That decision was made because a pure pull model is not efficient enough in some cases. An example of this is when communication over the network appeared in the system with network boundaries. Suppose that we filter a huge list of data but take only the first ten elements from it.
 
 
 
