@@ -353,3 +353,25 @@ public class CustomAsyncConfiguration implements AsyncConfigurer {
 ```
 
 When ThreadPoolTaskExecutor is overloaded by default it will stop taking tasks into queue. However, you can configure that with setRejectedExecutionHandler. More information: [The executor Element](https://docs.spring.io/spring/docs/current/spring-framework-reference/integration.html#scheduling-task-namespace-executor).
+
+
+# 2020.03.20
+
+**Maven, Surefire, Tests, UTF-8, Encoding, Plugin**
+
+Some tests will fail, because Surefire does not handle UTF-8 letters well. To solve:
+```
+ <!-- Some tests assert on UTF-8 letters, thus without defined encoding, tests will fail.
+            However they fail only when running with `mvn test`, but they succeed when launched through IntelliJ UI-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.2</version>
+                <configuration>
+                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                </configuration>
+            </plugin>
+
+```
+
+
