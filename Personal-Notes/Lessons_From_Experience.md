@@ -412,7 +412,7 @@ If it is required to generate YAML formatted swagger. Then you will have to add 
 	<version>2.9.8</version>
 </dependency>
 ```
-And then GenereateSwagger test suite:
+And then GenerateSwagger test suite:
 ```
 @ExtendWith(SpringExtension.class)
 @SpringBootTest
@@ -434,7 +434,7 @@ public class GenerateSwagger {
 }
 ```
 
-**NOTE!** 1) Use Spring Profile according to your requirements. If you do have test Spring profile configured in your application, then the generator won't work. 2) Always try to use latest maven dependencies.
+**NOTE!** 1) Use Spring Profile according to your requirements. If you do not have *test* Spring profile configured in your application, then the generator won't work. 2) Always try to use latest maven dependencies.
 
 **Why we choose this way**
 
