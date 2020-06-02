@@ -497,3 +497,29 @@ However, the drawbacks of this setup is:
 ### JAX-RS
 Use swagger-core. Swagger resolver mechanism is able to analyze resource classes structure and various annotations (e.g JAX-RS, Jackson, etc.).
 
+# 2020.06.02
+
+**Spring, RestTemplate, REST, HttpClient, HTTP**
+
+### Spring's RestTemplate and added headers for String class
+
+/**
+     * When using restTemplate.xxxForEntity(responseType = String.class) then Spring uses StringHttpMessageConverter to convert message from
+     * incoming response to String. However, StringHttpMessageConverter will add all the available charsets available to the JVM in the Accept-Charset
+     * header when used to call apis with RestTemplate. This has two problems:
+     * - The outgoing request size can be huge
+     * - The external system may not recognize all the charsets and throw errors (this happens with Jato)
+     * <p>
+     * That is why it is required to turn off setting all available charsets.
+     *
+     * @param restTemplate restTemplate for which accepted charset is set off
+     * @see <a href=https://github.com/spring-projects/spring-framework/issues/22506>Github issue</a>
+     * @see <a href=https://stackoverflow.com/questions/44762794/java-spring-resttemplate-sets-unwanted-headers>Solution to the problem</a>
+     */
+    private static void removeAcceptCharsetFromHeaders(RestTemplate restTemplate) {
+        for (HttpMessageConverter<?> converter : restTemplate.getMessageConverters()) {
+            if (converter instanceof StringHttpMessageConverter) {
+                ((StringHttpMessageConverter) converter).setWriteAcceptCharset(false);
+            }
+        }
+    }
