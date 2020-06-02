@@ -503,12 +503,15 @@ Use swagger-core. Swagger resolver mechanism is able to analyze resource classes
 
 ### Spring's RestTemplate and added headers for String class
 
+
+```
+
 /**
      * When using restTemplate.xxxForEntity(responseType = String.class) then Spring uses StringHttpMessageConverter to convert message from
      * incoming response to String. However, StringHttpMessageConverter will add all the available charsets available to the JVM in the Accept-Charset
      * header when used to call apis with RestTemplate. This has two problems:
      * - The outgoing request size can be huge
-     * - The external system may not recognize all the charsets and throw errors (this happens with Jato)
+     * - The external system may not recognize all the charsets and throw errors
      * <p>
      * That is why it is required to turn off setting all available charsets.
      *
@@ -523,3 +526,4 @@ Use swagger-core. Swagger resolver mechanism is able to analyze resource classes
             }
         }
     }
+```
