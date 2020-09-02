@@ -527,3 +527,17 @@ Use swagger-core. Swagger resolver mechanism is able to analyze resource classes
         }
     }
 ```
+
+### Always use @NotNull on collection element
+
+This will allow to pass: ``ints: [null]``.
+```
+@NotNull
+private final Set<Integer> ints;
+```
+While this - won't:
+
+```
+@NotNull
+private final Set<@NotNull Integer> ints;
+```
