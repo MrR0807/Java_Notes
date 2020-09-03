@@ -373,6 +373,7 @@ If you don’t want to compare all values and you therefore don’t want to crea
 Again, testing is mostly about input and output: Providing input and compare the actual output with the expected values. Hence, we don’t need to code much logic in our tests and we shouldn’t. If you implement logic with many loops and conditions, you make the tests harder to grasp and more error-prone. Moreover, in case of complex assertion logic, AssertJ’s powerful assertions can do the heavy lifting for you.
 
 # Test Close To The Reality
+
 ## Focus on Testing A Complete Vertical Slide
 
 Testing each class in isolation by using mocks is a common testing recommendation. However, it has drawbacks: You are not testing all classes in integration and refactorings of the internals will break all tests, because there is a test for each internal class. And finally, you have to write and maintain multiple tests.
@@ -387,27 +388,19 @@ I recommend to focus on integration test (= wiring real objects together and tes
 
 Still, unit tests are useful and there are situations where a unit test is the better choice or where it make sense to combine both approaches. However, my experience is that an integration test is the better and sufficient choice most of the time.
 
-There is much more to say about this topic. Check out my blog post ‘Focus on Integration Tests Instead of Mock-Based Tests’ for more details.
-Don’t Use In-Memory Databases For Tests
-With an in-memory database, you are testing against a different database than in production.
+# Don’t Use In-Memory Databases For Tests
 
 With an in-memory database, you are testing against a different database than in production.
 
 Using an in-memory database (H2, HSQLDB, Fongo) for tests reduces the reliability and scope of your tests. The in-memory database and the database used in production behave differently and may return different results. So a green in-memory-database-based test is no guaranty for the correct behavior of your application in production. Moreover, you can easily run into situations where you can’t use (or test) a certain (database-specific) feature because the in-memory database doesn’t support it or act differently. For details on this, check out the post ‘Don’t use In-Memory Databases for Tests’.
 
 The solution is to execute the tests against the real database. Fortunately, the library Testcontainers provides an awesome Java API for managing container directly in the test code. To increase the execution speed, see here.
-Java/JVM
-Use -noverify -XX:TieredStopAtLevel=1
 
-Always add the JVM options -noverify -XX:TieredStopAtLevel=1 to your run configurations. It will save 1 - 2 seconds during the start of the JVM before the test got executed. This is especially useful during the initial development of a test where you frequently start the test via the IDE.
-
-Update: As of Java 13, -noverify is deprecated.
-
-Tip: You can add the arguments to the “JUnit” run config template in IntelliJ IDEA so you don’t have to add them for each new run configuration.
-Use AssertJ
+# Use AssertJ
 
 AssertJ is an extremely powerful and mature assertion library with a fluent type-safe API, a huge variety of assertions and descriptive failure messages. There is an assertion for everything you want to do. This prevents you from writing complex assertion logic with loops and conditions while keeping the test code short. Here are some examples:
 
+```
 assertThat(actualProduct)
         .isEqualToIgnoringGivenFields(expectedProduct, "id");
 
@@ -430,20 +423,24 @@ assertThat(actualProductList)
 assertThat(actualProductList)
         .filteredOn(product -> product.getCategory().equals("Smartphone"))
         .allSatisfy(product -> assertThat(product.isLiked()).isTrue());
+```
 
-Avoid assertTrue() and assertFalse()
+# Avoid ``assertTrue()`` and ``assertFalse()``
 
 Avoid simple assertTrue() or assertFalse() assertions as they produce cryptic failure messages:
 
+```
 // Don't 
 assertTrue(actualProductList.contains(expectedProduct));
 assertTrue(actualProductList.size() == 5);
 assertTrue(actualProduct instanceof Product);
 
 expected: <true> but was: <false>
+```
 
 Instead, use AssertJ’s assertions which produce nice failure messages out-of-the-box.
 
+```
 // Do
 assertThat(actualProductList).contains(expectedProduct);
 assertThat(actualProductList).hasSize(5);
@@ -455,15 +452,19 @@ to contain:
  <[Product[id=2, name='iPhone']]>
 but could not find:
  <[Product[id=2, name='iPhone']]>
+```
 
 If you really have to check for a boolean, consider AssertJ’s as() to improve the failure message.
-Use JUnit5
+
+# Use JUnit5
 
 JUnit5 is the state of the art for (unit) testing. It’s actively developed and provides many powerful features (like parameterized tests, grouping, conditional tests, lifecycle control).
-Use Parameterized Tests
+
+# Use Parameterized Tests
 
 Parameterized Tests allow rerunning a single test multiple times with different values. This way, you can easily test several cases without writing more test code. JUnit5 provides great means to write those tests with @ValueSource, @EnumSource, @CsvSource, and @MethodSource.
 
+```
 // Do
 @ParameterizedTest
 @ValueSource(strings = ["§ed2d", "sdf_", "123123", "§_sdf__dfww!"])
@@ -477,11 +478,12 @@ public void rejectedInvalidTokens(String invalidToken) {
 public void dontProcessWorkflowInCaseOfAFinalState(WorkflowState itemsInitialState) {
     // ...
 }
+```
 
 I highly recommend to extensively use them, because you can test more cases with a minimal amount of effort.
 
 Finally, I like to highlight @CsvSource and @MethodSource which can be used for more advanced parameterized test scenarios where you can also control the expected output with a parameter.
-
+```
 @ParameterizedTest
 @CsvSource({
     "1, 1, 2",
@@ -491,32 +493,15 @@ Finally, I like to highlight @CsvSource and @MethodSource which can be used for 
 public void add(int summand1, int summand2, int expectedSum) {
     assertThat(calculator.add(summand1, summand2)).isEqualTo(expectedSum);
 }
+```
 
-@MethodSource is powerful in conjunction with a dedicated test object containing all relevant test parameters and the expected output. Unfortunately, in Java, writing those data structures (POJOs) is cumbersome. That’s why I’ll demonstrate this feature using Kotlin’s data classes.
+@MethodSource is powerful in conjunction with a dedicated test object containing all relevant test parameters and the expected output.
 
-data class TestData(
-    val input: String?,
-    val expected: Token?
-)
-
-@ParameterizedTest
-@MethodSource("validTokenProvider")
-fun `parse valid tokens`(data: TestData) {
-    assertThat(parse(data.input)).isEqualTo(data.expected)
-}
-
-private fun validTokenProvider() = Stream.of(
-    TestData(input = "1511443755_2", expected = Token(1511443755, "2")),
-    TestData(input = "151175_13521", expected = Token(151175, "13521")),
-    TestData(input = "151144375_id", expected = Token(151144375, "id")),
-    TestData(input = "15114437599_1", expected = Token(15114437599, "1")),
-    TestData(input = null, expected = null)
-)
-
-Group the Tests
+# Group the Tests
 
 JUnit5’s @Nested is useful to group tests methods. Reasonable groups can be certain types of tests (like InputIsXY, ErrorCases) or one group for each method under test (GetDesign and UpdateDesign).
 
+```
 public class DesignControllerTest {
     @Nested
     class GetDesigns {
@@ -537,14 +522,17 @@ public class DesignControllerTest {
         void return401IfNotAuthorized() {}
     }
 }
+```
 
 Group the test methods with JUnit5&rsquo;s @Nested
 
 Group the test methods with JUnit5’s @Nested
-Readable Test Names with @DisplayName or Kotlin’s Backticks
+
+# Readable Test Names with @DisplayName or Kotlin’s Backticks
 
 In Java, use JUnit5’s @DisplayName to create readable test descriptions.
 
+```
 public class DisplayNameTest {
     @Test
     @DisplayName("Design is removed from database")
@@ -556,20 +544,15 @@ public class DisplayNameTest {
     @DisplayName("Return 401 if the request is not authorized")
     void return401() {}
 }
+```
 
 Readable test method names with JUnit5&rsquo;s @DisplayName
 
-Readable test method names with JUnit5’s @DisplayName
-
-In Kotlin, you can put the method names in backticks which can contain spaces. This ensures a good readability while avoiding redundancy.
-
-@Test
-fun `design is removed from db`() {}
-
-Mock Remote Service
+# Mock Remote Service
 
 In order to test HTTP clients we need to mock the remote service. I often use OkHttp’s WebMockServer for this purpose. Alternatives are WireMock or Testcontainer’s Mockserver.
 
+```
 MockWebServer serviceMock = new MockWebServer();
 serviceMock.start();
 HttpUrl baseUrl = serviceMock.url("/v1/");
@@ -581,11 +564,13 @@ serviceMock.enqueue(new MockResponse()
 ProductDTO productDTO = client.retrieveProduct("1");
 
 assertThat(productDTO.getName()).isEqualTo("Smartphone");
+```
 
-Use Awaitility for Asserting Asynchronous Code
+# Use Awaitility for Asserting Asynchronous Code
 
 Awaitility is a library for testing asynchronous code. You can easily define how often an assertion is retried until it finally fails.
 
+```
 private static final ConditionFactory WAIT = await()
         .atMost(Duration.ofSeconds(6))
         .pollInterval(Duration.ofSeconds(1))
@@ -598,24 +583,29 @@ public void waitAndPoll(){
         assertThat(findInDatabase(1).getState()).isEqualTo(State.SUCCESS);
     });
 }
+```
 
 This way, you can avoid using the fragile Thread.sleep() in the tests.
 
 However, testing synchronous code is much easier. That’s why we should try to separate the synchronous and the asynchronous code in order to test them separately.
-No Need to Bootstrap DI (Spring)
+
+# No Need to Bootstrap DI (Spring)
 
 Bootstrapping the (Spring) DI framework takes some seconds before the test can start. Especially during the initial development of a test, this slows down the feedback cycle.
 
 That’s why I usually don’t use DI in my integration tests. I instantiate the required objects manually by calling new and plump them together. If you are using constructor injection, this is very easy. Most of the time, you want to test the business logic you have wrote. For this, you don’t need DI. Check out my post on integration tests for an example.
 
 Moreover, Spring Boot 2.2 will introduce an easy way to use lazy bean initialization, which should significantly speed up DI-based tests.
-Make The Implementation Testable
-Don’t Use Static Access. Never. Ever.
+
+# Make The Implementation Testable
+
+## Don’t Use Static Access. Never. Ever.
 
 Static access is an anti-pattern. First, it obfuscates dependencies and side-effects making the whole code harder to understand and more error-prone. Second, static access harms testability. You can’t exchange the objects anymore. But in a test, you want to use mocks or use the real objects with a different configuration (like a DAO object pointing to a test database).
 
 So instead of access code statically, put it into non-static methods, instantiate the class and pass the object to the constructor of the object where you need it.
 
+```
 // Don't 
 public class ProductController {
     public List<ProductDTO> getProducts() {
@@ -623,7 +613,8 @@ public class ProductController {
         return mapToDTOs(products);
     }
 }
-
+```
+```
 // Do 
 public class ProductController {
     private ProductDAO dao;
@@ -635,19 +626,22 @@ public class ProductController {
         return mapToDTOs(products);
     }
 }
+```
 
 Fortunately, DI frameworks like Spring are providing an easy way to avoid static access because it handles the creation and wiring of all objects for us.
-Parameterize
+
+## Parameterize
 
 Make all relevant parts of the class controllable by the test. This can be done by making a parameter for the constructor out of this aspect.
 
 For instance, your DAO has a fixed limit of 1000 for queries. Testing this limit would require you to create 1001 database entries in the test. By using a constructor parameter for this limit you make the limit configurable. In production, this parameter is 1000. In the test, you can use 2. This only requires 3 test entries for testing the limit feature.
-Use Constructor Injection
+
+## Use Constructor Injection
 
 Field injection is evil due to poor testability. You have to bootstrap the DI environment in your tests or do hacky reflection magic. So constructor injection is the preferred way because it allows you to easily control the dependent object in the test.
 
 In Java, this requires a little bit of boilerplate.
-
+```
 // Do
 public class ProductController {
 
@@ -659,20 +653,12 @@ public class ProductController {
         this.client = client;
     }
 }
+```
 
-In Kotlin, the same is much more concise.
-
-// Do
-class ProductController(
-    private val dao: ProductDAO,
-    private val client: TaxClient
-){
-}
-
-Don’t Use Instant.now() or new Date()
+## Don’t Use ``Instant.now()`` or ``new Date()``
 
 Don’t get the current timestamp by calling Instant.now() or new Date() in your production code when you like to test this behavior.
-
+```
 // Don't
 public class ProductDAO {
     public void updateDateModified(String productId) {
@@ -684,9 +670,11 @@ public class ProductDAO {
         return mongoTemplate.updateOne(query, update, ProductEntity.class);
     }
 }
+```
 
 The problem is that the created timestamp can’t be controlled by the test. You can’t assert the exact value because it’s always different in every test execution. Instead, use Java’s Clock class.
 
+```
 // Do
 public class ProductDAO {
     private Clock clock; 
@@ -700,14 +688,16 @@ public class ProductDAO {
         // ...
     }
 }
+```
 
 In the test, you can now create a mock for the clock, pass it to the ProductDAO and configure the clock mock to return a fixed timestamp. After calling updateProductState() we assert if the defined timestamp made it into the database.
-Separate Asynchronous Execution and Actual Logic
+
+# Separate Asynchronous Execution and Actual Logic
 
 Testing asynchronous code is tricky. Libraries like Awaitility can help, but it’s still cumbersome and test can still toggle. If possible, it makes sense to separate the (often synchronous) business logic from the asynchronous execution of this logic.
 
 For instance, by putting the business logic in the ProductController, we can test it synchronously which is easy. The asynchronous and parallelization logic is centralized in the ProductScheduler, which can be tested in isolation.
-
+```
 // Do
 public class ProductScheduler {
 
@@ -721,3 +711,4 @@ public class ProductScheduler {
         String germanyResult = germanyFuture.get();
     }
 }
+```
