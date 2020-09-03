@@ -42,7 +42,7 @@ ProductDTO product2 = new ProductDTO("1", List.of(State.ACTIVE, State.REJECTED))
 assertThat(product1).isEqualTo(product2);
 ```
 
-If you are going to use variables in an equals assertion, prefix the variables with “actual” and “expected”. This increases the readability and clearifies the intention of the variable. Moreover, it’s harder to mix them up in the equals assertion.
+If you are going to use variables in an equals assertion, prefix the variables with "actual" and "expected". This increases the readability and clearifies the intention of the variable. Moreover, it’s harder to mix them up in the equals assertion.
 
 ```
 // Do
@@ -77,6 +77,7 @@ UUID uuid = UUID.fromString("00000000-000-0000-0000-000000000001");
 You can avoid the increased typing effort by using helper functions.
 
 # Write Small and Specific Tests
+
 ## Heavily Use Helper Functions
 
 Extract details or repetitive code into subfunctions and give them a descriptive name. This is a powerful mean to keep the tests short and the essentials of the test easy to grasp at first glance.
@@ -122,8 +123,8 @@ public void categoryQueryParameter2() throws Exception {
 }
 ```
 
-* Use helper functions for creating data (objects) (createProductWithCategory()) and complex assertions. Only pass those parameters to the helper functions that are relevant for your tests. Use reasonable defaults for the other values.
-* varargs can make your test code even more concise (ìnsertIntoDatabase()).
+* Use helper functions for creating data (objects) (``createProductWithCategory()``) and complex assertions. Only pass those parameters to the helper functions that are relevant for your tests. Use reasonable defaults for the other values.
+* varargs can make your test code even more concise (``insertIntoDatabase()``).
 * Helper functions can also be used to create simple values more easily.
 
 ```
@@ -195,7 +196,7 @@ public class ProductControllerTest {
 }
 ```
 
-It’s tempting to add a corner case test to an existing (happy path) test. But this test becomes bigger and harder to understand. It becomes hard to grasp all relevant test cases that are covered by this big test. You can spot those tests by generic names like “happy path test”. If this test fails, it’s hard to see what exactly is broken.
+It’s tempting to add a corner case test to an existing (happy path) test. But this test becomes bigger and harder to understand. It becomes hard to grasp all relevant test cases that are covered by this big test. You can spot those tests by generic names like "happy path test". If this test fails, it’s hard to see what exactly is broken.
 
 ```
 // Do
@@ -219,7 +220,7 @@ Think about what you actually want to test. Avoid asserting more things just bec
 
 Let’s consider an example: We like to test an HTTP endpoint which returns products. Our tests suite should contain the following tests:
 
-* One bigger “mapping test” that assert all values from the database are correctly returned in the JSON payload and got mapped correctly to the correct format. We can do this easily by using AssertJ’s isEqualTo() (for a single element) or containsOnly() (for multiple elements) if you have implemented equals() correctly.
+* One bigger "mapping test" that assert all values from the database are correctly returned in the JSON payload and got mapped correctly to the correct format. We can do this easily by using AssertJ’s ``isEqualTo()`` (for a single element) or ``containsOnly()`` (for multiple elements) if you have implemented ``equals()`` correctly.
 
 ```
 String responseJson = requestProducts();
@@ -229,7 +230,7 @@ ProductDTO expectedDTO2 = new ProductDTO("2", "evelope", new Category("smartphon
 assertThat(toDTOs(responseJson)).containsOnly(expectedDTO1, expectedDTO2);
 ```
 
-* Some tests checking the correct behavior of the query parameter ?category. So we want to test the correct filtering; not if all properties are correctly set. We have already done that in the above test. Consequently, it’s enough to compare only the returned product ids.
+* Some tests checking the correct behavior of the query parameter ``?category``. So we want to test the correct filtering; not if all properties are correctly set. We have already done that in the above test. Consequently, it’s enough to compare only the returned product ids.
 
 ```
 String responseJson = requestProductsByCategory("Office");
@@ -248,6 +249,7 @@ assertThat(actualProduct.getPrice()).isEqualTo(100);
 # Self-Contained Tests
 
 ## Don’t Hide the Relevant Parameters (in Helper Functions)
+
 ```
 // Don't
 insertIntoDatabase(createProduct());
@@ -266,10 +268,11 @@ assertThat(actualProducts).containsOnly(new ProductDTO("1", "Office"));
 
 # Insert Test Data Right In The Test Method
 
-Everything needs to be right in the test method. It’s tempting to move reusable data insertion code to the @Before method, but this would force the reader to jump around in order to fully understand what’s going on. Again, helper functions for data insertion can help to make this repetitive task a one-liner.
+Everything needs to be right in the test method. It’s tempting to move reusable data insertion code to the ``@Before`` method, but this would force the reader to jump around in order to fully understand what’s going on. Again, helper functions for data insertion can help to make this repetitive task a one-liner.
 Favor Composition Over Inheritance
 
 ## Don’t build up complex inheritance hierarchies for the test classes.
+
 ```
 // Don't
 class SimpleBaseTest {}
@@ -278,11 +281,11 @@ class AllInklusiveBaseTest extends AdvancedBaseTest {}
 class MyTest extends AllInklusiveBaseTest {}
 ```
 
-Those hierarchies are hard to understand and you likely end up extending a base test that contains a lot of stuff that the current test doesn’t need. This distracts the reader and can lead to bugs. Inheritance is not flexible: It’s not possible to use everything from AllInklusiveBaseTest but nothing from its superclass AdvancedBaseTest? Moreover, the reader has to jump between multiple base classes to understand the big picture.
+Those hierarchies are hard to understand and you likely end up extending a base test that contains a lot of stuff that the current test doesn’t need. This distracts the reader and can lead to bugs. Inheritance is not flexible: It’s not possible to use everything from ``AllInklusiveBaseTest`` but nothing from its superclass ``AdvancedBaseTest``? Moreover, the reader has to jump between multiple base classes to understand the big picture.
 
 **"Prefer duplication over the wrong abstraction". Sandi Metz. See "Wall of Coding Wisdom"**
 
-Instead, I recommend using composition. Write small code snippets and classes for each specific fixture work (start the test database, create the schema, insert data, start a mock web server). Reuse those parts in your tests in the @BeforeAll method or by assigning the created objects to fields of the test class. So you assemble every new test class by reusing those parts; like lego bricks. This way, every test has its own tailored fixture that is easy to grasp and nothing unrelated is happening. The test class is self-contained because everything relevant is right in the test class.
+Instead, I recommend using composition. Write small code snippets and classes for each specific fixture work (start the test database, create the schema, insert data, start a mock web server). Reuse those parts in your tests in the ``@BeforeAll`` method or by assigning the created objects to fields of the test class. So you assemble every new test class by reusing those parts; like lego bricks. This way, every test has its own tailored fixture that is easy to grasp and nothing unrelated is happening. The test class is self-contained because everything relevant is right in the test class.
 
 ```
 // Do
@@ -321,9 +324,11 @@ Again:
 **KISS > DRY**
 
 # Dumb Tests Are Great: Compare the Output with Hard-Coded Values
+
 ## Don’t Reuse Production Code
 
 Test should test the production code; not reuse it. If you reuse production code in a test, you might miss a bug that is introduced in the reused code because you don’t test this code anymore.
+
 ```
 // Don't
 boolean isActive = true;
@@ -346,6 +351,7 @@ assertThat(actualDTO.states).isEqualTo(List.of(States.ACTIVE, States.REJECTED));
 ## Don’t Rewrite Production Logic
 
 Mapping code is a common example where the logic in tests is rewritten. So let’s assume our tests contains a method mapEntityToDto() which result is used to assert that a returned DTO contains the same values than the entities that have been inserted at the beginning of the test. In this case, you’ll most likely end up rewriting the production logic in the test code, which can contains bugs.
+
 ```
 // Don't
 ProductEntity inputEntity = new ProductEntity(1, "evelope", "office", false, true, 200, 10.0);
@@ -358,7 +364,7 @@ ProductDTO expectedDTO = mapEntityToDto(inputEntity);
 assertThat(actualDTO).isEqualTo(expectedDTO);
 ```
 
-Again, the solution is to compare the actualDTO with a manually created reference object with hard-coded values. That’s dead-simple, easy to understand and less error-prone.
+Again, the solution is to compare the ``actualDTO`` with a manually created reference object with hard-coded values. That’s dead-simple, easy to understand and less error-prone.
 
 ```
 // Do
@@ -381,7 +387,7 @@ Unit Testing each class in isolation and with mocks comes with drawbacks.
 
 ![unit-testing-1.png](unit-testing-1.png)
 
-Instead, I suggest focussing on integration tests. By “integration tests” I mean putting all classes together (just like in production) and test a complete vertical slide going though all technical layers (HTTP, business logic, database). This way, you are testing behavior instead of an implementation. Those tests are accurate, close to production and robust against refactorings of internals. Ideally, we only have to write a single test class.
+Instead, I suggest focussing on integration tests. By "integration tests" I mean putting all classes together (just like in production) and test a complete vertical slide going though all technical layers (HTTP, business logic, database). This way, you are testing behavior instead of an implementation. Those tests are accurate, close to production and robust against refactorings of internals. Ideally, we only have to write a single test class.
 I recommend to focus on integration test (= wiring real objects together and test all at once)
 
 ![unit-testing-2.png](unit-testing-2.png)
@@ -427,7 +433,7 @@ assertThat(actualProductList)
 
 # Avoid ``assertTrue()`` and ``assertFalse()``
 
-Avoid simple assertTrue() or assertFalse() assertions as they produce cryptic failure messages:
+Avoid simple ``assertTrue()`` or ``assertFalse()`` assertions as they produce cryptic failure messages:
 
 ```
 // Don't 
@@ -460,9 +466,9 @@ If you really have to check for a boolean, consider AssertJ’s as() to improve 
 
 JUnit5 is the state of the art for (unit) testing. It’s actively developed and provides many powerful features (like parameterized tests, grouping, conditional tests, lifecycle control).
 
-# Use Parameterized Tests
+## Use Parameterized Tests
 
-Parameterized Tests allow rerunning a single test multiple times with different values. This way, you can easily test several cases without writing more test code. JUnit5 provides great means to write those tests with @ValueSource, @EnumSource, @CsvSource, and @MethodSource.
+Parameterized Tests allow rerunning a single test multiple times with different values. This way, you can easily test several cases without writing more test code. JUnit5 provides great means to write those tests with ``@ValueSource``, ``@EnumSource``, ``@CsvSource``, and ``@MethodSource``.
 
 ```
 // Do
@@ -482,7 +488,8 @@ public void dontProcessWorkflowInCaseOfAFinalState(WorkflowState itemsInitialSta
 
 I highly recommend to extensively use them, because you can test more cases with a minimal amount of effort.
 
-Finally, I like to highlight @CsvSource and @MethodSource which can be used for more advanced parameterized test scenarios where you can also control the expected output with a parameter.
+Finally, I like to highlight ``@CsvSource`` and ``@MethodSource`` which can be used for more advanced parameterized test scenarios where you can also control the expected output with a parameter.
+
 ```
 @ParameterizedTest
 @CsvSource({
@@ -495,11 +502,11 @@ public void add(int summand1, int summand2, int expectedSum) {
 }
 ```
 
-@MethodSource is powerful in conjunction with a dedicated test object containing all relevant test parameters and the expected output.
+``@MethodSource`` is powerful in conjunction with a dedicated test object containing all relevant test parameters and the expected output.
 
-# Group the Tests
+## Group the Tests
 
-JUnit5’s @Nested is useful to group tests methods. Reasonable groups can be certain types of tests (like InputIsXY, ErrorCases) or one group for each method under test (GetDesign and UpdateDesign).
+JUnit5’s ``@Nested`` is useful to group tests methods. Reasonable groups can be certain types of tests (like InputIsXY, ErrorCases) or one group for each method under test (GetDesign and UpdateDesign).
 
 ```
 public class DesignControllerTest {
@@ -524,13 +531,9 @@ public class DesignControllerTest {
 }
 ```
 
-Group the test methods with JUnit5&rsquo;s @Nested
+# Readable Test Names with ``@DisplayName``
 
-Group the test methods with JUnit5’s @Nested
-
-# Readable Test Names with @DisplayName or Kotlin’s Backticks
-
-In Java, use JUnit5’s @DisplayName to create readable test descriptions.
+In Java, use JUnit5’s ``@DisplayName`` to create readable test descriptions.
 
 ```
 public class DisplayNameTest {
@@ -545,8 +548,6 @@ public class DisplayNameTest {
     void return401() {}
 }
 ```
-
-Readable test method names with JUnit5&rsquo;s @DisplayName
 
 # Mock Remote Service
 
@@ -585,7 +586,7 @@ public void waitAndPoll(){
 }
 ```
 
-This way, you can avoid using the fragile Thread.sleep() in the tests.
+This way, you can avoid using the fragile ``Thread.sleep()`` in the tests.
 
 However, testing synchronous code is much easier. That’s why we should try to separate the synchronous and the asynchronous code in order to test them separately.
 
@@ -657,7 +658,7 @@ public class ProductController {
 
 ## Don’t Use ``Instant.now()`` or ``new Date()``
 
-Don’t get the current timestamp by calling Instant.now() or new Date() in your production code when you like to test this behavior.
+Don’t get the current timestamp by calling ``Instant.now()`` or ``new Date()`` in your production code when you like to test this behavior.
 ```
 // Don't
 public class ProductDAO {
@@ -672,7 +673,7 @@ public class ProductDAO {
 }
 ```
 
-The problem is that the created timestamp can’t be controlled by the test. You can’t assert the exact value because it’s always different in every test execution. Instead, use Java’s Clock class.
+The problem is that the created timestamp can’t be controlled by the test. You can’t assert the exact value because it’s always different in every test execution. Instead, use Java’s ``Clock`` class.
 
 ```
 // Do
@@ -690,7 +691,7 @@ public class ProductDAO {
 }
 ```
 
-In the test, you can now create a mock for the clock, pass it to the ProductDAO and configure the clock mock to return a fixed timestamp. After calling updateProductState() we assert if the defined timestamp made it into the database.
+In the test, you can now create a mock for the clock, pass it to the ``ProductDAO`` and configure the clock mock to return a fixed timestamp. After calling ``updateProductState()`` we assert if the defined timestamp made it into the database.
 
 # Separate Asynchronous Execution and Actual Logic
 
