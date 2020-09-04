@@ -602,6 +602,8 @@ Moreover, Spring Boot 2.2 will introduce an easy way to use lazy bean initializa
 
 ## Don’t Use Static Access. Never. Ever.
 
+**!!My Comment. Static utilities have their place. With given example, I agree, but I would not go that far and forbid static access.**
+
 Static access is an anti-pattern. First, it obfuscates dependencies and side-effects making the whole code harder to understand and more error-prone. Second, static access harms testability. You can’t exchange the objects anymore. But in a test, you want to use mocks or use the real objects with a different configuration (like a DAO object pointing to a test database).
 
 So instead of access code statically, put it into non-static methods, instantiate the class and pass the object to the constructor of the object where you need it.
