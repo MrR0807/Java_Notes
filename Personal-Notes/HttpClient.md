@@ -1,4 +1,133 @@
-###Logging
+### Building multipart/form-data
+
+```
+public class MultipartHttpClient {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MultipartHttpClient.class);
+    private final HttpClient httpClient;
+
+    public MultipartHttpClient() {
+        this.httpClient = buildHttpClient();
+    }
+
+    private HttpClient buildHttpClient() {
+        var sslContext = this.trustAllSSLContext();
+
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10L))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
+                .sslContext(sslContext)
+                .build();
+    }
+
+    // Remove certificate validation
+    private SSLContext trustAllSSLContext() {
+        var trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+
+                    @Override
+                    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                    }
+                }
+        };
+
+        try {
+            var sslContext = SSLContext.getInstance("SSL");
+            sslContext.init(null, trustAllCerts, new SecureRandom());
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            LOGGER.error("Could not build SSLContext", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void postMultiformRequest(String fileName, byte[] file) {
+        var request = this.buildRequest(fileName, file);
+        var response = this.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> bodyHandler) {
+        LOGGER.info("HTTP Client: Sending HTTP request");
+        try {
+            var response = this.httpClient.send(request, bodyHandler);
+            LOGGER.info("HTTP Client: HTTP response status {}", response.statusCode());
+            return response;
+        } catch (HttpTimeoutException e) {
+            var errorMessage = "HTTP Client: Request time out";
+            LOGGER.error(errorMessage, e);
+            throw new RequestTimeoutException(errorMessage, e);
+        } catch (InterruptedException e) {
+            LOGGER.error("HTTP Client: Unknown exception", e);
+            // https://www.yegor256.com/2015/10/20/interrupted-exception.html
+            Thread.currentThread().interrupt();
+            throw new UnknownClientException(e.getMessage(), e);
+        } catch (IOException e) {
+            LOGGER.error("HTTP Client: Unknown exception", e);
+            throw new UnknownClientException(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * To better understand what's happening in the code, here is raw Request that the code seeks to build:
+     * <p>
+     * POST <url-address> HTTP/1.1
+     * Content-Type: multipart/form-data
+     * Accept: application/json
+     * Host: <Host>
+     * Content-Length: 26010                             //Calculated by Java
+     *
+     * ----------------------------generatedRandomUUID
+     * Content-Disposition: form-data; name="formFile"; filename="<String fileName>"
+     *
+     * <5OD-4.JPG>
+     * ----------------------------generatedRandomUUID--
+     *
+     * It's important to address few points:
+     * - "generatedRandomUUID" refers to this line: ``String boundary = "-------------" + UUID.randomUUID().toString();``
+     * - Between 'generatedRandomUUID' there is '<5OD-4.JPG>'. This was automatically generated when file is uploaded: ``byteArrays.add(bodyData);`` from ``buildMultipartBody``.
+     */
+
+    private HttpRequest buildRequest(String fileName, byte[] file) {
+        String boundary = "-------------" + UUID.randomUUID().toString();
+        var multipartBody = buildMultipartBody(fileName, boundary, file);
+
+        return HttpRequest.newBuilder()
+                .uri(URI.create(this.url))
+                .POST(HttpRequest.BodyPublishers.ofByteArrays(multipartBody))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("Accept", "application/json") //Or MediaType.APPLICATION_JSON_VALUE
+                .timeout(Duration.of(15, ChronoUnit.SECONDS))
+                .build();
+    }
+
+    private static List<byte[]> buildMultipartBody(String fileName, String boundary, byte[] bodyData) {
+        return List.of(
+                ("--" + boundary).getBytes(StandardCharsets.UTF_8),
+                ("\r\nContent-Disposition: form-data; name=\"formFile\"; filename=\"" + fileName + "\"\r\n\r\n").getBytes(StandardCharsets.UTF_8),
+                bodyData,
+                "\r\n".getBytes(StandardCharsets.UTF_8),
+                ("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
+    }
+
+    //Test functionality
+    public static void main(String[] args) throws IOException {
+        BasicConfigurator.configure(); //Log4J initializer
+    }
+}
+```
+
+
+### Logging
 
 You can log request and responses by specifying -Djdk.httpclient.HttpClient.log=requests on the Java command line.
 
