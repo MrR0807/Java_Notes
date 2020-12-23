@@ -45,7 +45,7 @@
   * [Safely Splitting a Module](#safely-splitting-a-module)
   * [Split Packages](#split-packages)
   * [Breaking Cycles](#breaking-cycles)
-  * [Compile-Time Dependencies](#compiletime-dependencies)
+  * [Compile-Time Dependencies](#compile-time-dependencies)
   * [Exposing Resources in Packages](#exposing-resources-in-packages)
 - [Advanced Modularity Patterns](#advanced-modularity-patterns)
   * [Deep Reflection](#deep-reflection)
