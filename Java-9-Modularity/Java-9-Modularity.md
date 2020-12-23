@@ -53,7 +53,7 @@
   * [Annotations](#annotations)
   * [Layers and Configurations](#layers-and-configurations)
 - [Migration](#migration)
-  * [module-path vs module-source-path](#modulepath-vs-modulesourcepath)
+  * [module-path vs module-source-path](#module-path-vs-module-source-path)
   * [Libraries, Strong Encapsulation, and the JDK 9 Classpath](#libraries-strong-encapsulation-and-the-jdk-9-classpath)
 - [Migration to Modules](#migration-to-modules)
   * [Mixing Classpath and Module Path](#mixing-classpath-and-module-path)
