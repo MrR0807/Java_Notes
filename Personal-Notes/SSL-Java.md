@@ -18,3 +18,7 @@ private static int countTrustedCertificates(TrustManagerFactory defaultTrust) {
     return acceptedIssuers.length;
 }
 ```
+
+```
+-Djavax.net.debug=ssl,handshake
+```
