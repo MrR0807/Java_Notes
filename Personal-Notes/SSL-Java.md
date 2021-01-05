@@ -16,8 +16,6 @@ There are 7 possible scenarios:
 
 ![JSSE-Classes-and-Interfaces.png](JSSE-Classes-and-Interfaces.png)
 
-Description of Figure follows:
-
 The heart of the JSSE architecture is the **SSLContext**. The context eventually creates end objects (**SSLSocket** and **SSLEngine**) which actually implement the SSL/TLS protocol. 
 SSLContexts are initialized with two callback classes, **KeyManager** and **TrustManager**, which allow applications to first select authentication material to send and second to verify credentials sent by a peer.
 
