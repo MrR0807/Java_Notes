@@ -14,7 +14,7 @@ There are 7 possible scenarios:
 
 ### Little Bit of Theory
 
-![img_1.png](img_1.png)
+![JSSE-Classes-and-Interfaces.png](JSSE-Classes-and-Interfaces.png)
 
 Description of Figure follows:
 
