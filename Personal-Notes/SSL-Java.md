@@ -14,7 +14,7 @@ There are 7 possible scenarios:
 
 ### Little Bit of Theory
 
-![JSSE-Classes-and-Interfaces.png](JSSE-Classes-and-Interfaces.png)
+![img_1.png](img_1.png)
 
 The heart of the JSSE architecture is the **SSLContext**. The context eventually creates end objects (**SSLSocket** and **SSLEngine**) which actually implement the SSL/TLS protocol. 
 SSLContexts are initialized with two callback classes, **KeyManager** and **TrustManager**, which allow applications to first select authentication material to send and second to verify credentials sent by a peer.
@@ -31,6 +31,70 @@ TODO
 ### When your application is client of other application outside Organization perimeter (3rd party)
 TODO
 ### When your application is client of other application within or outside Organization perimeter (trust everybody).
+
+#### Using Java's HTTP Client
+
+```
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.net.http.HttpClient;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+
+public class TrustingHttpClientConfiguration {
+
+    public static HttpClient httpClient() {
+        var sslContext = trustingSSLContext();
+
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10L))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
+                .sslContext(sslContext)
+                .build();
+    }
+
+    private static SSLContext trustingSSLContext() {
+        var trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+
+                    @Override
+                    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                    }
+                }
+        };
+
+        try {
+            var sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllCerts, null);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+}
+```
+
+#### Using Spring's RestTemplate
+
+```
+
+```
+
+
+
+
 TODO
 ### Mutual TLS within Organization perimeter
 TODO
@@ -266,7 +330,3 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 * https://github.com/Hakky54/mutual-tls-ssl
 * https://dzone.com/articles/hakky54mutual-tls-1
 * https://www.baeldung.com/x-509-authentication-in-spring-security
-
-```
--Djavax.net.debug=ssl,handshake
-```
