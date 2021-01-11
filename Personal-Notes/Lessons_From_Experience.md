@@ -541,3 +541,31 @@ While this - won't:
 @NotNull
 private final Set<@NotNull Integer> ints;
 ```
+# 2021.01.11
+
+## Reading files from JAR using Spring
+
+```
+@Component
+public class PathMatchingLogFileWalker {
+
+    public List<FileNameAndContent> walkLogs(String path) {
+        var scanner = new PathMatchingResourcePatternResolver();
+        try {
+            var resources = scanner.getResources(path);
+            return mapTo(resources);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not parse jato log files", e);
+        }
+    }
+
+    private List<FileNameAndContent> mapTo(Resource[] resources) throws IOException {
+        var result = new ArrayList<FileNameAndContent>();
+        for (var resource : resources) {
+            result.add(new FileNameAndContent(resource.getFilename(), resource.getInputStream()));
+        }
+        return result;
+    }
+}
+
+```
