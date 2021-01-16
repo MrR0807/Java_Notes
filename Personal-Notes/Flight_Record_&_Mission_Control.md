@@ -83,3 +83,8 @@ Before the line -vmargs, add two lines:
 On the first line, write –vm
 On the second line, write the path to your JDK installation (e.g., C:\Program Files\Java\jdk1.6.0_31\bin\javaw.exe)
 
+
+# To read
+
+https://blog.arkey.fr/2020/06/28/using-jdk-flight-recorder-and-jdk-mission-control/
+
