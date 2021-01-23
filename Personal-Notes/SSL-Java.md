@@ -1,13 +1,12 @@
 # Java TLS and self-signed certificates guide
 
-There are 7 possible scenarios:
+* When your applications is a client, which is trusting all TLS certificates;
+* When your applications is a client, which trusts only organization TLS certificates;
+* When your applications is a client, which trusts your organization and default Java's certificates;
 
-* When your application is acting as a server within Organization perimeter. Your application has to provide self-signed certificate to the client.
-* When your application is acting as a server for an outside Organization application (3rd party). Your application has to provide self-signed certificate for the client. 
-* When your application is client of other application within Organization perimeter. Your application has to validate self-signed certificate from the server.
-* When your application is client of other application outside Organization perimeter (3rd party). Your application has to validate CA certificate from the server.
-* When your application is client of other application within or outside Organization perimeter. Your application chooses to trust all certificates (only for local development/prototyping)
-* Mutual TLS. When both client and server exchange certificates within Organization perimeter (both exchange self-signed certificates).
+* When your application is a server, which sends a certificate to the client;
+
+* Mutual TLS. When both client and server exchange certificates within Organization perimeter (both exchange self-signed certificates);
 * Mutual TLS. When both client and server exchange certificates outside Organization perimeter (one party exchanges self-signed, other CA).
 
 ## Java Implementations
@@ -16,162 +15,17 @@ There are 7 possible scenarios:
 
 ![img_1.png](img_1.png)
 
-The heart of the JSSE architecture is the **SSLContext**. The context eventually creates end objects (**SSLSocket** and **SSLEngine**) which actually implement the SSL/TLS protocol. 
+The heart of the JSSE architecture is the **SSLContext**. The context eventually creates end objects (**SSLSocket** and **SSLEngine**) which actually implement the SSL/TLS protocol.
 SSLContexts are initialized with two callback classes, **KeyManager** and **TrustManager**, which allow applications to first select authentication material to send and second to verify credentials sent by a peer.
 
 A **KeyManager** is responsible for choosing which credentials to present to a peer.
 A **TrustManager** is responsible for verifying the credentials received from a peer.
 
-### When your application is acting as a server within Organization perimeter
-TODO
-### When your application is acting as a server for an outside Organization application (3rd party)
-TODO
-### When your application is client of other application within Organization perimeter
-
-There are a couple of strategies to implement this:
-* Download and place certificate within application ``resources``:
-  * Create ``TrustStore`` with only organisation certificate;
-  * Create ``TrustStore`` and merge with default Java's ``TrustStore`` (see ``CompositeX509ExtendedTrustManager``);
-* Mount application on volume containing certificate:
-  * Create ``TrustStore`` with only organisation certificate;
-  * Create ``TrustStore`` and merge with default Java's ``TrustStore`` (see ``CompositeX509ExtendedTrustManager``).
-
-#### Download and place certificates within application (only organisation certificates)
-
-Firstly, place certificates into ``src/main/resources/certs/`` folder. Then, modify ``ALIAS_AND_CERTIFICATE_PATHS`` map accordingly.
+## When your applications is a client, which is trusting all TLS certificates
 ```
-public class ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem {
+public class TrustAllCertificatesSSLContext {
 
-    private static final Map<String, String> ALIAS_AND_CERTIFICATE_PATHS = Map.of(
-            "alias1", "certs/cert1.crt",
-            "alias2", "certs/cert2.crt"
-    );
-
-    public SSLContext onlyTrustOrganisationCertificates() {
-        var keyStore = organisationCertificateKeyStore();
-        var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
-
-        try {
-            var sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustManagers, null);
-            SSLContext.setDefault(sslContext); //Sets the default SSL context. It will be returned by subsequent calls to getDefault. 
-            return sslContext;
-        } catch (NoSuchAlgorithmException | KeyManagementException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Couldn't initialize", e);
-        }
-    }
-
-    private KeyStore organisationCertificateKeyStore() {
-        try {
-            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null); //To create an empty keystore pass null as the InputStream argument [from JavaDocs]
-
-            for (var certificateAliasAndPath : ALIAS_AND_CERTIFICATE_PATHS.entrySet()) {
-                var organisationCertBytes = this.getClass().getClassLoader().getResourceAsStream(certificateAliasAndPath.getValue()).readAllBytes();
-                var certificateFactory = CertificateFactory.getInstance("X.509");//Currently, there is only one type of factory
-                var certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(organisationCertBytes));
-                keyStore.setCertificateEntry(certificateAliasAndPath.getKey(), certificate); //Add certificates to keyStore
-            }
-            return keyStore;
-        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Couldn't initialize", e);
-        }
-    }
-
-    private TrustManager[] trustingOnlyOrganisationCertificates(KeyStore keyStore) {
-        try {
-            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            trustManagerFactory.init(keyStore);
-            return trustManagerFactory.getTrustManagers();
-        } catch (NoSuchAlgorithmException | KeyStoreException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Couldn't initialize", e);
-        }
-    }
-}
-```
-
-##### Java's HTTP Client
-
-```
-public class OnlyOrganisationCertsHttpClient {
-
-    public static HttpClient httpClient() {
-        var downloadAndPlaceCertificateOnlyOrganisation = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem();
-        var sslContext = downloadAndPlaceCertificateOnlyOrganisation.onlyTrustOrganisationCertificates();
-        return buildHttpClient(sslContext);
-    }
-
-    private static HttpClient buildHttpClient(SSLContext sslContext) {
-        return HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofSeconds(10L))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .proxy(HttpClient.Builder.NO_PROXY)
-                .sslContext(sslContext)
-                .build();
-    }
-}
-```
-
-#### Spring's RestTemplate
-
-```
-@Component
-public class OnlyOrganisationCertsRestTemplate {
-
-    @Bean
-    public static RestTemplate restTemplate(RestTemplateBuilder builder) {
-        var restTemplate = builder.build();
-        var sslContext = onlyOrganisationCertificatesSSLContext();
-
-        var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
-        var requestFactory = new HttpComponentsClientHttpRequestFactory();
-        requestFactory.setHttpClient(httpClient);
-        restTemplate.setRequestFactory(requestFactory);
-        return restTemplate;
-    }
-
-    private static SSLContext onlyOrganisationCertificatesSSLContext() {
-        var downloadAndPlaceCertificateOnlyOrganisation = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem();
-        return downloadAndPlaceCertificateOnlyOrganisation.onlyTrustOrganisationCertificates();
-    }
-}
-```
-
-
-### When your application is client of other application outside Organization perimeter (3rd party)
-TODO
-### When your application is client of other application within or outside Organization perimeter (trust everybody).
-
-#### Using Java's HTTP Client
-
-```
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import java.net.http.HttpClient;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
-
-public class TrustingHttpClientConfiguration {
-
-    public static HttpClient httpClient() {
-        var sslContext = trustingSSLContext();
-
-        return HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofSeconds(10L))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .proxy(HttpClient.Builder.NO_PROXY)
-                .sslContext(sslContext)
-                .build();
-    }
-
-    private static SSLContext trustingSSLContext() {
+    public static SSLContext trustingSSLContext() {
         var trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
                     @Override
@@ -200,31 +54,39 @@ public class TrustingHttpClientConfiguration {
 }
 ```
 
-#### Using Spring's RestTemplate
-
+### Using Java's HTTP Client
 ```
+public class TrustingHttpClientConfiguration {
+
+    public static HttpClient httpClient() {
+        var sslContext = TrustAllCertificatesSSLContext.trustingSSLContext();
+
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10L))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
+                .sslContext(sslContext)
+                .build();
+    }
+}
+```
+
+### Using Spring's RestTemplate
+```
+@Configuration
 public class TrustingRestTemplateConfiguration {
 
-    public static RestTemplate restTemplate() {
-        var sslContext = trustingSSLContext();
+    @Bean
+    public static RestTemplate restTemplate(RestTemplateBuilder builder) {
+        var restTemplate = builder.build();
+        var sslContext = TrustAllCertificatesSSLContextForRestTemplate.trustingSSLContext();
 
-        var csf = new SSLConnectionSocketFactory(sslContext);
-        var httpClient = HttpClients.custom().setSSLSocketFactory(csf).build();
+        var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
         var requestFactory = new HttpComponentsClientHttpRequestFactory();
         requestFactory.setHttpClient(httpClient);
-
-        return new RestTemplate(requestFactory);
-    }
-
-    private static SSLContext trustingSSLContext() {
-        TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
-        try {
-            return org.apache.http.ssl.SSLContexts.custom()
-                    .loadTrustMaterial(null, acceptingTrustStrategy)
-                    .build();
-        } catch (NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
-            throw new RuntimeException("Couldn't initialize", e);
-        }
+        restTemplate.setRequestFactory(requestFactory);
+        return restTemplate;
     }
 }
 ```
@@ -234,44 +96,287 @@ You'll also will need additional dependency:
 <dependency>
     <groupId>org.apache.httpcomponents</groupId>
     <artifactId>httpclient</artifactId>
-    <version>4.5.13</version>
+    <version>add-version</version>
 </dependency>
 ```
 
-### Mutual TLS within Organization perimeter
-TODO
-### Mutual TLS outside Organization perimeter
-TODO
+Notice that I'm using ``TrustAllCertificatesSSLContext.trustingSSLContext()`` in both ``RestTemplate`` and ``Java's HttpClient`` implementations.
 
+## When your applications is a client, which trusts only organization TLS certificates
 
-## Misc Java Code Snippets
+There are a couple of strategies to implement this:
+* Download/Generate and place certificate within application ``resources``;
+* Mount application on volume containing certificate.
 
+### Download and place certificate within application ``resources`` and create ``TrustStore`` with only organisation certificate
 
-### Count trusted certificates
+Firstly, place certificates into ``src/main/resources/certs/`` folder. Then, modify ``ALIAS_AND_CERTIFICATE_PATHS`` ``Map`` accordingly:
 ```
-private static int countTrustedCertificates(TrustManagerFactory defaultTrust) {
-    // Get hold of the default trust manager
-    X509TrustManager defaultTm = null;
-    for (var tm : defaultTrust.getTrustManagers()) {
-        if (tm instanceof X509TrustManager) {
-            defaultTm = (X509TrustManager) tm;
-            break;
+public class ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem {
+
+    private static final Map<String, String> ALIAS_AND_CERTIFICATE_PATHS = Map.of(
+            "alias1", "certs/cert1.crt",
+            "alias2", "certs/cert2.crt"
+    );
+
+    public SSLContext onlyTrustOrganisationCertificates() {
+        var keyStore = organisationCertificateKeyStore();
+        var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
+
+        try {
+            var sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustManagers, null);
+            SSLContext.setDefault(sslContext);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Couldn't initialize", e);
         }
     }
-    var acceptedIssuers = defaultTm.getAcceptedIssuers();
-    return acceptedIssuers.length;
+
+    private TrustManager[] trustingOnlyOrganisationCertificates(KeyStore keyStore) {
+        try {
+            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(keyStore);
+            return trustManagerFactory.getTrustManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private KeyStore organisationCertificateKeyStore() {
+        try {
+            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null); //To create an empty keystore pass null as the InputStream argument [from JavaDocs]
+
+            for (var certificateAliasAndPath : ALIAS_AND_CERTIFICATE_PATHS.entrySet()) {
+                //Read certificate file as bytes. Using classLoader instead of Files due to how resources are read differently when they're packaged as a JAR
+                var organisationRootCertBytes = this.getClass().getClassLoader().getResourceAsStream(certificateAliasAndPath.getValue()).readAllBytes();
+                var certificateFactory = CertificateFactory.getInstance("X.509");//Currently, there is only one type of factory
+                var certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(organisationRootCertBytes));
+                keyStore.setCertificateEntry(certificateAliasAndPath.getKey(), certificate); //Add certificates to keyStore
+            }
+            return keyStore;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
 }
 ```
 
-### Custom ``CompositeX509ExtendedTrustManager``
+##### Java's HTTP Client
+```
+public class TrustingHttpClientConfiguration {
 
-#### Why it's required?
+    public static HttpClient httpClient() {
+        var sslContext = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem().onlyTrustOrganisationCertificates();
 
-For communication between internal services, some Organizations use self-signed certificates on both client and server. Simple and cheap (free!). Most of the time, these services only communicate over 
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10L))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
+                .sslContext(sslContext)
+                .build();
+    }
+}
+```
+
+#### Spring's RestTemplate
+```
+@Configuration
+public class TrustingRestTemplateConfiguration {
+
+    @Bean
+    public static RestTemplate restTemplate(RestTemplateBuilder builder) {
+        var restTemplate = builder.build();
+        var sslContext = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem().onlyTrustOrganisationCertificates();
+
+        var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
+        var requestFactory = new HttpComponentsClientHttpRequestFactory();
+        requestFactory.setHttpClient(httpClient);
+        restTemplate.setRequestFactory(requestFactory);
+        return restTemplate;
+    }
+}
+```
+
+### Mount application on volume containing certificate and create ``TrustStore`` with only organisation certificate
+
+TODO
+
+## When your applications is a client, which trust your organization and default Java's certificates
+
+There are a couple of strategies to implement this:
+* Download/Generate and place your organization certificate within application ``resources``;
+* Mount application on volume containing your organization certificate.
+
+### Download and place certificate within application ``resources``, create ``TrustStore`` and merge with default Java's ``TrustStore``
+
+To understand in depth why ``CompositeX509ExtendedTrustManager`` is required, refer to "Custom ``CompositeX509ExtendedTrustManager``" section. I've placed code regarding that class 
+in mentioned section as well, thus I won't repeat it here.
+
+```
+public class SSLContextUsingCustomCertsAndDefault {
+
+    private static final Map<String, String> ALIAS_AND_CERTIFICATE_PATHS = Map.of(
+            "alias1", "certs/cert1.crt",
+            "alias2", "certs/cert2.crt"
+    );
+
+    public SSLContext sslContext() {
+        var keyStore = organisationCertificateKeyStore();
+        var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
+        var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);
+
+        try {
+            var sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{compositeTrustManager}, null);
+            SSLContext.setDefault(sslContext);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private TrustManager[] trustingOnlyOrganisationCertificates(KeyStore keyStore) {
+        try {
+            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(keyStore);
+            return trustManagerFactory.getTrustManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private KeyStore organisationCertificateKeyStore() {
+        try {
+            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null); //To create an empty keystore pass null as the InputStream argument [from JavaDocs]
+
+            for (var certificateAliasAndPath : ALIAS_AND_CERTIFICATE_PATHS.entrySet()) {
+                //Read certificate file as bytes. Using classLoader instead of Files due to how resources are read differently when they're packaged as a JAR
+                var organisationRootCertBytes = this.getClass().getClassLoader().getResourceAsStream(certificateAliasAndPath.getValue()).readAllBytes();
+                var certificateFactory = CertificateFactory.getInstance("X.509");//Currently, there is only one type of factory
+                var certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(organisationRootCertBytes));
+                keyStore.setCertificateEntry(certificateAliasAndPath.getKey(), certificate); //Add certificates to keyStore
+            }
+            return keyStore;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+}
+```
+
+The code is pretty much the same as in the last section, the only difference is this line: ```var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);``` and: 
+```sslContext.init(null, new TrustManager[]{compositeTrustManager}, null);```. 
+
+The latter is quite self-explanatory, because of method signature ```public final void init(KeyManager[] km, TrustManager[] tm, SecureRandom random)```. As stated in
+"Custom ``CompositeX509ExtendedTrustManager``" section, this is an example of bad Java's API, because ``SSLContext`` only uses one TrustManager (first one it finds).
+
+The formal is where we create our new ``compositeTrustManager``, which contains both default and custom ``KeyStore``s. We can easily count/list all certificates, by adding a ``println`` 
+in ``sslContext`` method:
+
+```
+...
+public SSLContext sslContext() {
+    var keyStore = organisationCertificateKeyStore();
+    var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
+    var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);
+    
+    System.out.println("-".repeat(10));
+    System.out.println(compositeTrustManager.getAcceptedIssuers().length);
+    System.out.println("-".repeat(10));
+...
+```
+
+The number of certificates is equal to default's Java's trusted certificates (in my case it's 91) + 2 added organization's. To find out Java's trusted certificates count, go to Java's directory in 
+your computer. In my case it's in ``C:\Program Files\Java\jdk-15\lib\security>`` and run the command ``keytool -list -keystore cacerts -storepass changeit``:
+```
+C:\Program Files\Java\jdk-15\lib\security>keytool -list -keystore cacerts -storepass changeit
+Keystore type: JKS
+Keystore provider: SUN
+
+Your keystore contains 91 entries
+
+verisignclass2g2ca [jdk], 1998-05-18, trustedCertEntry,
+Certificate fingerprint (SHA-256): 3A:43:E2:20:FE:7F:3E:A9:65:3D:1E:21:74:2E:AC:2B:75:C2:0F:D8:98:03:05:BC:50:2C:AF:8C:2D:9B:41:A1
+...
+```
+
+You will see the count of entries in the statement.
+
+To list certificates' issuers:
+```
+...
+public SSLContext sslContext() {
+    var keyStore = organisationCertificateKeyStore();
+    var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
+    var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);
+
+    System.out.println("-".repeat(10));
+    Stream.of(compositeTrustManager.getAcceptedIssuers())
+            .map(x509Certificate -> x509Certificate.getIssuerDN())
+            .forEach(System.out::println);
+    System.out.println("-".repeat(10));
+...
+```
+
+##### Java's HTTP Client
+```
+public class TrustingHttpClientConfiguration {
+
+    public static HttpClient httpClient() {
+        var sslContext = new SSLContextUsingCustomCertsAndDefault().sslContext();
+
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10L))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
+                .sslContext(sslContext)
+                .build();
+    }
+}
+```
+
+#### Spring's RestTemplate
+```
+@Configuration
+public class TrustingRestTemplateConfiguration {
+
+    @Bean
+    public static RestTemplate restTemplate(RestTemplateBuilder builder) {
+        var restTemplate = builder.build();
+        var sslContext = new SSLContextUsingCustomCertsAndDefault().sslContext();
+
+        var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
+        var requestFactory = new HttpComponentsClientHttpRequestFactory();
+        requestFactory.setHttpClient(httpClient);
+        restTemplate.setRequestFactory(requestFactory);
+        return restTemplate;
+    }
+}
+```
+
+### Mount application on volume containing certificate, create ``TrustStore`` and merge with default Java's ``TrustStore``
+
+TODO
+
+
+
+
+
+
+## Custom ``CompositeX509ExtendedTrustManager``
+
+### Why it's required?
+
+For communication between internal services, some Organizations use self-signed certificates on both client and server. Simple and cheap (free!). Most of the time, these services only communicate over
 HTTPS with other internal services, so it's fine to use custom keystore; there is no need for standard/default certificates which come with Java (you can find them for example in ``lib/security/cacerts``).
 However, there are sometimes cases where it's required to be able to talk to both internal and external services. Unfortunately there’s no simple way to use multiple ``Keystore``s in Java.
 
-#### First Obvious but actually wrong step
+### First Obvious but actually wrong step
 
 As previously stated, ``SSLContext`` is the heart of JSSE architecture. In order to use custom ``TrustManager`` with custom ``SSLContext`` one has to do these steps:
 ```
@@ -280,17 +385,17 @@ sslContext.init(null, trustManagers, null);
 ```
 
 ``SSLContext`` algorithms can be found [here](https://docs.oracle.com/en/java/javase/15/docs/specs/security/standard-names.html#sslcontext-algorithms). ``SSLContext::init`` method's
-signature: 
+signature:
 ```
 public final void init(KeyManager[] km, TrustManager[] tm, SecureRandom random) throws KeyManagementException
 ```
 
 First instinct is just to merge multiple ``TrustManager``s into an array and provide to ``SSLContext::init``. However, [documentation reveals](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html#init(javax.net.ssl.KeyManager%5B%5D,javax.net.ssl.TrustManager%5B%5D,java.security.SecureRandom)):
 > Initializes this context. Either of the first two parameters may be null in which case the installed security providers will be searched for the highest priority implementation of the appropriate factory. Likewise, the secure random parameter may be null in which case the default implementation will be used.
-> 
+>
 > **Only the first instance of a particular key and/or trust manager implementation type in the array is used.** (For example, only the first javax.net.ssl.X509KeyManager in the array will be used.)
 
-Or in ``SSLContextImpl`` class:
+Or in Java's ``SSLContextImpl`` class:
 ```
 private X509TrustManager chooseTrustManager(TrustManager[] tm) throws KeyManagementException {
     // We only use the first instance of X509TrustManager passed to us.
@@ -299,8 +404,7 @@ private X509TrustManager chooseTrustManager(TrustManager[] tm) throws KeyManagem
             if (tm[i] instanceof X509ExtendedTrustManager) {
                 return (X509TrustManager)tm[i];
             } else {
-                return new AbstractTrustManagerWrapper(
-                                    (X509TrustManager)tm[i]);
+                return new AbstractTrustManagerWrapper((X509TrustManager)tm[i]);
             }
         }
     }
@@ -312,11 +416,10 @@ private X509TrustManager chooseTrustManager(TrustManager[] tm) throws KeyManagem
 
 In conclusion, to use two or more ``TrustManager``s it's required to have a custom ``X509TrustManager`` implementation.
 
-
-#### Solution with detail explanation
+### Solution with explanation
 
 This is very simple, straightforward extension of standard Java's ``X509ExtendedTrustManager`` which pretty much just loops through two ``TrustManager``s and delegates.
-Maybe the trickiest part is constructor, thus I'm going to go into more details: 
+Maybe the trickiest part is constructor, thus I'm going to go into more details:
 
 ```
 var defaultTrustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -326,20 +429,20 @@ defaultTrustManagerFactory.init((KeyStore) null); //If set to null - default Key
 Creating a default ``TrustManagerFactory`` with default ``KeyStore`` via ``defaultTrustManagerFactory.init((KeyStore) null);``. According to [documentation](https://docs.oracle.com/en/java/javase/15/security/java-secure-socket-extension-jsse-reference-guide.html#GUID-7932AB21-2FED-402E-A806-3088402BAEA6):
 
 > If a **null** ``KeyStore`` parameter is passed to the SunJSSE PKIX or SunX509 ``TrustManagerFactory``, then the factory uses the following process to try to find trust material:
->  * If the ``javax.net.ssl.trustStore`` property is defined, then the ``TrustManagerFactory`` attempts to find a file using the file name specified by that system property, and uses that file for the ``KeyStore`` parameter. 
-> If the ``javax.net.ssl.trustStorePassword`` system property is also defined, then its value is used to check the integrity of the data in the truststore before opening it. If the javax.net.ssl.trustStore property is defined but the specified file does not exist, then a default ``TrustManager`` using an empty keystore is created.
+>  * If the ``javax.net.ssl.trustStore`` property is defined, then the ``TrustManagerFactory`` attempts to find a file using the file name specified by that system property, and uses that file for the ``KeyStore`` parameter.
+     > If the ``javax.net.ssl.trustStorePassword`` system property is also defined, then its value is used to check the integrity of the data in the truststore before opening it. If the javax.net.ssl.trustStore property is defined but the specified file does not exist, then a default ``TrustManager`` using an empty keystore is created.
 >  * If the ``javax.net.ssl.trustStore`` system property was not specified, then:
->     * if the file ``java-home/lib/security/jssecacerts`` exists, that file is used;
+     >     * if the file ``java-home/lib/security/jssecacerts`` exists, that file is used;
 >     * if the file ``java-home/lib/security/cacerts`` exists, that file is used;
 >     * if neither of these files exists, then the TLS cipher suite is anonymous, does not perform any authentication, and thus does not need a truststore.
 
-As far as looping through ``TrustManager``s, currently (2021.01.05) there is only one type of ``TrustManager`` implementation - ``X509TrustManager``. 
-You can check it via ``System.out.println(defaultTrustManagerFactory.getTrustManagers().length);`` or looking at Java's documentation - 
-[JavaDocs TrustManager](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/TrustManager.html), 
+As far as looping through ``TrustManager``s, currently (2021.01.05) there is only one type of ``TrustManager`` implementation - ``X509TrustManager``.
+You can check it via ``System.out.println(defaultTrustManagerFactory.getTrustManagers().length);`` or looking at Java's documentation -
+[JavaDocs TrustManager](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/TrustManager.html),
 [TrustManagerFactory Algorithms](https://docs.oracle.com/en/java/javase/15/docs/specs/security/standard-names.html#trustmanagerfactory-algorithms).
 
-To sum up, firstly default ``TrustManagerFactory`` is created, with one ``TrustManager`` implementation. When mentioned single implementation is found, it's added to the list of ``trustManagers``. 
-The second ``TrustManager`` is provided via constructor. 
+To sum up, firstly default ``TrustManagerFactory`` is created, with one ``TrustManager`` implementation. When mentioned single implementation is found, it's added to the list of ``trustManagers``.
+The second ``TrustManager`` is provided via constructor.
 
 ```
 import javax.net.ssl.SSLEngine;
@@ -385,7 +488,6 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
                 }
             }
         } catch (KeyStoreException | NoSuchAlgorithmException e) {
-            e.printStackTrace();
             throw new RuntimeException("Couldn't initialize", e);
         }
     }
@@ -459,6 +561,18 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 
 
 
+
+
+
+
+
+
+# Misc
+
+```
+-Djavax.net.debug=ssl,handshake
+```
+
 ## Resources
 
 * https://docs.oracle.com/en/java/javase/15/security/java-secure-socket-extension-jsse-reference-guide.html#GUID-A6B7B05A-3696-4F86-A05C-9500EEC91C2D
@@ -471,3 +585,19 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 * https://github.com/Hakky54/mutual-tls-ssl
 * https://dzone.com/articles/hakky54mutual-tls-1
 * https://www.baeldung.com/x-509-authentication-in-spring-security
+* https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/package-summary.html
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
