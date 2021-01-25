@@ -4,10 +4,10 @@
 * When your applications is a client, which trusts only organization TLS certificates;
 * When your applications is a client, which trusts your organization and default Java's certificates;
 
-* When your application is a server, which sends a certificate to the client;
+* When your application is a server, which sends a certificate to the client (one-way TLS);
 
-* Mutual TLS. When both client and server exchange certificates within Organization perimeter (both exchange self-signed certificates);
-* Mutual TLS. When both client and server exchange certificates outside Organization perimeter (one party exchanges self-signed, other CA).
+* Mutual TLS (two-way TLS). When both client and server exchange certificates within Organization perimeter (both exchange self-signed certificates);
+* Mutual TLS (two-way TLS). When both client and server exchange certificates outside Organization perimeter (one party exchanges self-signed, other CA).
 
 ## Java Implementations
 
@@ -106,7 +106,8 @@ Notice that I'm using ``TrustAllCertificatesSSLContext.trustingSSLContext()`` in
 
 There are a couple of strategies to implement this:
 * Download/Generate and place certificate within application ``resources``;
-* Mount application on volume containing certificate.
+* Mount application on volume containing certificate;
+* Create new ``TrustStore`` with only organization certificates via ``keytool``.
 
 ### Download and place certificate within application ``resources`` and create ``TrustStore`` with only organisation certificate
 
@@ -204,11 +205,20 @@ public class TrustingRestTemplateConfiguration {
 
 TODO
 
+### Create new ``TrustStore`` with only organization certificates via ``keytool``
+
+TODO
+
+```
+keytool -v -importcert -file shared-server-resources/src/main/resources/server.cer -alias server -keystore client/src/test/resources/truststore.jks -storepass secret -noprompt
+```
+
 ## When your applications is a client, which trust your organization and default Java's certificates
 
 There are a couple of strategies to implement this:
 * Download/Generate and place your organization certificate within application ``resources``;
-* Mount application on volume containing your organization certificate.
+* Mount application on volume containing your organization certificate;
+* Import certificate into Java's default ``TrustStore``.
 
 ### Download and place certificate within application ``resources``, create ``TrustStore`` and merge with default Java's ``TrustStore``
 
@@ -363,9 +373,102 @@ public class TrustingRestTemplateConfiguration {
 
 TODO
 
+### Import certificate into Java's default ``TrustStore``
 
+TODO
 
+## When your application is a server, which sends a certificate to the client
 
+Let's create a simple Spring Boot server (from here on **server**). This is completely empty Spring project, just with ``HelloController``:
+```
+@RestController
+public class HelloController {
+
+    @GetMapping(value = "hello", produces = MediaType.TEXT_PLAIN_VALUE)
+    public String hello() {
+        return "hello";
+    }
+}
+```
+
+Create a separate Java program, to interact with the server (from here on **client**):
+```
+public class TestCommunicationWithServer {
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        var httpClient = HttpClient.newHttpClient();
+
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:8080/hello")).build();
+        var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        
+        System.out.println(response);
+    }
+}
+```
+
+Run to test that it's working:
+```
+(GET http://localhost:8080/hello) 200
+```
+
+Now secure server by modifying ``application.yml``:
+```
+server:
+  port: 8443
+  ssl:
+    enabled: true
+```
+
+You will probably ask yourself why the port is set to 8443. The port convention for a tomcat server with https is 8443, and for http, it is 8080. So, we could use port 8080 for https connections, 
+but it is a bad practice. See [Wikipedia](https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers) for more information about port conventions.
+
+Restart the server so that it can apply the changes you made. You will probably get the following exception: ``IllegalArgumentException: Resource location must not be null.``
+
+You are getting this message because the server requires a keystore with the certificate of the server to ensure that there is a secure connection with the outside world.
+
+To solve this issue, you are going to create a keystore with a public and private key for the server. The public key will be shared with users so that they can encrypt the communication. 
+The communication between the user and server can be decrypted with the private key of the server.
+
+To create a keystore with a public and private key, execute the following command in your terminal:
+```
+keytool -v -genkeypair -keystore identity.jks -dname "CN=test, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown" -storepass secret -keypass secret -keyalg RSA -keysize 4096 -alias server -validity 3650 -deststoretype pkcs12 -ext SubjectAlternativeName=DNS:localhost,DNS:yourfqdn
+```
+
+Where:
+* CN - Common Name;
+* O - Organization;
+* L - Locality;
+* S - State or Province Name;
+* C - Country Name.
+
+``SubjectAlternativeName`` plays a role in hostname verification. It is a part of HTTPS that involves a server identity check to ensure that the client is talking to the correct server 
+and has not been redirected by a man in the middle attack.
+
+More can be found on [Server Identity and Subject Alternative Name](https://tools.ietf.org/html/rfc2818#section-3.1).
+
+Tell your server where the location of the keystore is and provide the passwords. ``application.yml``:
+```
+server:
+  port: 8443
+  ssl:
+    enabled: true
+    key-store: classpath:identity.jks
+    key-password: secret
+    key-store-password: secret
+```
+
+Run the server and change the client's request to ``var request = HttpRequest.newBuilder(URI.create("https://localhost:8443/hello")).build();``. Both port and protocol has to be adjusted.
+When the client is run, the following message will appear:``PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target``.
+This means that the client wants to communicate over HTTPS and during the handshake procedure it received the certificate of the server which it doesn't recognize yet.
+
+### Export certificate of the server
+
+```
+keytool -v -exportcert -file server.cer -alias server -keystore identity.jks -storepass secret -rfc
+```
+
+You'll get ``server.cer`` which can be used by following already outlined strategies ``When your applications is a client, which is trusting all TLS certificates``, 
+``When your applications is a client, which trusts only organization TLS certificates``, ``When your applications is a client, which trusts your organization and default Java's certificate``.
 
 
 ## Custom ``CompositeX509ExtendedTrustManager``
@@ -559,14 +662,6 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 }
 ```
 
-
-
-
-
-
-
-
-
 # Misc
 
 ```
@@ -586,18 +681,3 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 * https://dzone.com/articles/hakky54mutual-tls-1
 * https://www.baeldung.com/x-509-authentication-in-spring-security
 * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/package-summary.html
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
