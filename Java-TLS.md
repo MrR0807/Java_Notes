@@ -1,3 +1,87 @@
+# Table of Content
+
+- [Java TLS and self-signed certificates guide](#java-tls-and-self-signed-certificates-guide)
+     * [Java Implementations](#java-implementations)
+          + [Little Bit of Theory](#little-bit-of-theory)
+          + [Java Security Standard Algorithm Names](#java-security-standard-algorithm-names)
+          + [Playground for testing TLS communication](#playground-for-testing-tls-communication)
+               - [Server](#server)
+                    * [UnSecureServer (HttpServer)](#unsecureserver-httpserver)
+                    * [SecureServer (HttpsServer)](#secureserver-httpsserver)
+               - [HttpClient](#httpclient)
+     * [When your applications is a client, which trusts all TLS certificates](#when-your-applications-is-a-client-which-trusts-all-tls-certificates)
+          + [What you'll need](#what-youll-need)
+          + [Creating SSLContext](#creating-sslcontext)
+          + [Using Java's HTTP Client](#using-javas-http-client)
+          + [Using Spring's RestTemplate](#using-springs-resttemplate)
+     * [When your applications is a client, which trusts only organization TLS certificates](#when-your-applications-is-a-client-which-trusts-only-organization-tls-certificates)
+          + [Download and place certificate within application ``resources`` and create ``TrustStore`` with only organisation certificate](#download-and-place-certificate-within-application-resources-and-create-truststore-with-only-organisation-certificate)
+               - [What you'll need](#what-youll-need)
+               - [Creating SSLContext](#creating-sslcontext)
+                    * [Java's HTTP Client](#javas-http-client)
+               - [Spring's RestTemplate](#springs-resttemplate)
+          + [Mount application on volume containing certificate and create ``TrustStore`` with only organisation certificate](#mount-application-on-volume-containing-certificate-and-create-truststore-with-only-organisation-certificate)
+               - [What you'll need](#what-youll-need)
+               - [Creating SSLContext](#creating-sslcontext)
+               - [Java's HTTP Client](#javas-http-client)
+               - [Spring's RestTemplate](#springs-resttemplate)
+          + [Create new ``TrustStore`` with only organization certificates via ``keytool``](#create-new-truststore-with-only-organization-certificates-via-keytool)
+               - [What you'll need](#what-youll-need)
+               - [Creating ``TrustStore`` with ``keytool``](#creating-truststore-with-keytool)
+               - [Creating SSLContext](#creating-sslcontext)
+               - [Use created ``TrustStore`` via Java's properties](#use-created-truststore-via-javas-properties)
+               - [Use created ``TrustStore`` via Java's VM options](#use-created-truststore-via-javas-vm-options)
+          + [Build docker image which contains correct ``TrustStore``](#build-docker-image-which-contains-correct-truststore)
+               - [What you'll need](#what-youll-need)
+               - [Creating SSLContext](#creating-sslcontext)
+               - [Java's HTTP Client](#javas-http-client)
+               - [Spring's RestTemplate](#springs-resttemplate)
+     * [When your applications is a client, which trusts your organization and default Java's certificates](#when-your-applications-is-a-client-which-trusts-your-organization-and-default-javas-certificates)
+          + [Download and place certificate within application ``resources``, create ``TrustStore`` and merge with default Java's ``TrustStore``](#download-and-place-certificate-within-application-resources-create-truststore-and-merge-with-default-javas-truststore)
+               - [What you'll need](#what-youll-need)
+               - [Creating SSLContext](#creating-sslcontext)
+                    * [Java's HTTP Client](#javas-http-client)
+               - [Spring's RestTemplate](#springs-resttemplate)
+          + [Mount application on volume containing certificate, create ``TrustStore`` and merge with default Java's ``TrustStore``](#mount-application-on-volume-containing-certificate-create-truststore-and-merge-with-default-javas-truststore)
+               - [What you'll need](#what-youll-need)
+               - [Creating SSLContext](#creating-sslcontext)
+               - [Java's HTTP Client](#javas-http-client)
+               - [Spring's RestTemplate](#springs-resttemplate)
+          + [Import certificate into Java's default ``TrustStore``](#import-certificate-into-javas-default-truststore)
+          + [Build docker image which contains correct ``TrustStore``](#build-docker-image-which-contains-correct-truststore)
+               - [What you'll need](#what-youll-need)
+               - [Creating SSLContext](#creating-sslcontext)
+               - [Java's HTTP Client](#javas-http-client)
+               - [Spring's RestTemplate](#springs-resttemplate)
+     * [When your application is a server, which sends a certificate to the client (one-way TLS)](#when-your-application-is-a-server-which-sends-a-certificate-to-the-client-one-way-tls)
+          + [Export certificate of the server](#export-certificate-of-the-server)
+     * [Mutual TLS (two-way TLS). When both client and server exchange certificates within Organization perimeter (both exchange self-signed certificates)](#mutual-tls-two-way-tls-when-both-client-and-server-exchange-certificates-within-organization-perimeter-both-exchange-self-signed-certificates)
+          - [Spring ssl configuration and SSLContext](#spring-ssl-configuration-and-sslcontext)
+          - [Export certificate of the client](#export-certificate-of-the-client)
+          - [Create ``TrustStore`` for the server containing only client's certificate](#create-truststore-for-the-server-containing-only-clients-certificate)
+          - [Create client's ``SSLContext`` containing both KeyManager and TrustManager](#create-clients-sslcontext-containing-both-keymanager-and-trustmanager)
+     * [Mutual TLS (two-way TLS). TLS based on trusting the Certificate Authority](#mutual-tls-two-way-tls-tls-based-on-trusting-the-certificate-authority)
+          + [Creating a Certificate Authority](#creating-a-certificate-authority)
+          + [Creating a Certificate Signing Request](#creating-a-certificate-signing-request)
+          + [Certificate Signing Request for the client](#certificate-signing-request-for-the-client)
+          + [Signing the certificate with the Certificate Signing Request](#signing-the-certificate-with-the-certificate-signing-request)
+               - [Signing the server certificate](#signing-the-server-certificate)
+               - [Signing the client certificate](#signing-the-client-certificate)
+          + [Replace the unsigned certificate with a signed one](#replace-the-unsigned-certificate-with-a-signed-one)
+               - [Export CA Certificate](#export-ca-certificate)
+               - [Server](#server)
+               - [Client](#client)
+          + [Trusting the Certificate Authority only](#trusting-the-certificate-authority-only)
+               - [Server](#server)
+               - [Client](#client)
+               - [Testing](#testing)
+     * [Custom ``CompositeX509ExtendedTrustManager``](#custom-compositex509extendedtrustmanager)
+          + [Why it's required?](#why-its-required)
+          + [First Obvious but actually wrong step](#first-obvious-but-actually-wrong-step)
+          + [Solution with explanation](#solution-with-explanation)
+- [Misc](#misc)
+     * [Resources](#resources)
+
 # Java TLS and self-signed certificates guide
 
 * When your applications is a client, which trusts all TLS certificates;
@@ -751,7 +835,7 @@ TODO
 
 ## When your application is a server, which sends a certificate to the client (one-way TLS)
 
-Let's create a simple Spring Boot server (from here on **server**). This is completely empty Spring project, just with ``HelloController``:
+In this section, instead of Java's ``HttpsServer``, I'll use Spring. This is completely empty Spring Boot project, just with ``HelloController``:
 ```
 @RestController
 public class HelloController {
@@ -786,7 +870,7 @@ You are getting this message because the server requires a keystore with the cer
 To solve this issue, you are going to create a keystore with a public and private key for the server. The public key will be shared with users so that they can encrypt the communication. 
 The communication between the user and server can be decrypted with the private key of the server.
 
-To create a keystore with a public and private key, execute the following command in your terminal:
+To create a keystore with a public and private key, execute the following command in your terminal (if you've been following from the start, you will have it already):
 ```
 keytool -v -genkeypair -keystore server-identity.jks -dname "CN=test, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown" -storepass secret -keypass secret -keyalg RSA -keysize 4096 -alias server -validity 3650 -deststoretype pkcs12 -ext SubjectAlternativeName=DNS:localhost,DNS:yourfqdn
 ```
@@ -809,13 +893,13 @@ server:
   port: 8443
   ssl:
     enabled: true
-    key-store: classpath:identity.jks
+    key-store: classpath:server/server-identity.jks
     key-password: secret
     key-store-password: secret
 ```
 
 Run the server and change the client's request to ``var request = HttpRequest.newBuilder(URI.create("https://localhost:8443/hello")).build();``. Both port and protocol has to be adjusted.
-When the client is run, the following message will appear:``PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target``.
+When the client runs, the following message will appear:``PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target``.
 This means that the client wants to communicate over HTTPS and during the handshake procedure it received the certificate of the server which it doesn't recognize yet.
 
 ### Export certificate of the server
@@ -836,7 +920,7 @@ server:
   port: 8443
   ssl:
     enabled: true
-    key-store: classpath:identity.jks
+    key-store: classpath:server/server-identity.jks
     key-password: secret
     key-store-password: secret
     client-auth: need
@@ -848,6 +932,11 @@ This indicates that the certificate of the client is not valid because there is 
 keytool -v -genkeypair -keystore client-identity.jks -dname "CN=client, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown" -storepass secret -keypass secret -keyalg RSA -keysize 4096 -alias client -validity 3650 -deststoretype pkcs12
 ```
 
+#### Spring ssl configuration and SSLContext
+
+I'm not using ``SSLContext`` in Spring, because it's impossible with Spring Boot + Tomcat. It does not have an option to inject a SSLContext, or other properties such as SSLServerSocketFactory or TrustManager or KeyManager.
+More on [Stackoverflow answer](https://stackoverflow.com/questions/65890334/configure-spring-boots-with-custom-sslcontext-programmatically-for-mtls).
+
 #### Export certificate of the client
 ```
 keytool -v -exportcert -file client.cer -alias client -keystore client-identity.jks -storepass secret -rfc
@@ -855,7 +944,7 @@ keytool -v -exportcert -file client.cer -alias client -keystore client-identity.
 
 #### Create ``TrustStore`` for the server containing only client's certificate
 ```
-keytool -v -importcert -file client.cer -alias client -keystore truststore.jks -storepass truststorepass -noprompt
+keytool -v -importcert -file client.cer -alias client -keystore server-truststore.jks -storepass truststorepass -noprompt
 ```
 
 Update ``application.yaml``:
@@ -868,17 +957,15 @@ server:
     key-password: secret
     key-store-password: secret
     client-auth: need
-    trust-store: classpath:truststore.jks
+    trust-store: classpath:server/server-truststore.jks
     trust-store-password: truststorepass
 ```
 
-#### Create ``TrustStore`` for the server containing client's certificate and default Java's certificates
-
-
+**!NOTE**. You can follow previously outlined strategies of creating truststore via ``keytool``, like using Java's default one and import client's certificate, or use volume or Docker image. 
 
 #### Create client's ``SSLContext`` containing both KeyManager and TrustManager
 
-Custom ``KeyManager`` is required, because client needs to send certificate information to the server. As if it's acting like a server itself. And ``TrustManager`` to validate server's certificate.
+Custom ``KeyManager`` is required, because client needs to send certificate information to the server. And ``TrustManager`` to validate server's certificate.
 
 The class is pretty much the same as previous cases, but just with added twist - ``clientsKeyManager`` method.
 
@@ -941,8 +1028,200 @@ public class SSLContextWithKeyManagerAndTrustManager {
 
 ## Mutual TLS (two-way TLS). TLS based on trusting the Certificate Authority
 
+There is another way to have mutual authentication and that is based on trusting the Certificate Authority. It has pros and cons.
 
+Pros
+* Clients do not need to add the certificate of the server
+* Server does not need to add all the certificates of the clients
+* Maintenance will be less because only the Certificate Authority's certificate validity can expire
 
+Cons
+* You don't have control anymore for which applications are allowed to call your application. You give permission to any application who has a signed certificate by the Certificate Authority.
+
+### Creating a Certificate Authority
+
+Normally there is already a Certificate Authority (like your organization), and you need to provide your certificate to have it signed. 
+Here you will create your own Certificate Authority and sign the Client and Server certificate with it. To create one you can execute the following command:
+```
+keytool -v -genkeypair -dname "CN=Root-CA,OU=Certificate Authority,O=Unknown,C=UN" -keystore root-identity.jks -storepass secret -keypass secret -keyalg RSA -keysize 4096 -alias root-ca -validity 3650 -deststoretype pkcs12 -ext KeyUsage=digitalSignature,keyCertSign -ext BasicConstraints=ca:true,PathLen:3
+```
+
+### Creating a Certificate Signing Request
+```
+keytool -v -certreq -file server.csr -keystore server-identity.jks -alias server -keypass secret -storepass secret -keyalg rsa
+```
+
+As a reminder, to create ``KeyStore`` for server:
+```
+keytool -v -genkeypair -keystore server-identity.jks -dname "CN=test, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown" -storepass secret -keypass secret -keyalg RSA -keysize 4096 -alias server -validity 3650 -deststoretype pkcs12 -ext SubjectAlternativeName=DNS:localhost,DNS:yourfqdn
+```
+
+``server.csr`` file will be generated.
+
+### Certificate Signing Request for the client
+```
+keytool -v -certreq -file client.csr -keystore client-identity.jks -alias client -keypass secret -storepass secret -keyalg rsa
+```
+
+As a reminder, to create ``KeyStore`` for client:
+```
+keytool -v -genkeypair -keystore client-identity.jks -dname "CN=client, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown" -storepass secret -keypass secret -keyalg RSA -keysize 4096 -alias client -validity 3650 -deststoretype pkcs12
+```
+
+``client.csr`` file will be generated.
+
+### Signing the certificate with the Certificate Signing Request
+
+#### Signing the server certificate
+```
+keytool -v -gencert -infile server.csr -outfile server-signed.cer -keystore root-identity.jks -storepass secret -alias root-ca -ext KeyUsage=digitalSignature,dataEncipherment,keyEncipherment,keyAgreement -ext ExtendedKeyUsage=serverAuth,clientAuth -ext SubjectAlternativeName=DNS:localhost,DNS:yourfqdn
+```
+
+``server-signed.cer`` will be generated.
+
+#### Signing the client certificate
+```
+keytool -v -gencert -infile client.csr -outfile client-signed.cer -keystore root-identity.jks -storepass secret -alias root-ca -ext KeyUsage=digitalSignature,dataEncipherment,keyEncipherment,keyAgreement -ext ExtendedKeyUsage=serverAuth,clientAuth
+```
+
+``client-signed.cer`` will be generated.
+
+### Replace the unsigned certificate with a signed one
+
+The identity keystore of the server and client still have the unsigned certificate. Now you can replace it with the signed one. 
+The keytool has a strange limitation/design. It won't allow you to directly import the signed certificate, and it will give you an error - ``java.lang.Exception: Failed to establish chain from reply`` - if you try it.
+The certificate of the Certificate Authority must be present within the identity.jks.
+
+#### Export CA Certificate
+```
+keytool -v -exportcert -file root-ca.pem -alias root-ca -keystore root-identity.jks -storepass secret -rfc
+```
+
+#### Server
+List current certificates:
+```
+keytool -list -keystore server-identity.jks -storepass secret
+```
+
+Add signed certificate:
+```
+keytool -v -importcert -file root-ca.pem -alias root-ca -keystore server-identity.jks -storepass secret
+keytool -v -importcert -file server-signed.cer -alias server -keystore server-identity.jks -storepass secret
+keytool -v -delete -alias root-ca -keystore server-identity.jks -storepass secret
+```
+
+At the end you should have 1 certificate.
+
+#### Client
+List current certificates:
+```
+keytool -list -keystore client-identity.jks -storepass secret
+```
+
+```
+keytool -v -importcert -file root-ca.pem -alias root-ca -keystore client-identity.jks -storepass secret -noprompt
+keytool -v -importcert -file client-signed.cer -alias client -keystore client-identity.jks -storepass secret
+keytool -v -delete -alias root-ca -keystore client-identity.jks -storepass secret
+```
+
+### Trusting the Certificate Authority only
+
+Now you need to configure your client and server to only trust the Certificate Authority. 
+You can do that by importing the certificate of the Certificate Authority into the truststores of the client and server.
+
+#### Server
+```
+keytool -list -keystore server-truststore.jks -storepass truststorepass
+```
+Import root certificate:
+```
+keytool -v -importcert -file root-ca.pem -alias root-ca -keystore server-truststore.jks -storepass truststorepass -noprompt
+```
+
+Remove unsigned certificate:
+```
+keytool -v -delete -alias client -keystore server-truststore.jks -storepass truststorepass
+```
+
+After that, it should contain only root certificate.
+
+#### Client
+```
+keytool -list -keystore client-truststore.jks -storepass truststorepass
+```
+Import root certificate:
+```
+keytool -v -importcert -file root-ca.pem -alias root-ca -keystore client-truststore.jks -storepass truststorepass -noprompt
+```
+
+Remove unsigned certificate:
+```
+keytool -v -delete -alias server -keystore client-truststore.jks -storepass truststorepass
+```
+
+#### Testing
+
+Then in ``SSLContextWithKeyManagerAndTrustManager``, change:
+
+```
+private static final String SERVER_CER_PATH = "certs/root-ca.pem";
+```
+
+Or create a new class, which would import both ``TrustStore`` and ``KeyStore`` instead of creating ``TrustStore`` programmatically:
+```
+public class ImportKeyStoreAndTrustStore {
+
+    private static final String CLIENT_CER_PATH = "certs/client-identity.jks";
+    private static final char[] DO_NOT_PASS_PASSWORD_THIS_WAY_CLIENT = "secret".toCharArray(); //This should be inject using secret management
+
+    private static final String CLIENT_TRUST_STORE = "certs/client-truststore.jks";
+    private static final char[] DO_NOT_PASS_PASSWORD_THIS_WAY_CLIENT_2 = "truststorepass".toCharArray(); //This should be inject using secret management
+
+    public SSLContext sslContext() {
+        var trustManagers = serversTrustManager(CLIENT_TRUST_STORE, DO_NOT_PASS_PASSWORD_THIS_WAY_CLIENT_2);
+        var keyManager = clientsKeyManager(CLIENT_CER_PATH, DO_NOT_PASS_PASSWORD_THIS_WAY_CLIENT);
+
+        try {
+            var sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(keyManager, trustManagers, null);
+            SSLContext.setDefault(sslContext);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private TrustManager[] serversTrustManager(String path, char[] password) {
+        try {
+            var certificateAsInputStream = this.getClass().getClassLoader().getResourceAsStream(path);
+            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(certificateAsInputStream, password);
+
+            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(keyStore);
+
+            return trustManagerFactory.getTrustManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException | CertificateException | IOException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private KeyManager[] clientsKeyManager(String path, char[] password) {
+        try {
+            var certificateAsInputStream = this.getClass().getClassLoader().getResourceAsStream(path);
+            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(certificateAsInputStream, password);
+
+            var keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, password);
+
+            return keyManagerFactory.getKeyManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException | UnrecoverableKeyException | CertificateException | IOException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+}
+```
 
 ## Custom ``CompositeX509ExtendedTrustManager``
 
@@ -1137,6 +1416,7 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 
 # Misc
 
+VM debug flags for SSL:
 ```
 -Djavax.net.debug=ssl,handshake
 ```
@@ -1154,18 +1434,3 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 * https://dzone.com/articles/hakky54mutual-tls-1
 * https://www.baeldung.com/x-509-authentication-in-spring-security
 * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/package-summary.html
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
