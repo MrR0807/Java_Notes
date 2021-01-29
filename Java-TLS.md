@@ -47,6 +47,7 @@ public class UnSecureServer {
         var server = HttpServer.create(new InetSocketAddress(8080), 0);
         server.createContext("/hello", new HelloController());
         server.start();
+        System.out.println("Server is ready to receive requests");
     }
 
     private static class HelloController implements HttpHandler {
@@ -77,7 +78,12 @@ keytool -v -genkeypair -keystore server-identity.jks -dname "CN=test, OU=Unknown
 ```
 
 To read more about parameters refer to "When your application is a server, which sends a certificate to the client (one-way TLS)". 
-I've placed generated ``server-identity.jks`` under ``src/main/resources/server``.
+I've placed generated ``server-identity.jks`` under ``src/main/resources/server``. Also extract public key. It will be used by client later on:
+```
+keytool -v -exportcert -file server.cer -alias server -keystore server-identity.jks -storepass secret -rfc
+```
+
+Move generated ``server.cer`` to ``src/main/resources/certs``.
 
 ```
 public class SecureServer {
@@ -96,6 +102,7 @@ public class SecureServer {
         });
         server.createContext("/hello", new HelloController());
         server.start();
+        System.out.println("Server is ready to receive requests");
     }
 
     private static KeyManager[] createKeyManagers() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
@@ -169,11 +176,13 @@ public class TestCommunicationWithServer {
 }
 ```
 
+**When testing communication with ``SecureServer``, don't forget to change URL to: ``https://localhost:8443/hello``**.
+
 ## When your applications is a client, which trusts all TLS certificates
 
 ### What you'll need
 
-Nothing. Code works without any additional steps, but it's **unsafe**.
+Running ``SecureServer`` to test client. **Do not use this in production, because it's unsafe.**
 
 ### Creating SSLContext
 ```
@@ -262,13 +271,13 @@ There are a couple of strategies to implement this:
 * Download/Generate and place certificate within application ``resources``;
 * Mount application on volume containing certificate;
 * Create new ``TrustStore`` with only organization certificates via ``keytool``;
-* Build docker image which would contain correct ``TrustStore``;
+* Build docker image which contains correct ``TrustStore``.
 
 ### Download and place certificate within application ``resources`` and create ``TrustStore`` with only organisation certificate
 
 #### What you'll need
 
-Organization certificate. Preferably both root CA and issuing CAs certificate.
+Organization certificate, preferably both root CA and issuing CAs certificate. Or ``SecureServer`` certificate from "Playground" section. 
 
 #### Creating SSLContext
 
@@ -281,7 +290,7 @@ public class ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem 
             "alias2", "certs/cert2.crt"
     );
 
-    public SSLContext onlyTrustOrganisationCertificates() {
+    public SSLContext sslContext() {
         var keyStore = organisationCertificateKeyStore();
         var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
 
@@ -310,7 +319,7 @@ public class ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem 
             keyStore.load(null); //To create an empty keystore pass null as the InputStream argument [from JavaDocs]
 
             for (var certificateAliasAndPath : ALIAS_AND_CERTIFICATE_PATHS.entrySet()) {
-                //Read certificate file as bytes. Using classLoader instead of Files due to how resources are read differently when they're packaged in a JAR
+                //Read certificate file as bytes. Using classLoader instead of Files due to have resources are read differently when they're packaged in a JAR
                 var organisationRootCertBytes = this.getClass().getClassLoader().getResourceAsStream(certificateAliasAndPath.getValue()).readAllBytes();
                 var certificateFactory = CertificateFactory.getInstance("X.509");//Currently, there is only one type of factory
                 var certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(organisationRootCertBytes));
@@ -329,7 +338,7 @@ public class ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem 
 public class TrustingHttpClientConfiguration {
 
     public static HttpClient httpClient() {
-        var sslContext = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem().onlyTrustOrganisationCertificates();
+        var sslContext = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem().sslContext();
 
         return HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -350,7 +359,7 @@ public class TrustingRestTemplateConfiguration {
     @Bean
     public static RestTemplate restTemplate(RestTemplateBuilder builder) {
         var restTemplate = builder.build();
-        var sslContext = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem().onlyTrustOrganisationCertificates();
+        var sslContext = new ReadCertificatesFromResourcesAndCreateTrustStoreOnlyContainingThem().sslContext();
 
         var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
         var requestFactory = new HttpComponentsClientHttpRequestFactory();
@@ -385,23 +394,23 @@ TODO
 
 #### What you'll need
 
-Organization certificate. Preferably both root CA and issuing CAs certificate.
+Organization certificate, preferably both root CA and issuing CAs certificate. Or ``SecureServer`` certificate from "Playground" section.
 
 #### Creating ``TrustStore`` with ``keytool``
 
 Create new TrustStore using ``keytool``:
 ```
-keytool -v -importcert -file organization.cer -alias organizationCer1 -keystore truststore.jks -storepass truststorepass -noprompt
+keytool -v -importcert -file organization.cer -alias organizationCer1 -keystore client-truststore.jks -storepass truststorepass -noprompt
 ```
 
 #### Creating SSLContext
 
-Place ``truststore.jks`` into ``resources/certs`` and then create ``SSLContext``:
+Place ``client-truststore.jks`` into ``resources/certs`` and then create ``SSLContext``:
 
 ```
 public class SSLContextUsingExistingTrustStore {
 
-    private static final String SERVER_CER_PATH = "certs/truststore.jks";
+    private static final String SERVER_CER_PATH = "certs/client-truststore.jks";
     private static final char[] DO_NOT_PASS_PASSWORD_THIS_WAY = "truststorepass".toCharArray(); //This should be inject using secret management
 
     public SSLContext sslContext() {
@@ -411,7 +420,6 @@ public class SSLContextUsingExistingTrustStore {
         try {
             var sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, trustManagers, null);
-            SSLContext.setDefault(sslContext);
             return sslContext;
         } catch (NoSuchAlgorithmException | KeyManagementException e) {
             throw new RuntimeException("Couldn't initialize", e);
@@ -442,6 +450,8 @@ public class SSLContextUsingExistingTrustStore {
 }
 ```
 
+In clients use ``SSLContextUsingExistingTrustStore`` to generate ``SSLContext``.
+
 #### Use created ``TrustStore`` via Java's properties
 
 Following [JSSE documentation](https://docs.oracle.com/en/java/javase/15/security/java-secure-socket-extension-jsse-reference-guide.html#GUID-460C3E5A-A373-4742-9E84-EB42A7A3C363), one can do like so:
@@ -449,7 +459,7 @@ Following [JSSE documentation](https://docs.oracle.com/en/java/javase/15/securit
 public class TestCommunicationWithServer {
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        System.setProperty("javax.net.ssl.trustStore", "src/main/resources/certs/truststore.jks");
+        System.setProperty("javax.net.ssl.trustStore", "src/main/resources/certs/client-truststore.jks");
         System.setProperty("javax.net.ssl.trustStorePassword", "truststorepass");
 
         var httpClient = HttpClient.newHttpClient();
@@ -463,16 +473,16 @@ public class TestCommunicationWithServer {
 }
 ```
 
-Notice that then, I can use default ``HttpClient`` without needing to build one with custom ``SSLContext``.
+Notice that I can use default ``HttpClient`` without needing to build one with custom ``SSLContext``.
 
 #### Use created ``TrustStore`` via Java's VM options
 
 Or, I can start Java application with properties like so:
 ```
-java -Djavax.net.ssl.trustStore=src/main/resources/certs/truststore.jks -Djavax.net.ssl.trustStorePassword=truststorepass MyApp
+java -Djavax.net.ssl.trustStore=src/main/resources/certs/client-truststore.jks -Djavax.net.ssl.trustStorePassword=truststorepass MyApp
 ```
 
-Then my client can be very simple:
+Then client is very simple:
 ```
 public class TestCommunicationWithServer {
 
@@ -488,17 +498,44 @@ public class TestCommunicationWithServer {
 }
 ```
 
+### Build docker image which contains correct ``TrustStore``
+
+TODO
+
+#### What you'll need
+
+TODO
+
+#### Creating SSLContext
+
+TODO
+
+#### Java's HTTP Client
+
+TODO
+
+#### Spring's RestTemplate
+
+TODO
+
 ## When your applications is a client, which trusts your organization and default Java's certificates
 
 There are a couple of strategies to implement this:
 * Download/Generate and place your organization certificate within application ``resources``;
 * Mount application on volume containing your organization certificate;
-* Import certificate into Java's default ``TrustStore``.
+* Import certificate into Java's default ``TrustStore``;
+* Build docker image which contains correct ``TrustStore``.
 
 ### Download and place certificate within application ``resources``, create ``TrustStore`` and merge with default Java's ``TrustStore``
 
+#### What you'll need
+
+Organization certificate, preferably both root CA and issuing CAs certificate. Or ``SecureServer`` certificate from "Playground" section.
+
+#### Creating SSLContext
+
 To understand in depth why ``CompositeX509ExtendedTrustManager`` is required, refer to "Custom ``CompositeX509ExtendedTrustManager``" section. I've placed code regarding that class 
-in mentioned section as well, thus I won't repeat it here.
+in mentioned section as well, hence I won't repeat it here.
 
 ```
 public class SSLContextUsingCustomCertsAndDefault {
@@ -516,7 +553,6 @@ public class SSLContextUsingCustomCertsAndDefault {
         try {
             var sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[]{compositeTrustManager}, null);
-            SSLContext.setDefault(sslContext);
             return sslContext;
         } catch (NoSuchAlgorithmException | KeyManagementException e) {
             throw new RuntimeException("Couldn't initialize", e);
@@ -553,11 +589,11 @@ public class SSLContextUsingCustomCertsAndDefault {
 }
 ```
 
-The code is pretty much the same as in the last section, the only difference is this line: ```var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);``` and: 
+The code should be familiar, the only difference is this line: ```var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);``` and: 
 ```sslContext.init(null, new TrustManager[]{compositeTrustManager}, null);```. 
 
 The latter is quite self-explanatory, because of method signature ```public final void init(KeyManager[] km, TrustManager[] tm, SecureRandom random)```. As stated in
-"Custom ``CompositeX509ExtendedTrustManager``" section, this is an example of bad Java's API, because ``SSLContext`` only uses one TrustManager (first one it finds).
+"Custom ``CompositeX509ExtendedTrustManager``" section, this is an example of bad Java's API, because ``SSLContext`` only uses one TrustManager (first one it finds), however accepts an array, which is misleading.
 
 The formal is where we create our new ``compositeTrustManager``, which contains both default and custom ``KeyStore``s. We can easily count/list all certificates, by adding a ``println`` 
 in ``sslContext`` method:
@@ -601,11 +637,13 @@ public SSLContext sslContext() {
 
     System.out.println("-".repeat(10));
     Stream.of(compositeTrustManager.getAcceptedIssuers())
-            .map(x509Certificate -> x509Certificate.getIssuerDN())
+            .map(X509Certificate::getIssuerDN)
             .forEach(System.out::println);
     System.out.println("-".repeat(10));
 ...
 ```
+
+At the end of the list, you should see your added certificates as well.
 
 ##### Java's HTTP Client
 ```
@@ -648,12 +686,68 @@ public class TrustingRestTemplateConfiguration {
 
 TODO
 
+#### What you'll need
+
+TODO
+
+#### Creating SSLContext
+
+TODO
+
+#### Java's HTTP Client
+
+TODO
+
+#### Spring's RestTemplate
+
+TODO
+
 ### Import certificate into Java's default ``TrustStore``
 
 My Java placed in ``C:\Program Files\Java\jdk-15\lib\security>``. There is a file called ``cacerts``. This is default Java's ``TrustStore``. Using keytool import server certificate:
 ```
 keytool -import -alias server -keystore "C:\Program Files\Java\jdk-15\lib\security\cacerts" -file server.cer -storepass changeit
 ```
+
+**You need to run ``cmd`` in Admin mode. And don't forget to create a copy of cacerts to later on rollback to default.**
+
+Then your ``TestCommunicationWithServer`` can be as simple as:
+```
+public class TestCommunicationWithServer {
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        var httpClient = HttpClient.newHttpClient();
+
+        var request = HttpRequest.newBuilder(URI.create("https://localhost:8443/hello")).build();
+        var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        System.out.println(response);
+        System.out.println(response.body());
+    }
+}
+```
+
+
+### Build docker image which contains correct ``TrustStore``
+
+TODO
+
+#### What you'll need
+
+TODO
+
+#### Creating SSLContext
+
+TODO
+
+#### Java's HTTP Client
+
+TODO
+
+#### Spring's RestTemplate
+
+TODO
+
 
 ## When your application is a server, which sends a certificate to the client (one-way TLS)
 
@@ -669,22 +763,7 @@ public class HelloController {
 }
 ```
 
-Create a separate Java program, to interact with the server (from here on **client**):
-```
-public class TestCommunicationWithServer {
-
-    public static void main(String[] args) throws IOException, InterruptedException {
-        var httpClient = HttpClient.newHttpClient();
-
-        var request = HttpRequest.newBuilder(URI.create("http://localhost:8080/hello")).build();
-        var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        
-        System.out.println(response);
-    }
-}
-```
-
-Run to test that it's working:
+Run ``TestCommunicationWithServer`` to validate that it's working (note that we're currently calling ``http://localhost:8080/hello``):
 ```
 (GET http://localhost:8080/hello) 200
 ```
@@ -741,7 +820,7 @@ This means that the client wants to communicate over HTTPS and during the handsh
 
 ### Export certificate of the server
 ```
-keytool -v -exportcert -file server.cer -alias server -keystore identity.jks -storepass secret -rfc
+keytool -v -exportcert -file server.cer -alias server -keystore server-identity.jks -storepass secret -rfc
 ```
 
 You'll get ``server.cer`` which can be used by the client in following already outlined strategies ``When your applications is a client, which trusts all TLS certificates``, 
@@ -1075,3 +1154,18 @@ public class CompositeX509ExtendedTrustManager extends X509ExtendedTrustManager 
 * https://dzone.com/articles/hakky54mutual-tls-1
 * https://www.baeldung.com/x-509-authentication-in-spring-security
 * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/package-summary.html
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
