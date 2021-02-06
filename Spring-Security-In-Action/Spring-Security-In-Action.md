@@ -270,12 +270,55 @@ With default configuration, all the endpoints assume you have a valid user manag
 
 To make such changes, we start by extending the ``WebSecurityConfigurerAdapter`` class. Extending this class allows us to override the ``configure(HttpSecurity http)`` method as presented in the next listing.
 
+The code configures endpoint authorization with the same behavior as the default one:
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
 
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var userDetailsManager = new InMemoryUserDetailsManager();
 
+        var user = User.withUsername("jhon")
+                .password("12345")
+                .authorities("read")
+                .build();
 
+        userDetailsManager.createUser(user);
 
+        return userDetailsManager;
+    }
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+With a slight change, you can make all the endpoints accessible without the need for credentials. You’ll see how to do this in the following listing.
+```
+@Override
+protected void configure(HttpSecurity http) throws Exception {
+    http.httpBasic();
+    http.authorizeRequests().anyRequest().permitAll();
+}
+```
+
+Now, we can call the ``/hello`` endpoint without the need for credentials:
+```
+curl http://localhost:8080/hello
+```
+Response:
+```
+Hello!
+```
 
 
 
