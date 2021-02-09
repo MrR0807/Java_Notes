@@ -413,6 +413,161 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
 Generally, I don’t recommend this approach, as I find it better to separate and write responsibilities as decoupled as possible in an application.
 
+### Overriding the AuthenticationProvider implementation
+
+It’s time to learn that you can also customize the component that delegates to these, the ``AuthenticationProvider``.
+
+![AuthenticationProvider.PNG](pictures/AuthenticationProvider.PNG)
+
+Figure 2.3 shows the ``AuthenticationProvider``, which implements the authentication logic and delegates to the ``UserDetailsService`` and ``PasswordEncoder`` for user and password management. So we could say that with this section, we go one step deeper in the authentication and authorization architecture to learn how to implement custom authentication logic with ``AuthenticationProvider``.
+
+I recommend that you respect the responsibilities as designed in the Spring Security architecture. This architecture is loosely coupled with fine-grained responsibilities. That design is one of the things that makes Spring Security flexible and easy to integrate in your applications. But depending on how you make use of its flexibility, you could change the design as well. You have to be careful with these approaches as they can complicate your solution. For example, you could choose to override the default ``AuthenticationProvider`` in a way in which you no longer need a ``UserDetailsService`` or ``PasswordEncoder``.
+
+```
+@Component
+public class CustomAuthProvider implements AuthenticationProvider {
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        var username = authentication.getName();
+        var password = String.valueOf(authentication.getCredentials());
+
+        if ("john".equals(username) && "12345".equals(password)) {
+            return new UsernamePasswordAuthenticationToken(username, password, List.of());
+        } else {
+            throw new AuthenticationCredentialsNotFoundException("Error!");
+        }
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+}
+```
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    private final AuthenticationProvider authenticationProvider;
+
+    public ProjectConfig(AuthenticationProvider authenticationProvider) {
+        this.authenticationProvider = authenticationProvider;
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) {
+        auth.authenticationProvider(authenticationProvider);
+    }
+}
+```
+
+### Using multiple configuration classes in your project
+
+It is, good practice to separate the responsibilities even for the configuration classes. For this example, we can separate user management configuration from authorization configuration. We do that by defining two configuration classes: ``UserManagementConfig`` and ``WebAuthorizationConfig``.
+
+# Chapter 3. Managing users
+
+This chapter is about understanding in detail one of the fundamental roles you encountered in the first example we worked on in chapter 2 - the ``UserDetailsService``. Along with the ``UserDetailsService``, we’ll discuss:
+* ``UserDetails``, which describes the user for Spring Security.
+* ``GrantedAuthority``, which allows us to define actions that the user can execute.
+* ``UserDetailsManager``, which extends the ``UserDetailsService`` contract. Beyond the inherited behavior, it also describes actions like creating a user and modifying or deleting a user’s password.
+
+## Implementing authentication in Spring Security
+
+Figure 3.1 presents the authentication flow in Spring Security. This architecture is the backbone of the authentication process as implemented by Spring Security. **It’s really important to understand it because you’ll rely on it in any Spring Security implementation.**
+
+In figure 3.1, the shaded boxes represent the components that we start with: the ``UserDetailsService`` and the ``PasswordEncoder``. These two components focus on the part of the flow that I often refer to as **“the user management part.”** In this chapter, the ``UserDetailsService`` and the ``PasswordEncoder`` are the components that **deal directly with user details and their credentials.**
+
+![user-management-part.PNG](pictures/user-management-part.PNG)
+
+As part of user management, we use the ``UserDetailsService`` and ``UserDetailsManager`` interfaces:
+* The ``UserDetailsService`` is only responsible for retrieving the user by username. This action is the only one needed by the framework to complete authentication.
+* The ``UserDetailsManager`` adds behavior that refers to adding, modifying, or deleting the user, which is a required functionality in most applications.
+
+If the app only needs to authenticate the users, then implementing the ``UserDetailsService`` contract is enough to cover the desired functionality. To manage the users, ``UserDetailsService`` and the ``UserDetailsManager`` components need a way to represent them.
+
+Spring Security offers the ``UserDetails`` contract, which you have to implement to describe a user in the way the framework understands.
+Spring Security represents the actions that a user can do with the ``GrantedAuthority`` interface. We often call these **authorities**, and a user has one or more authorities.
+
+![user-details-granted-authority-manager-service-relationship.PNG](pictures/user-details-granted-authority-manager-service-relationship.PNG)
+
+## Describing the user
+
+In this section, you’ll learn how to describe the users of your application such that Spring Security understands them. Learning how to represent users and make the framework aware of them is an essential step in building an authentication flow.
+
+For Spring Security, a user definition should respect the ``UserDetails`` contract. The ``UserDetails`` contract represents the user as understood by Spring Security. The class of your application that describes the user has to implement this interface, and in this way, the framework understands it.
+
+### Demystifying the definition of the UserDetails contract
+
+```
+public interface UserDetails extends Serializable {
+
+	Collection<? extends GrantedAuthority> getAuthorities();
+
+	String getPassword();
+
+	String getUsername();
+
+	boolean isAccountNonExpired();
+
+	boolean isAccountNonLocked();
+
+	boolean isCredentialsNonExpired();
+
+	boolean isEnabled();
+}
+```
+
+The ``getUsername()`` and ``getPassword()`` methods return, as you’d expect, the username and the password. The app uses these values in the process of authentication, and these are the only details related to authentication from this contract. The other five methods all relate to authorizing the user for accessing the application’s resources.
+
+We say a user has or hasn’t the privilege to perform an action, and an authority represents the privilege a user has. We implement the ``getAuthorities()`` method to return the group of authorities granted for a user.
+
+Furthermore, as seen in the UserDetails contract, a user can
+* Let the account expire
+* Lock the account
+* Let the credentials expire
+* Disable the account
+
+Not all applications have accounts that expire or get locked with certain conditions. **If you do not need to implement these functionalities in your application, you can simply make these four methods return true.**
+
+### Detailing on the GrantedAuthority contract
+
+The authorities represent what the user can do in your application. Without authorities, all users would be equal. While there are simple applications in which the users are equal, in most practical scenarios, an application defines multiple kinds of users. **To describe the authorities in Spring Security, you use the ``GrantedAuthority`` interface.**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
