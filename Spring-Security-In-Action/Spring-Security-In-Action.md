@@ -25,9 +25,9 @@ Depending on how you implement your web application, there are various ways an i
 
 ### What is cross-site scripting (XSS)?
 
-Cross-site scripting, also referred to as XSS, allows the injection of client-side scripts into web services exposed by the server, thereby permitting other users to run these. Before being used or even stored, you should properly “sanitize” the request to avoid undesired executions of foreign scripts. 
+Cross-site scripting, also referred to as XSS, allows the injection of client-side scripts into web services exposed by the server, thereby permitting other users to run these. Before being used or even stored, you should properly “sanitize” the request to avoid undesired executions of foreign scripts.
 
-Let’s take an example. A user posts a message or a comment in a web application. After posting the message, the site displays it so that everybody visiting the page can see it. 
+Let’s take an example. A user posts a message or a comment in a web application. After posting the message, the site displays it so that everybody visiting the page can see it.
 
 ![cross-site-scripting.PNG](pictures/cross-site-scripting.PNG)
 
@@ -48,7 +48,7 @@ Be careful of what your server returns to the client, especially, but not limite
 
 ### What is the lack of method access control?
 
-Even at the application level, you don’t apply authorization to only one of the tiers. Say you have a web application with a straightforward design. The app has a controller exposing endpoints. The controller directly calls a service that implements some logic and that uses persisted data managed through a repository. Imagine a situation where the authorization is done only at the endpoint level. 
+Even at the application level, you don’t apply authorization to only one of the tiers. Say you have a web application with a straightforward design. The app has a controller exposing endpoints. The controller directly calls a service that implements some logic and that uses persisted data managed through a repository. Imagine a situation where the authorization is done only at the endpoint level.
 
 In this case, some future implementation could expose that use case without testing or without testing all the authorization requirements.
 
@@ -78,7 +78,7 @@ First, **CSRF and CORS configurations are usually more complicated.** You might 
 
 **The most straightforward but least desirable approach as a practical solution is to use HTTP Basic for endpoint authentication.** While this approach is direct to understand and generally used with the first theoretical examples of authentication, it does have leaks that you want to avoid. For example, using HTTP Basic implies sending the credentials with each call. Credentials aren’t encrypted. The browser sends the username and the passwords as a Base64 encoding.
 
-Alternative for authentication and authorization that offers a better approach, the **OAuth 2** flow. 
+Alternative for authentication and authorization that offers a better approach, the **OAuth 2** flow.
 
 ### Understanding the OAuth 2 flow
 
@@ -87,9 +87,9 @@ We certainly want to find a solution to avoid resending credentials for each of 
 The OAuth 2 framework defines two separate entities: the *authorization server* and the *resource server*. The purpose of the authorization server is to authorize the user and provide them with a token that specifies, among other things, a set of privileges that they can use. The part of the backend implementing this functionality is called the resource server. The endpoints that can be called are considered *protected resources*. Based on the obtained token, and after accomplishing authorization, a call on a resource is permitted or rejected.
 
 1. The user accesses a use case in the application (also known as the client). The application needs to call a resource in the backend.
-2 To be able to call the resource, the application first has to obtain an access token, so it calls the authorization server to get the token. In the request, it sends the user credentials or a **refresh token**, in some cases.
-3 If the credentials or the **refresh token** are correct, the authorization server returns a (new) access token to the client.
-4 The header of the request to the resource server uses the access token when calling the needed resources.
+   2 To be able to call the resource, the application first has to obtain an access token, so it calls the authorization server to get the token. In the request, it sends the user credentials or a **refresh token**, in some cases.
+   3 If the credentials or the **refresh token** are correct, the authorization server returns a (new) access token to the client.
+   4 The header of the request to the resource server uses the access token when calling the needed resources.
 
 ![oauth2-flow.PNG](pictures/oauth2-flow.PNG)
 
@@ -170,19 +170,19 @@ In this section, we discuss the main actors in the overall architecture that tak
 
 ![main-actors-of-spring-security.PNG](pictures/main-actors-of-spring-security.PNG)
 
-Let’s start with the way you provide the needed credentials for authentication. 
+Let’s start with the way you provide the needed credentials for authentication.
 **An object that implements a ``UserDetailsService`` contract with Spring Security manages the details about users.** Until now, we used the default implementation provided by Spring Boot. This implementation only registers the default credentials in the internal memory of the application. These default credentials are “user” with a default password that’s a universally unique identifier (UUID). This password is randomly generated when the Spring context is loaded.
 
 And then we have the PasswordEncoder. The PasswordEncoder does two things:
 * Encodes a password
 * Verifies if the password matches an existing encoding
-Even if it’s not as obvious as the ``UserDetailsService`` object, the ``PasswordEncoder`` is mandatory for the Basic authentication flow. For now, you should be **aware that a ``PasswordEncoder`` exists together with the default ``UserDetailsService``. When we replace the default implementation of the ``UserDetailsService``, we must also specify a ``PasswordEncoder``.**
+  Even if it’s not as obvious as the ``UserDetailsService`` object, the ``PasswordEncoder`` is mandatory for the Basic authentication flow. For now, you should be **aware that a ``PasswordEncoder`` exists together with the default ``UserDetailsService``. When we replace the default implementation of the ``UserDetailsService``, we must also specify a ``PasswordEncoder``.**
 
 
 The ``AuthenticationProvider`` defines the authentication logic, delegating the user and password management. A default implementation of the ``AuthenticationProvider`` uses the default implementations provided for the ``UserDetailsService`` and the ``PasswordEncoder``.
 
 ## Overriding default configurations
- 
+
 You need to understand the options you have for overriding the default components because this is the way you plug in your custom implementations and apply security as it fits your application. With the projects we’ll work on, **you’ll often find multiple ways to override a configuration. This flexibility can create confusion. I frequently see a mix of different styles of configuring different parts of Spring Security in the same application, which is undesirable.**
 
 ### Overriding the UserDetailsService component
@@ -206,7 +206,7 @@ If you execute the code exactly as it is now, you’ll no longer see the autogen
 * You don’t have any users.
 * You don’t have a ``PasswordEncoder``.
 
-Let’s solve these two issues step by step. We need to: 
+Let’s solve these two issues step by step. We need to:
 * Create at least one user who has a set of credentials (username and password).
 * Add the user to be managed by our implementation of ``UserDetailsService``.
 * Define a bean of the type ``PasswordEncoder`` that our application can use to verify a given password with the one stored and managed by ``UserDetailsService``.
@@ -223,7 +223,7 @@ public class ProjectConfig {
     public UserDetailsService userDetailsService() {
         var userDetailsManager = new InMemoryUserDetailsManager();
 
-        var user = User.withUsername("jhon")
+        var user = User.withUsername("john")
                 .password("12345")
                 .authorities("read")
                 .build();
@@ -242,7 +242,7 @@ The client gets back an HTTP 401 Unauthorized message and an empty response body
 curl -u john:12345 http://localhost:8080/hello
 ```
 
-The result of the call in the app’s console is: 
+The result of the call in the app’s console is:
 ```
 java.lang.IllegalArgumentException: There is no PasswordEncoder mapped for the id "null"
 at org.springframework.security.crypto.password .DelegatingPasswordEncoder$UnmappedIdPasswordEncoder
@@ -261,7 +261,7 @@ public PasswordEncoder passwordEncoder() {
 
 Let’s try the endpoint with the new user having the username John and the password 12345:
 ```
-curl -u jhon:12345 http://localhost:8080/hello
+curl -u john:12345 http://localhost:8080/hello
 ```
 
 ### Overriding the endpoint authorization configuration
@@ -285,7 +285,7 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
     public UserDetailsService userDetailsService() {
         var userDetailsManager = new InMemoryUserDetailsManager();
 
-        var user = User.withUsername("jhon")
+        var user = User.withUsername("john")
                 .password("12345")
                 .authorities("read")
                 .build();
@@ -322,7 +322,7 @@ Hello!
 
 ### Setting the configuration in different ways
 
-One of the confusing aspects of creating configurations with Spring Security is having multiple ways to configure the same thing. In this section, you’ll learn alternatives for configuring ``UserDetailsService`` and ``PasswordEncoder``. 
+One of the confusing aspects of creating configurations with Spring Security is having multiple ways to configure the same thing. In this section, you’ll learn alternatives for configuring ``UserDetailsService`` and ``PasswordEncoder``.
 
 In the configuration class, instead of defining these two objects as beans, we set them up through the ``configure(AuthenticationManagerBuilder auth)`` method. We override this method from the ``WebSecurityConfigurerAdapter`` class and use its parameter of type ``AuthenticationManagerBuilder`` to set both the ``UserDetailsService`` and the ``PasswordEncoder`` as shown in the following listing.
 
@@ -340,7 +340,7 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         var userDetailsManager = new InMemoryUserDetailsManager();
 
-        var user = User.withUsername("jhon")
+        var user = User.withUsername("john")
                 .password("12345")
                 .authorities("read")
                 .build();
@@ -370,7 +370,7 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         var userDetailsManager = new InMemoryUserDetailsManager();
 
-        var user = User.withUsername("jhon")
+        var user = User.withUsername("john")
                 .password("12345")
                 .authorities("read")
                 .build();
@@ -402,7 +402,7 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         auth.inMemoryAuthentication()
-                .withUser("jhon")
+                .withUser("john")
                 .password("12345")
                 .authorities("read")
                 .and()
