@@ -322,15 +322,96 @@ Hello!
 
 ### Setting the configuration in different ways
 
+One of the confusing aspects of creating configurations with Spring Security is having multiple ways to configure the same thing. In this section, you’ll learn alternatives for configuring ``UserDetailsService`` and ``PasswordEncoder``. 
 
+In the configuration class, instead of defining these two objects as beans, we set them up through the ``configure(AuthenticationManagerBuilder auth)`` method. We override this method from the ``WebSecurityConfigurerAdapter`` class and use its parameter of type ``AuthenticationManagerBuilder`` to set both the ``UserDetailsService`` and the ``PasswordEncoder`` as shown in the following listing.
 
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
 
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        var userDetailsManager = new InMemoryUserDetailsManager();
 
+        var user = User.withUsername("jhon")
+                .password("12345")
+                .authorities("read")
+                .build();
 
+        userDetailsManager.createUser(user);
 
+        auth.userDetailsService(userDetailsManager).passwordEncoder(NoOpPasswordEncoder.getInstance());
+    }
+}
+```
 
+The difference is that now this is done locally inside the second overridden method. We also call the ``userDetailsService()`` method from the ``AuthenticationManagerBuilder`` to register the UserDetailsService instance.
 
+Mixing two is bad practice:
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        var userDetailsManager = new InMemoryUserDetailsManager();
+
+        var user = User.withUsername("jhon")
+                .password("12345")
+                .authorities("read")
+                .build();
+
+        userDetailsManager.createUser(user);
+
+        auth.userDetailsService(userDetailsManager);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+Using the ``AuthenticationManagerBuilder``, you can configure users for authentication directly. It creates the ``UserDetailsService`` for you in this case. The syntax, however, becomes even more complex and could be considered difficult to read. I’ve seen this choice more than once, even with production-ready systems.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.inMemoryAuthentication()
+                .withUser("jhon")
+                .password("12345")
+                .authorities("read")
+                .and()
+                .passwordEncoder(NoOpPasswordEncoder.getInstance());
+    }
+}
+```
+
+Generally, I don’t recommend this approach, as I find it better to separate and write responsibilities as decoupled as possible in an application.
 
 
 
