@@ -542,8 +542,22 @@ Not all applications have accounts that expire or get locked with certain condit
 
 The authorities represent what the user can do in your application. Without authorities, all users would be equal. While there are simple applications in which the users are equal, in most practical scenarios, an application defines multiple kinds of users. **To describe the authorities in Spring Security, you use the ``GrantedAuthority`` interface.**
 
+It represents a privilege granted to the user. A user can have none to any number of authorities, and usually, they have at least one. Here’s the implementation of the ``GrantedAuthority`` definition:
+```
+public interface GrantedAuthority extends Serializable {
+  String getAuthority();
+}
+```
 
+To create an authority, you only need to find a name for that privilege so you can refer to it later when writing the authorization rules. 
 
+In this chapter, we’ll implement the ``getAuthority()`` method to return the authority’s name as a ``String``. The ``SimpleGrantedAuthority`` class offers a way to create immutable instances of the type ``GrantedAuthority``. Here we make use of a lambda expression and then use the ``SimpleGrantedAuthority`` class:
+```
+GrantedAuthority g1 = () -> "READ";
+GrantedAuthority g2 = new SimpleGrantedAuthority("READ");
+```
+
+### Writing a minimal implementation of UserDetails
 
 
 
