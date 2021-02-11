@@ -559,14 +559,170 @@ GrantedAuthority g2 = new SimpleGrantedAuthority("READ");
 
 ### Writing a minimal implementation of UserDetails
 
+We start with a basic implementation in which each method returns a static value. Then we change it to a version that you’ll more likely find in a practical scenario, and one that allows you to have multiple and different instances of users.
 
+With a class named DummyUser, let’s implement a minimal description of a user.
 
+```
+public class DummyUser implements UserDetails {
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(() -> "READ");
+    }
 
+    @Override
+    public String getPassword() {
+        return "12345";
+    }
 
+    @Override
+    public String getUsername() {
+        return "bill";
+    }
 
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
 
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
 
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+}
+```
+
+This minimal implementation means that all instances of the class represent the same user.
+
+For a real application, you should create a class that you can use to generate instances that can represent different users. In this case, your definition would at least have the username and the password as attributes in the class.
+
+```
+public class SimpleUser implements UserDetails {
+    
+    private final String username;
+    private final String password;
+
+    public SimpleUser(String username, String password) {
+        this.username = username;
+        this.password = password;
+    }
+
+    @Override
+    public String getUsername() {
+        return this.username;
+    }
+
+    @Override
+    public String getPassword() {
+        return this.password;
+    }
+    ...
+}
+```
+
+### Using a builder to create instances of the UserDetails type
+
+Some applications are simple and don’t need a custom implementation of the ``UserDetails`` interface. In this section, we take a look at using a builder class provided by Spring Security to create simple user instances. Building the user in this way, you don’t need to have an implementation of the ``UserDetails`` contract:
+```
+UserDetails u = User.withUsername("bill")
+                .password("12345")
+                .authorities("read", "write")
+                .accountExpired(false)
+                .disabled(true)
+                .build();
+```
+
+### Combining multiple responsibilities related to the user
+
+In most cases, you find multiple responsibilities to which a user relates. And if you store users in a database, and then in the application, you would need a class to represent the persistence entity as well. Let’s consider we have a table in an SQL database in which we store the users. To make the example shorter, we give each user only one authority.
+
+```
+@Entity
+public class User {
+    @Id
+    private Long id;
+    private String username;
+    private String password;
+    private String authority;
+// Omitted getters and setters
+}
+```
+
+If you make the same class also implement the Spring Security contract for user details, the class becomes more complicated. From my point of view, it is a mess. I would get lost in it.
+
+```
+@Entity
+public class User implements UserDetails {
+    @Id
+    private int id;
+    private String username;
+    private String password;
+    private String authority;
+    @Override
+    public String getUsername() {
+        return this.username;
+    }
+    @Override
+    public String getPassword() {
+        return this.password;
+    }
+    public String getAuthority() {
+        return this.authority;
+    }
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(() -> this.authority);
+    }
+// Omitted code
+}
+```
+
+How can we write this code to be cleaner? The root of the muddy aspect of the previous code example is a mix of two responsibilities. While it’s true that you need both in the application, in this case, nobody says that you have to put these into the same class. Let’s try to separate those by defining a separate class called ``SecurityUser``, which decorates the ``User`` class.
+```
+@Entity
+public class User {
+    @Id
+    private int id;
+    private String username;
+    private String password;
+    private String authority;
+// Omitted getters and setters
+}
+```
+
+```
+public class SecurityUser implements UserDetails {
+    private final User user;
+    public SecurityUser(User user) {
+        this.user = user;
+    }
+    @Override
+    public String getUsername() {
+        return user.getUsername();
+    }
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(() -> user.getAuthority());
+    }
+// Omitted code
+}
+```
+
+## Instructing Spring Security on how to manage users
 
 
 
