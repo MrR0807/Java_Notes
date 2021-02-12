@@ -982,16 +982,68 @@ uid: john
 userPassword: 12345
 ```
 
-In the LDIF file, I add only one user for which we need to test the app’s behavior at
-the end of this example. We can add the LDIF file directly to the resources folder.
-This way, it’s automatically in the classpath, so we can easily refer to it later. I named
-the LDIF file server.ldif. To work with LDAP and to allow Spring Boot to start an
-embedded LDAP server, you need to add pom.xml to the dependencies as in the following
-code snippet:
+In the LDIF file, I add only one user for which we need to test the app’s behavior at the end of this example. We can add the LDIF file directly to the ``resources`` folder. This way, it’s automatically in the classpath, so we can easily refer to it later. I named the LDIF file ``server.ldif``. To work with LDAP and to allow Spring Boot to start an embedded LDAP server, you need to add ``pom.xml`` to the dependencies as in the following code snippet:
+```
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-ldap</artifactId>
+</dependency>
 
+<dependency>
+    <groupId>com.unboundid</groupId>
+    <artifactId>unboundid-ldapsdk</artifactId>
+</dependency>
 
+```
 
+In the ``application.properties`` file, you also need to add the configurations for the embedded LDAP server as presented in the following code snippet. The values the app needs to boot the embedded LDAP server include the location of the LDIF file, a port for the LDAP server, and the base domain component (DN) label values:
+```
+spring:
+  ldap:
+    embedded:
+      ldif: classpath:server.ldif
+      base-dn: dc=springframework,dc=org
+      port: 33389
+```
 
+Once you have an LDAP server for authentication, you can configure your application to use it.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        //Creates a context source  to specify the address of  the LDAP server
+        var cs = new DefaultSpringSecurityContextSource("ldap://127.0.0.1:33389/dc=springframework,dc=org");
+        cs.afterPropertiesSet();
+
+        var manager = new LdapUserDetailsManager(cs);
+        //Sets a username mapper to instruct the LdapUserDetailsManager on how to search for users
+        manager.setUsernameMapper(new DefaultLdapUsernameToDnMapper("ou=groups", "uid"));
+        //Sets the group search base that the app needs to search for users
+        manager.setGroupSearchBase("ou=groups");
+        return manager;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+```
+curl -u john:12345 http://localhost:8080/hello
+```
+
+# Chapter 4. Dealing with passwords
 
 
 
