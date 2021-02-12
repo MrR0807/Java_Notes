@@ -160,8 +160,20 @@ Hello!
 
 With cURL, you can set the HTTP basic username and password with the -u flag. Behind the scenes, cURL encodes the string <username>:<password> in Base64
 and sends it as the value of the Authorization header prefixed with the string Basic. This call should generate the same result as the one using the ``-u`` option:
+
 ```
 curl -H "Authorization: Basic dXNlcjo5M2EwMWNmMC03OTRiLTRiOTgtODZlZi01NDg2MGYzNmY3ZjM=" localhost:8080/hello
+```
+
+## Logging Spring Security
+
+In ``application.yaml``:
+```
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
 ```
 
 ## Which are the default configurations?
@@ -871,11 +883,111 @@ The ``JdbcUserDetailsManager`` implementation expects **three columns in the use
 
 ![using-jdbcdetailsservicemanager.PNG](pictures/using-jdbcdetailsservicemanager.PNG)
 
+But the easiest would be to let Spring Boot itself run the scripts for you. To do this, just add two more files to your project in the resources folder: ``schema.sql`` and ``data.sql``.
+
+``schema.sql``:
+```
+CREATE TABLE IF NOT EXISTS users (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45) NOT NULL,
+    password    VARCHAR(45) NOT NULL,
+    enabled     BIT         NOT NULL,
+    PRIMARY KEY (id)
+);
 
 
+CREATE TABLE IF NOT EXISTS authorities (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45) NOT NULL,
+    authority   VARCHAR(45) NOT NULL,
+    PRIMARY KEY (id)
+);
+```
 
+``data.sql``:
+```
+INSERT INTO authorities VALUES (NULL, 'john', 'write');
+INSERT INTO users VALUES (NULL, 'john', '12345', 1);
+```
 
+The ``JdbcUserDetailsManager`` needs the ``DataSource`` to connect to the database.
 
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+Test:
+```
+curl -u john:12345 http://localhost:8080/hello
+```
+
+The ``JdbcUserDetailsManager`` also allows you to configure the queries used. In the previous example, we made sure we used the exact names for the tables and columns, as the ``JdbcUserDetailsManager`` implementation expects those. But it could be that for your application, these names are not the best choice.
+
+```
+@Bean
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        var usersByUsernameQuery = "SELECT username, password, enabled, FROM spring.users WHERE username = ?";
+        var authsByUserQuery = "SELECT username, authority FROM spring.authorities where username = ?";
+        var jdbcUserDetailsManager = new JdbcUserDetailsManager(dataSource);
+        jdbcUserDetailsManager.setUsersByUsernameQuery(usersByUsernameQuery);
+        jdbcUserDetailsManager.setAuthoritiesByUsernameQuery(authsByUserQuery);
+        return jdbcUserDetailsManager;
+    }
+```
+
+#### USING AN LDAPUSERDETAILSMANAGER FOR USER MANAGEMENT
+
+Spring Security also offers an implementation of ``UserDetailsManager`` for LDAP. In the project ssiach3-ex3, you can find a simple demonstration of using the ``LdapUserDetailsManager``. Because I can’t use a real LDAP server for this demonstration, I have set up an embedded one in my Spring Boot application. To set up the embedded LDAP server, I defined a simple LDAP Data Interchange Format (LDIF) file. The following listing shows the content of my LDIF file.
+```
+#Defines the base entity
+dn: dc=springframework,dc=org
+objectclass: top
+objectclass: domain
+objectclass: extensibleObject
+dc: springframework
+
+#Defines a group entity
+dn: ou=groups,dc=springframework,dc=org
+objectclass: top
+objectclass: organizationalUnit
+ou: groups
+
+#Defines a user
+dn: uid=john,ou=groups,dc=springframework,dc=org
+objectclass: top
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+cn: John
+sn: John
+uid: john
+userPassword: 12345
+```
+
+In the LDIF file, I add only one user for which we need to test the app’s behavior at
+the end of this example. We can add the LDIF file directly to the resources folder.
+This way, it’s automatically in the classpath, so we can easily refer to it later. I named
+the LDIF file server.ldif. To work with LDAP and to allow Spring Boot to start an
+embedded LDAP server, you need to add pom.xml to the dependencies as in the following
+code snippet:
 
 
 
