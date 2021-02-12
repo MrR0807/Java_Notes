@@ -849,9 +849,27 @@ curl -u john:12345 http://localhost:8080/hello
 
 ### Implementing the UserDetailsManager contract
 
+In this section, we discuss using and implementing the ``UserDetailsManager`` interface. This interface extends and adds more methods to the ``UserDetailsService`` contract. Spring Security needs the ``UserDetailsService`` contract to do the authentication. But generally, in applications, there is also a need for managing users. Most of the time, an app should be able to add new users or delete existing ones. In this case, we implement a more particular interface defined by Spring Security, the ``UserDetailsManager``. It extends ``UserDetailsService`` and adds more operations that we need to implement.
 
+```
+public interface UserDetailsManager extends UserDetailsService {
+    void createUser(UserDetails user);
+    void updateUser(UserDetails user);
+    void deleteUser(String username);
+    void changePassword(String oldPassword, String newPassword);
+    boolean userExists(String username);
+}
+```
 
+#### USING A JDBCUSERDETAILSMANAGER FOR USER MANAGEMENT
 
+The ``JdbcUserDetailsManager`` manages users in an SQL database. It connects to the database directly through JDBC. This way, the ``JdbcUserDetailsManager`` is independent of any other framework or specification related to database connectivity.
+
+You’ll start working on our demo application about how to use the ``JdbcUserDetailsManager`` by creating a database and two tables. In our case, we name the database spring, and we name one of the tables ``users`` and the other ``authorities``. **These names are the default table names known by the ``JdbcUserDetailsManager``.** As you’ll learn at the end of this section, the ``JdbcUserDetailsManager`` implementation is flexible and lets you override these default names if you want to do so.
+
+The ``JdbcUserDetailsManager`` implementation expects **three columns in the users table: a username, a password, and enabled, which you can use to deactivate the user.**
+
+![using-jdbcdetailsservicemanager.PNG](pictures/using-jdbcdetailsservicemanager.PNG)
 
 
 
