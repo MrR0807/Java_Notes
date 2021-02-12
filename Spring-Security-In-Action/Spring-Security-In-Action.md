@@ -724,8 +724,130 @@ public class SecurityUser implements UserDetails {
 
 ## Instructing Spring Security on how to manage users
 
+In this section, we experiment with various ways of implementing the ``UserDetailsService`` class. You’ll understand how user management works by implementing the responsibility described by the ``UserDetailsService`` contract in our example. After that, you’ll find out how the ``UserDetailsManager`` interface adds more behavior to the contract defined by the ``UserDetailsService``. At the end of this section, we’ll use the provided implementations of the ``UserDetailsManager`` interface offered by Spring Security.
 
+### Understanding the UserDetailsService contract
 
+The ``UserDetailsService`` interface contains only one method, as follows:
+
+```
+public interface UserDetailsService {
+	
+	UserDetails loadUserByUsername(String username) throws UsernameNotFoundException;
+}
+```
+
+The authentication implementation calls the ``loadUserByUsername(String username)`` method to obtain the details of a user with a given username (figure 3.3). The username is, of course, considered unique.
+
+![user-details-service-auth-provider.PNG](pictures/user-details-service-auth-provider.PNG)
+
+### Implementing the UserDetailsService contract
+
+Your application manages details about credentials and other user aspects. It could be that these are stored in a database or handled by another system that you access through a web service or by other means (figure 3.3). Regardless of how this happens in your system, the only thing Spring Security needs from you is an implementation to retrieve the user by username.
+
+In the next example, we write a UserDetailsService that has an in-memory list of users.
+
+```
+public class User implements UserDetails {
+    
+    private final String username;
+    private final String password;
+    private final String authority;
+
+    public User(String username, String password, String authority) {
+        this.username = username;
+        this.password = password;
+        this.authority = authority;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(() -> authority);
+    }
+    
+    @Override
+    public String getPassword() {
+        return this.password;
+    }
+
+    @Override
+    public String getUsername() {
+        return this.username;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+}
+```
+
+In the package named services, we create a class called ``InMemoryUserDetailsService``.
+
+```
+public class InMemoryUserDetailsService implements UserDetailsService {
+    
+    private final List<UserDetails> users;
+
+    public InMemoryUserDetailsService(List<UserDetails> users) {
+        this.users = users;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        return users.stream()
+                .filter(userDetails -> username.equals(userDetails.getUsername()))
+                .findFirst()
+                .orElseThrow(() -> new UsernameNotFoundException("Bad credentials"));
+    }
+}
+```
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var user = new User("john", "12345", "read");
+
+        return new InMemoryUserDetailsService(List.of(user));
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+Test it:
+```
+curl -u john:12345 http://localhost:8080/hello
+```
+
+### Implementing the UserDetailsManager contract
 
 
 
