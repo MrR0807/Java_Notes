@@ -1,0 +1,101 @@
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+//Todo. Redo to tree-node parsing
+
+public class TableOfContentGenerator {
+
+    //Start with # symbol
+    private static final Pattern HEADER_SYMBOL = Pattern.compile("^#.+");
+    private static final Pattern CODE_SYMBOL = Pattern.compile("^```");
+    private static final Pattern CODE_SYMBOL_OPENED_AND_CLOSED_ON_SAME_LINE = Pattern.compile("^```.*?```");
+    private static boolean insideCode = false;
+
+    record HeaderInformation(Header header, String chapterName, String anchor) {
+    }
+
+    public static void main(String[] args) throws IOException {
+        System.out.println(generateTableOfContent(Files.lines(Path.of("src/main/resources/example.md"))));
+    }
+
+    public static String generateTableOfContent(Stream<String> text) {
+        var headersInformation = text
+                .map(String::strip)
+                .map(TableOfContentGenerator::parseLine)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+        StringBuilder tableOfContent = new StringBuilder();
+        tableOfContent.append("# Table of Content\n\n");
+        for (var headerInformation : headersInformation) {
+            var formattedChapterName = "%s [%s](#%s)\n".formatted(headerInformation.header.separatorSymbol, headerInformation.chapterName, headerInformation.anchor);
+            tableOfContent.append(formattedChapterName);
+        }
+        return tableOfContent.toString().strip();
+    }
+
+    private static Optional<HeaderInformation> parseLine(String line) {
+        if (!insideCode && CODE_SYMBOL.matcher(line).find()) {
+            insideCode = true;
+            if (CODE_SYMBOL_OPENED_AND_CLOSED_ON_SAME_LINE.matcher(line).find()) {
+                insideCode = false;
+            }
+        } else if (insideCode && CODE_SYMBOL.matcher(line).find()) {
+            insideCode = false;
+        }
+
+        var matcher = HEADER_SYMBOL.matcher(line);
+        if (matcher.find() && !insideCode) {
+            var extractedHeader = matcher.group();
+            var header = typeOfHeader(extractedHeader, line);
+            var chapterNameWithoutHeader = line.replaceAll("^#.*?\s", "");
+            var anchor = produceAnchor(chapterNameWithoutHeader);
+            return Optional.of(new HeaderInformation(header, chapterNameWithoutHeader, anchor));
+        }
+        return Optional.empty();
+    }
+
+    private static Header typeOfHeader(String header, String line) {
+        var split = header.split("\s"); //Example of line ``# This is chapter's header``
+        header = split[0].strip(); //Should contain only #
+        var allAreHeaderSymbols = header.codePoints().allMatch(value -> value == 35); //35 == # symbol
+        if (!allAreHeaderSymbols) {
+            throw new RuntimeException("Non header symbol found. Line: " + line);
+        }
+        return switch ((int) header.codePoints().count()) {
+            case 1 -> Header.H1;
+            case 2 -> Header.H2;
+            case 3 -> Header.H3;
+            case 4 -> Header.H4;
+            case 5 -> Header.H5;
+            default -> throw new RuntimeException("Invalid header");
+        };
+    }
+
+    /**
+     * Make all lowercase
+     * Remove anything that is not a letter, number, space or hyphen, like :, ', etc
+     * Change any space to a hyphen.
+     */
+    private static String produceAnchor(String chapterNameWithoutHeader) {
+        var lowerCased = chapterNameWithoutHeader.toLowerCase();
+        var removeAnythingThatIsNotLetterOrSpaceOrNumber = lowerCased.replaceAll("[^\\p{L}\\d\\s-]", "");
+        return removeAnythingThatIsNotLetterOrSpaceOrNumber.replaceAll("\s", "-");
+    }
+
+    enum Header {
+        H1("-"), H2("  *"), H3("    +"), H4("      -"), H5(" ".repeat(8) + "*");
+
+        String separatorSymbol;
+
+        Header(String separatorSymbol) {
+            this.separatorSymbol = separatorSymbol;
+        }
+    }
+}
