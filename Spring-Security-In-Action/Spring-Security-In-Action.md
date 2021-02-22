@@ -1045,6 +1045,42 @@ curl -u john:12345 http://localhost:8080/hello
 
 # Chapter 4. Dealing with passwords
 
+## Understanding the PasswordEncoder contract
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
