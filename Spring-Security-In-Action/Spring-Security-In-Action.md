@@ -942,7 +942,7 @@ curl -u john:12345 http://localhost:8080/hello
 The ``JdbcUserDetailsManager`` also allows you to configure the queries used. In the previous example, we made sure we used the exact names for the tables and columns, as the ``JdbcUserDetailsManager`` implementation expects those. But it could be that for your application, these names are not the best choice.
 
 ```
-@Bean
+    @Bean
     public UserDetailsService userDetailsService(DataSource dataSource) {
         var usersByUsernameQuery = "SELECT username, password, enabled, FROM spring.users WHERE username = ?";
         var authsByUserQuery = "SELECT username, authority FROM spring.authorities where username = ?";
@@ -1047,6 +1047,7 @@ curl -u john:12345 http://localhost:8080/hello
 
 ## Understanding the PasswordEncoder contract
 
+We continue with a deep understanding of these beans and ways to implement them, so in this section, we analyze the PasswordEncoder.
 
 
 
