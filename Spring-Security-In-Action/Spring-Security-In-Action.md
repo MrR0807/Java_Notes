@@ -1049,13 +1049,221 @@ curl -u john:12345 http://localhost:8080/hello
 
 We continue with a deep understanding of these beans and ways to implement them, so in this section, we analyze the PasswordEncoder.
 
+![chapter-4-password-encoder.PNG](pictures/chapter-4-password-encoder.PNG)
+
+### The definition of the PasswordEncoder contract
+
+In this section, we discuss the definition of the PasswordEncoder contract. You implement this contract to tell Spring Security how to validate a user’s password. In the authentication process, the PasswordEncoder decides if a password is valid or not. Every system stores passwords encoded in some way. You preferably store them hashed so that there’s no chance someone can read the passwords. The PasswordEncoder can also encode passwords. The methods encode() and matches(), which the contract declares, are actually the definition of its responsibility.
+
+Let’s first review the content of the PasswordEncoder interface:
+
+```
+public interface PasswordEncoder {
+
+	String encode(CharSequence rawPassword);
+
+	boolean matches(CharSequence rawPassword, String encodedPassword);
+
+	default boolean upgradeEncoding(String encodedPassword) {
+		return false;
+	}
+}
+```
+
+The purpose of the ``encode(CharSequence rawPassword)`` method is to return a transformation of a provided string. In terms of Spring Security functionality, it’s used to provide encryption or a hash for a given password. You can use the ``matches(CharSequence rawPassword, String encodedPassword)`` method afterward to check if an encoded string matches a raw password. You use the ``matches()`` method in the authentication process to test a provided password against a set of known credentials. The third method, called ``upgradeEncoding(CharSequence encodedPassword)``, defaults to false in the contract. If you override it to return true, then the encoded password is encoded again for better security.
+
+**In some cases, encoding the encoded password can make it more challenging to obtain the cleartext password from the result. In general, this is some kind of obscurity that I, personally, don’t like.**
+
+### Implementing the PasswordEncoder contract
+
+If you override them, they should always correspond in terms of functionality: a string returned by the ``encode()`` method should always be verifiable with the ``matches()`` method of the same PasswordEncoder. In this section, you’ll implement the PasswordEncoder contract and define the two abstract methods declared by the interface.
+
+The most straightforward implementation is a password encoder that considers passwords in plain text: that is, it doesn’t do any encoding on the password. Managing passwords in cleartext is what the instance of NoOpPasswordEncoder does precisely. If you were to write your own, it would look something like the following listing:
+```
+public class PlainTextPasswordEncoder implements PasswordEncoder {
+    
+    @Override
+    public String encode(CharSequence rawPassword) {
+        return rawPassword.toString();
+    }
+
+    @Override
+    public boolean matches(CharSequence rawPassword, String encodedPassword) {
+        return rawPassword.equals(encodedPassword);
+    }
+}
+```
+
+A simple implementation of PasswordEncoder that uses the hashing algorithm SHA-512 looks like the next listing:
+```
+public class Sha512PasswordEncoder implements PasswordEncoder {
+
+    @Override
+    public String encode(CharSequence rawPassword) {
+        return hashWithSHA512(rawPassword.toString());
+    }
+    @Override
+    public boolean matches(CharSequence rawPassword, String encodedPassword) {
+        String hashedPassword = encode(rawPassword);
+        return encodedPassword.equals(hashedPassword);
+    }
+
+    private String hashWithSHA512(String input) {
+        StringBuilder result = new StringBuilder();
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+            byte [] digested = md.digest(input.getBytes());
+            for (byte b : digested) {
+                result.append(Integer.toHexString(0xFF & b));
+            }
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Bad algorithm");
+        }
+        return result.toString();
+    }
+}
+```
+
+### Choosing from the provided implementations of PasswordEncoder
+
+While knowing how to implement your PasswordEncoder is powerful, you also have to be aware that Spring Security already provides you with some advantageous implementations. If one of these matches your application, you don’t need to rewrite it. Provided implementations:
+* ``NoOpPasswordEncoder`` — Doesn’t encode the password but keeps it in cleartext. We use this implementation only for examples. Because it doesn’t hash the password, **you should never use it in a real-world scenario.**
+* ``StandardPasswordEncoder`` — Uses SHA-256 to hash the password. This implementation is now deprecated, and you **shouldn’t use it for your new implementations.** The reason why it’s deprecated is that it uses a hashing algorithm that we don’t consider strong enough anymore, but you might still find this implementation used in existing applications.
+* ``Pbkdf2PasswordEncoder`` — Uses the password-based key derivation function 2 (PBKDF2).
+* ``BCryptPasswordEncoder`` — Uses a bcrypt strong hashing function to encode the password.
+* ``SCryptPasswordEncoder`` — Uses an scrypt hashing function to encode the password.
+
+[Choose BCrypt](https://security.stackexchange.com/questions/4781/do-any-security-experts-recommend-bcrypt-for-password-storage/6415#6415).
+
+To create instances of the ``Pbkdf2PasswordEncoder``, you have the following options:
+* ``PasswordEncoder p = new Pbkdf2PasswordEncoder()``;
+* ``PasswordEncoder p = new Pbkdf2PasswordEncoder("secret")``;
+* ``PasswordEncoder p = new Pbkdf2PasswordEncoder("secret", 185000, 256)``;
+
+The PBKDF2 is a pretty easy, slow-hashing function that performs an HMAC as many times as specified by an iterations argument. The three parameters received by the last call are the value of a key used for the encoding process, the number of iterations used to encode the password, and the size of the hash. The second and third parameters can influence the strength of the result. You can choose more or fewer iterations, as well as the length of the result. The longer the hash, the more powerful the password. However, be aware that performance is affected by these values: the more iterations, the more resources your application consumes.
+
+If you do not specify one of the second or third values for the Pbkdf2PasswordEncoder implementation, the defaults are 185000 for the number of iterations and 256 for the length of the result.
+
+Another excellent option offered by Spring Security is the ``BCryptPasswordEncoder``, which uses a bcrypt strong hashing function to encode the password. You can instantiate the ``BCryptPasswordEncoder`` by calling the no-arguments constructor. But you also have the option to specify a strength coefficient representing the log rounds (logarithmic rounds) used in the encoding process. Moreover, you can also alter the ``SecureRandom`` instance used for encoding:
+```
+PasswordEncoder p = new BCryptPasswordEncoder();
+PasswordEncoder p = new BCryptPasswordEncoder(4);
+
+SecureRandom s = SecureRandom.getInstanceStrong();
+PasswordEncoder p = new BCryptPasswordEncoder(4, s);
+```
+
+The log rounds value that you provide affects the number of iterations the hashing operation uses. The number of iterations used is 2log rounds. For the iteration number computation, the value for the **log rounds can only be between 4 and 31.** You can specify this by calling one of the second or third overloaded constructors, as shown in the previous code snippet.
+
+The last option I present to you is ``SCryptPasswordEncoder`` (figure 4.2). This password encoder uses an scrypt hashing function. For the ``ScryptPasswordEncoder``, you have two options to create its instances:
+```
+PasswordEncoder p = new SCryptPasswordEncoder();
+PasswordEncoder p = new SCryptPasswordEncoder(16384, 8, 1, 32, 64);
+```
+The values in the previous examples are the ones used if you create the instance by calling the no-arguments constructor.
+
+![scrypt-password-constructor.PNG](pictures/scrypt-password-constructor.PNG)
+
+### Multiple encoding strategies with DelegatingPasswordEncoder
+
+In some applications, you might find it useful to have various password encoders and choose from these depending on some specific configuration. A common scenario
+in which I find the ``DelegatingPasswordEncoder`` in production applications is when the **encoding algorithm is changed, starting with a particular version of the application.**
+
+Imagine somebody finds a vulnerability in the currently used algorithm, and you want to change it for newly registered users, but you do not want to change it for existing credentials. So you end up having multiple kinds of hashes. How do you manage this case? While it isn’t the only approach for this scenario, a good choice is to use a ``DelegatingPasswordEncoder`` object.
+The ``DelegatingPasswordEncoder`` is an implementation of the ``PasswordEncoder`` interface that, instead of implementing its encoding algorithm, delegates to another instance of an implementation of the same contract. The hash starts with a prefix naming the algorithm used to define that hash. The ``DelegatingPasswordEncoder`` delegates to the correct implementation of the ``PasswordEncoder`` based on the prefix of the password.
+It sounds complicated, but with an example, you can observe that it is pretty easy. You start by creating a collection of instances of your desired PasswordEncoder implementations, and you put these together in a DelegatingPasswordEncoder as in the following listing:
+```
+@Configuration
+public class ProjectConfig {
+
+    ...
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        Map<String, PasswordEncoder> encoders = new HashMap<>();
+        encoders.put("noop", NoOpPasswordEncoder.getInstance());
+        encoders.put("bcrypt", new BCryptPasswordEncoder());
+        encoders.put("scrypt", new SCryptPasswordEncoder());
+        return new DelegatingPasswordEncoder("bcrypt", encoders);
+    }
+}
+```
+
+The ``DelegatingPasswordEncoder`` is just a tool that acts as a ``PasswordEncoder`` so you can use it when you have to choose from a collection of implementations. In listing 4.4, the declared instance of ``DelegatingPasswordEncoder`` contains references to a ``NoOpPasswordEncoder``, a ``BCryptPasswordEncoder``, and an ``SCryptPasswordEncoder``, and delegates the default to the ``BCryptPasswordEncoder`` implementation.
+Based on the prefix of the hash, the ``DelegatingPasswordEncoder`` uses the right ``PasswordEncoder`` implementation for matching the password. This prefix has the key that identifies the password encoder to be used from the map of encoders. If there is no prefix, the ``DelegatingPasswordEncoder`` uses the default encoder.
+
+**NOTE**. The curly braces are part of the hash prefix, and those should **surround the name of the key**. For example, if the provided hash is ``{noop}12345``, the ``DelegatingPasswordEncoder`` delegates to the ``NoOpPasswordEncoder`` that we registered for the prefix noop. Again, don’t forget that the **curly braces are mandatory in the prefix.**
+
+If the hash looks like the next code snippet, the password encoder is the one we assign to the prefix {bcrypt}, which is the ``BCryptPasswordEncoder``. This is also the one
+to which the application will delegate if there is no prefix at all because we defined it as the default implementation:
+```
+{bcrypt}$2a$10$xn3LI/AjqicFYZFruSwve.681477XaVNaUQbr1gioaWPn4t1KsnmG
+```
+
+For convenience, Spring Security offers a way to create a ``DelegatingPasswordEncoder`` that has a map to all the standard provided implementations of ``PasswordEncoder``. The ``PasswordEncoderFactories`` class provides a ``createDelegatingPasswordEncoder()`` static method that returns the implementation of the ``DelegatingPasswordEncoder`` with bcrypt as a default encoder:
+```
+PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+```
+
+To test ``DelegatingPasswordEncoder``:
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        var encoders = Map.of(
+                "noop", NoOpPasswordEncoder.getInstance(),
+                "bcrypt", new BCryptPasswordEncoder(),
+                "scrypt", new SCryptPasswordEncoder());
+        return new DelegatingPasswordEncoder("bcrypt", encoders);
+    }
+}
+```
+
+``schema.sql``:
+```
+CREATE SCHEMA spring;
+
+CREATE TABLE IF NOT EXISTS users (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45) NOT NULL,
+    password    VARCHAR(45) NOT NULL,
+    enabled     BIT         NOT NULL,
+    PRIMARY KEY (id)
+);
 
 
+CREATE TABLE IF NOT EXISTS authorities (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45) NOT NULL,
+    authority   VARCHAR(45) NOT NULL,
+    PRIMARY KEY (id)
+);
+```
+``data.sql``:
+```
+INSERT INTO authorities VALUES (NULL, 'john', 'write');
+INSERT INTO users VALUES (NULL, 'john', '{noop}12345', 1);
+```
 
+Test:
+```
+curl -u john:12345 http://localhost:8080/hello
+```
 
-
-
-
+## More about the Spring Security Crypto module
 
 
 
