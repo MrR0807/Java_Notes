@@ -276,13 +276,84 @@ BufferedReader br = Files.newBufferedReader(path);
 List<Complaint> litany = Collections.list(legacyLitany);
 ```
 
-
-
-## Dependency Injection
-
-## Lazy initialization
-
 ## Object pool
+
+When objects are expensive to create and they are needed only for short periods of time. The Object Pool provides a cache for instantiated objects tracking which ones are in use and which are available.
+
+A very naive implementation:
+```
+public class ObjectPoolDemo {
+
+    public static void main(String[] args) {
+        var objectPool = new ObjectPool();
+        var expensiveObject1 = objectPool.get();
+        objectPool.returnObject(expensiveObject1);
+        var expensiveObject2 = objectPool.get();
+        objectPool.returnObject(expensiveObject2);
+        var expensiveObject3 = objectPool.get();
+        objectPool.returnObject(expensiveObject3);
+        var expensiveObject4 = objectPool.get();
+    }
+
+    private static class ObjectPool {
+
+        private final Set<ExpensiveObject> available = new HashSet<>();
+        private final Set<ExpensiveObject> inUse = new HashSet<>();
+
+        private final ReentrantLock getLock = new ReentrantLock();
+        private final ReentrantLock returnLock = new ReentrantLock();
+
+        public ObjectPool() {
+            int limit = 3;
+            for (var i = 0; i < limit; i++) {
+                available.add(new ExpensiveObject(i));
+            }
+        }
+
+        public ExpensiveObject get() {
+            getLock.lock();
+            try {
+                var iterator = available.iterator();
+                if (iterator.hasNext()) {
+                    var next = iterator.next();
+                    iterator.remove();
+                    inUse.add(next);
+                    return next;
+                } else {
+                    throw new RuntimeException("No more left");
+                }
+            } finally {
+                getLock.unlock();
+            }
+        }
+
+        public void returnObject(ExpensiveObject expensiveObject) {
+            returnLock.lock();
+            try {
+                inUse.remove(expensiveObject);
+                available.add(expensiveObject);
+            } finally {
+                returnLock.unlock();
+            }
+        }
+
+    }
+
+    private static record ExpensiveObject(int id) {}
+}
+```
+
+### Object pool vs Flyweight
+
+Pooled objects can simultaneously be used by a single "client" only. For that, a pooled object must be checked out from the pool, then it can be used by a client, and then the client must return the object back to the pool. Multiple instances of identical objects may exist, up to the maximal capacity of the pool.
+
+In contrast, a Flyweight object is singleton, and it can be used simultaneously by multiple clients.
+
+As for concurrent access, pooled objects can be mutable and they usually don't need to be thread safe, as typically, only one thread is going to use a specific instance at the same time. Flyweight must be immutable.
+
+As for performance and scalability, pools can become bottlenecks, if all the pooled objects are in use and more clients need them, threads will become blocked waiting for available object from the pool. This is not the case with Flyweight.
+
+Object pool increases used memory, while Flyweight does not.
 
 # Structural patterns
 
