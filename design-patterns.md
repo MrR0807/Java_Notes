@@ -359,6 +359,10 @@ Object pool increases used memory, while Flyweight does not.
 
 ## Adapter
 
+Example is JDK:
+* [InputStreamReader:](https://docs.oracle.com/javase/8/docs/api/java/io/InputStreamReader.html#InputStreamReader-java.io.InputStream-) ``public InputStreamReader(InputStream in)``
+* [OutputStreamWriter:](https://docs.oracle.com/javase/8/docs/api/java/io/OutputStreamWriter.html#OutputStreamWriter-java.io.OutputStream-) ``public OutputStreamWriter(OutputStream out)``
+
 ## Bridge
 
 ## Composite
