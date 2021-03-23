@@ -359,11 +359,48 @@ Object pool increases used memory, while Flyweight does not.
 
 ## Adapter
 
+In Java, you can consider the ``java.io.InputStreamReader`` class and the ``java.io.OutputStreamWriter`` class as examples of object adapters. They adapt an existing ``InputStream``/``OutputStream`` object to a ``Reader``/``Writer`` interface.
+
 Example is JDK:
 * [InputStreamReader:](https://docs.oracle.com/javase/8/docs/api/java/io/InputStreamReader.html#InputStreamReader-java.io.InputStream-) ``public InputStreamReader(InputStream in)``
 * [OutputStreamWriter:](https://docs.oracle.com/javase/8/docs/api/java/io/OutputStreamWriter.html#OutputStreamWriter-java.io.OutputStream-) ``public OutputStreamWriter(OutputStream out)``
 
+The adapter pattern allows the interface of an existing class to be used as another interface. Adapter lets classes work together that couldn't otherwise because of incompatible interfaces.
+
+```
+public class AdapterDemo {
+
+    private record Rectangle(double length, double width) {
+    }
+
+    private static class Calculator {
+        public double getArea(Rectangle rectangle) {
+            return rectangle.length() * rectangle.width();
+        }
+    }
+
+    private record Triangle(double base, double height) {
+    }
+
+    private static class CalculatorAdapter {
+        public double getArea(Triangle triangle) {
+            var calculator = new Calculator();
+            var rectangle = new Rectangle(triangle.base(), triangle.height() * 5);
+            return calculator.getArea(rectangle);
+        }
+    }
+
+    public static void main(String[] args) {
+        var calculatorAdapter = new CalculatorAdapter();
+        var triangle = new Triangle(20, 10);
+        System.out.println(calculatorAdapter.getArea(triangle));
+    }
+}
+```
+
 ## Bridge
+
+
 
 ## Composite
 
