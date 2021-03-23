@@ -400,7 +400,11 @@ public class AdapterDemo {
 
 ## Bridge
 
+The bridge pattern is often confused with the adapter pattern, and is often implemented using the object adapter pattern (In this adapter pattern, the adapter contains an instance of the class it wraps).
 
+### Adapter vs Bridge
+
+> Adapter makes things work after they're designed; Bridge makes them work before they are. [GoF, p219]
 
 ## Composite
 
