@@ -131,12 +131,25 @@ public class ResilientClient {
 }
 ```
 
+You should get something like this:
+```
+Calling
+Event
+Calling
+Event
+1018
+Calling
+Event
+1515
+Calling
+Event
+2256
+Calling
+Event
+3383
+```
 
-
-
-
-
-
+Because backoff policy is exponential first retry is 1 sec, next one is 1 * 1.5 = 1.5 sec, next one is 1.5 * 1.5 = 2.25 sec etc.
 
 
 
