@@ -402,6 +402,75 @@ public class AdapterDemo {
 
 The bridge pattern is often confused with the adapter pattern, and is often implemented using the object adapter pattern (In this adapter pattern, the adapter contains an instance of the class it wraps).
 
+> Consider you have a weapon with different enchantments, and you are supposed to allow mixing different weapons with different enchantments. What would you do? Create multiple copies of each of the weapons for each of the enchantments or would you just create separate enchantment and set it for the weapon as needed? Bridge pattern allows you to do the second.
+ 
+In Plain Words:
+
+> Bridge pattern is about preferring composition over inheritance. Implementation details are pushed from a hierarchy to another object with a separate hierarchy.
+
+Wikipedia says:
+
+> The bridge pattern is a design pattern used in software engineering that is meant to "decouple an abstraction from its implementation so that the two can vary independently"
+ 
+```
+public class BridgeDemo {
+
+    public interface Weapon {
+        void swing();
+
+        Enchantment getEnchantment();
+    }
+
+    public record Sword(Enchantment enchantment) implements Weapon {
+
+        @Override
+        public void swing() {
+            System.out.println("The sword is swinged.");
+            enchantment.apply();
+        }
+
+        @Override
+        public Enchantment getEnchantment() {
+            return enchantment;
+        }
+    }
+
+    public record Hammer(Enchantment enchantment) implements Weapon {
+
+        @Override
+        public void swing() {
+            System.out.println("The hammer is swinged.");
+            enchantment.apply();
+        }
+
+        @Override
+        public Enchantment getEnchantment() {
+            return enchantment;
+        }
+    }
+
+    public interface Enchantment {
+        void apply();
+    }
+
+    public class FlyingEnchantment implements Enchantment {
+        
+        @Override
+        public void apply() {
+            System.out.println("The item flies and strikes the enemies finally returning to owner's hand.");
+        }
+    }
+
+    public class SoulEatingEnchantment implements Enchantment {
+        
+        @Override
+        public void apply() {
+            System.out.println("The item eats the soul of enemies.");
+        }
+    }
+}
+```
+
 ### Adapter vs Bridge
 
 > Adapter makes things work after they're designed; Bridge makes them work before they are. [GoF, p219]
