@@ -415,13 +415,20 @@ Wikipedia says:
 ```
 public class BridgeDemo {
 
+    public static void main(String[] args) {
+        var weapon = new Sword(new SoulEatingEnchantment());
+        weapon.swing();
+        var weapon2 = new Sword(new FlyingEnchantment());
+        weapon2.swing();
+    }
+
     public interface Weapon {
         void swing();
 
         Enchantment getEnchantment();
     }
 
-    public record Sword(Enchantment enchantment) implements Weapon {
+    public static record Sword(Enchantment enchantment) implements Weapon {
 
         @Override
         public void swing() {
@@ -435,7 +442,7 @@ public class BridgeDemo {
         }
     }
 
-    public record Hammer(Enchantment enchantment) implements Weapon {
+    public static record Hammer(Enchantment enchantment) implements Weapon {
 
         @Override
         public void swing() {
@@ -453,16 +460,16 @@ public class BridgeDemo {
         void apply();
     }
 
-    public class FlyingEnchantment implements Enchantment {
-        
+    public static class FlyingEnchantment implements Enchantment {
+
         @Override
         public void apply() {
             System.out.println("The item flies and strikes the enemies finally returning to owner's hand.");
         }
     }
 
-    public class SoulEatingEnchantment implements Enchantment {
-        
+    public static class SoulEatingEnchantment implements Enchantment {
+
         @Override
         public void apply() {
             System.out.println("The item eats the soul of enemies.");
