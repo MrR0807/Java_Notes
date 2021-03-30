@@ -484,7 +484,189 @@ public class BridgeDemo {
 
 ## Composite
 
+The composite pattern describes a group of objects that are treated the same way as a single instance of the same type of object. The intent of a composite is to "compose" objects into tree structures to represent part-whole hierarchies. Implementing the composite pattern lets clients treat individual objects and compositions uniformly.
+
+### What solution does the Composite design pattern describe?
+
+* Define a unified Component interface for both part (Leaf) objects and whole (Composite) objects.
+* Individual Leaf objects implement the Component interface directly, and Composite objects forward requests to their child components.
+
+This enables clients to work through the Component interface to treat Leaf and Composite objects uniformly: **Leaf objects perform a request directly, and Composite objects forward the request to their child components recursively downwards the tree structure.** This makes client classes easier to implement, change, test, and reuse.
+
+```
+public class CompositeDemo {
+
+    public static void main(String[] args) {
+        //Initialize four ellipses
+        Ellipse ellipse1 = new Ellipse();
+        Ellipse ellipse2 = new Ellipse();
+        Ellipse ellipse3 = new Ellipse();
+        Ellipse ellipse4 = new Ellipse();
+
+        //Creates two composites containing the ellipses
+        var graphic2 = CompositeGraphic.of(ellipse1, ellipse2, ellipse3);
+        var graphic3 = CompositeGraphic.of(ellipse4);
+
+        //Create another graphics that contains two graphics
+        var graphic1 = CompositeGraphic.of(graphic2, graphic3);
+
+        //Prints the complete graphic (Four times the string "Ellipse").
+        graphic1.print();
+    }
+
+    /** "Component" */
+    interface Graphic {
+        //Prints the graphic.
+        public void print();
+    }
+
+    /** "Composite" */
+    static class CompositeGraphic implements Graphic {
+        //Collection of child graphics.
+        private final ArrayList<Graphic> childGraphics = new ArrayList<>();
+
+        //Adds the graphic to the composition.
+        public void add(Graphic graphic) {
+            childGraphics.add(graphic);
+        }
+
+        public static CompositeGraphic of(Graphic... graphic) {
+            var compositeGraphic = new CompositeGraphic();
+            for (var g : graphic) {
+                compositeGraphic.add(g);
+            }
+            return compositeGraphic;
+        }
+
+        //Prints the graphic.
+        @Override
+        public void print() {
+            for (Graphic graphic : childGraphics) {
+                graphic.print();  //Delegation
+            }
+        }
+    }
+
+    /** "Leaf" */
+    static class Ellipse implements Graphic {
+        //Prints the graphic.
+        @Override
+        public void print() {
+            System.out.println("Ellipse");
+        }
+    }
+}
+```
+
+### Composite pattern and Visitor
+
+The point of composite is to apply the same operation to a bunch of elements that share an interface. The point of visitor is to extend a bunch of elements with a new operation without changing their implementation nor the caller's implementation. Therefore you often see:
+
+```
+Composite c = new Composite();
+Visitor v = new ConcreteVisitor();
+c.visit(v);
+```
+
+This way you can keep the implementation of the composite and the classes that are in the composite static, and only vary the kind of Visitor you apply to them.
+
 ## Decorator
+
+All subclasses of ``java.io.InputStream``, ``OutputStream``, ``Reader`` and ``Writer`` have a constructor taking an instance of same type.
+
+Decorator use can be more efficient than subclassing, because an object's behavior can be augmented without defining an entirely new object.
+
+### What solution does it describe?
+
+Define Decorator objects that
+* implement the interface of the extended (decorated) object (Component) transparently by forwarding all requests to it;
+* perform additional functionality before/after forwarding a request.
+
+```
+public class DecoratorDemo {
+
+    interface Coffee {
+        double getCost();
+
+        String getIngredients();
+    }
+
+    static record SimpleCoffee() implements Coffee {
+
+        @Override
+        public double getCost() {
+            return 1;
+        }
+
+        @Override
+        public String getIngredients() {
+            return "Coffee";
+        }
+    }
+
+    abstract static class CoffeeDecorator implements Coffee {
+
+        private final Coffee coffee;
+
+        public CoffeeDecorator(Coffee coffee) {
+            this.coffee = coffee;
+        }
+
+        @Override
+        public double getCost() {
+            return coffee.getCost();
+        }
+
+        @Override
+        public String getIngredients() {
+            return coffee.getIngredients();
+        }
+    }
+
+    static class WithMilk extends CoffeeDecorator {
+        public WithMilk(Coffee coffee) {
+            super(coffee);
+        }
+
+        @Override
+        public double getCost() {
+            return super.getCost() + 0.5;
+        }
+
+        @Override
+        public String getIngredients() {
+            return super.getIngredients() + ", Milk";
+        }
+    }
+
+    static class WithSprinkles extends CoffeeDecorator {
+        public WithSprinkles(Coffee coffee) {
+            super(coffee);
+        }
+
+        @Override
+        public double getCost() {
+            return super.getCost() + 0.2;
+        }
+
+        @Override
+        public String getIngredients() {
+            return super.getIngredients() + ", Sprinkles";
+        }
+    }
+
+    public static void main(String[] args) {
+        Coffee c = new SimpleCoffee();
+        System.out.println(c.getCost() + " " + c.getIngredients());
+
+        c = new WithMilk(c);
+        System.out.println(c.getCost() + " " + c.getIngredients());
+
+        c = new WithSprinkles(c);
+        System.out.println(c.getCost() + " " + c.getIngredients());
+    }
+}
+```
 
 ## Facade
 
