@@ -151,17 +151,201 @@ Event
 
 Because backoff policy is exponential first retry is 1 sec, next one is 1 * 1.5 = 1.5 sec, next one is 1.5 * 1.5 = 2.25 sec etc.
 
+#### failAfterMaxAttempts
+
+```
+    public static void main(String[] args) throws Throwable {
+        var retryConfig = RetryConfig.<String>custom()
+                .maxAttempts(3)
+                .intervalFunction(IntervalFunction.ofExponentialBackoff(Duration.ofSeconds(1L)))
+                .failAfterMaxAttempts(true)
+                .retryExceptions(RetryableException.class)
+                .retryOnResult(result -> result.equals("Hello"))
+                .build();
+
+        var retryRegistry = RetryRegistry.of(retryConfig);
+        var retry = retryRegistry.retry("test");
+
+        retry.getEventPublisher().onEvent(System.out::println);
+
+        retry.executeSupplier(TestResilience4J::print);
+    }
+
+    private static String print() {
+        return "Hello";
+    }
+```
+
+If ``failAfterMaxAttempts`` is true, it will throw ``MaxRetriesExceededException: Retry 'test' has exhausted all attempts (3)``. However, if ``failAfterMaxAttempts`` is false, then it will just silently end retrying ant continue with the remaining instructions.
+
+#### ``waitDuration`` and ExponentialBackoff
+
+Initially I wanted to configure ``Retry`` to have ``initialDuration`` of 1 second and have exponential backoff policy. Naturally, RetryConfig look like so:
+```
+    var retryConfig = RetryConfig.custom()
+            .waitDuration(Duration.ofSeconds(1))
+            .maxAttempts(3)
+            .intervalFunction(IntervalFunction.ofExponentialBackoff())
+            .build();
+```
+
+However, this threw exception:
+```
+java.lang.IllegalStateException: The intervalFunction was configured twice which could result in an undesired state. Please use either intervalFunction or intervalBiFunction.
+```
+
+The exception didn't help to identify what was the problem. As it turns out, ``waitDuration`` registers ``intervalBiFunction``:
+
+```
+    public RetryConfig.Builder<T> waitDuration(Duration waitDuration) {
+        if (waitDuration.toMillis() >= 0) {
+            this.intervalBiFunction = (attempt, either) -> waitDuration.toMillis();
+        } else {
+            throw new IllegalArgumentException(
+                    "waitDuration must be a positive value");
+        }
+        return this;
+    }
+```
+
+Hence, the proper way to register waitDuration with exponentialBackoff is:
+```
+    var retryConfig = RetryConfig.custom()
+            .maxAttempts(3)
+            .intervalFunction(IntervalFunction.ofExponentialBackoff(Duration.ofSeconds(1)))
+            .build();
+
+```
+
+#### ``intervalFunction``
+
+> An IntervalFunction which can be used to calculate the wait interval. The input parameter of the function is the number of attempts (attempt), the output parameter the wait interval in milliseconds. The attempt parameter starts at 1 and increases with every further attempt.
+ 
+#### ``intervalBiFunction``
 
 
+> An ``IntervalBiFunction`` which can be used to calculate the wait interval. The input parameters of the bifunction is the number of attempts (attempt) and either result or exception, the output parameter is the wait interval in milliseconds. The attempt parameter starts at 1 and increases with every further attempt.
 
 
+```
+    public static void main(String[] args) throws Throwable {
+        var retryConfig = RetryConfig.custom()
+                .maxAttempts(3)
+                .intervalBiFunction((retryCount, error) -> {
+                            System.out.println(retryCount.longValue());
+                            System.out.println(error);
+                            return 1L;
+                        }
+                )
+                .build();
 
+        var retryRegistry = RetryRegistry.of(retryConfig);
+        var retry = retryRegistry.retry("test");
 
+        retry.getEventPublisher().onEvent(System.out::println);
+        retry.executeSupplier(TestResilience4J::print);
+    }
 
+    private static String print() {
+        throw new RuntimeException();
+    }
+```
 
+Result:
+```
+1
+Left(java.lang.RuntimeException)
+2021-04-02T15:07:29.689925200+03:00: Retry 'test', waiting PT0.001S until attempt '1'. Last attempt failed with exception 'java.lang.RuntimeException'.
+2
+Left(java.lang.RuntimeException)
+2021-04-02T15:07:29.730105500+03:00: Retry 'test', waiting PT0.001S until attempt '2'. Last attempt failed with exception 'java.lang.RuntimeException'.
+2021-04-02T15:07:29.734763400+03:00: Retry 'test' recorded a failed retry attempt. Number of retry attempts: '3'. Giving up. Last exception was: 'java.lang.RuntimeException'.
+```
 
+Which leads to very customazable wait times. Maybe for one type of error we should wait longer.
 
+#### ``writableStackTraceEnabled``
 
+> When set to false, {@link Exception#getStackTrace()} returns a zero length array. This may be used to reduce log spam when the Retry has exceeded the maximum nbr of attempts, and flag {@link #failAfterMaxAttempts} has been enabled. The thrown {@link MaxRetriesExceededException} will then have no stacktrace.
+ 
+```
+    public static void main(String[] args) throws Throwable {
+        var retryConfig = RetryConfig.<String>custom()
+                .maxAttempts(3)
+                .failAfterMaxAttempts(true)
+                .writableStackTraceEnabled(false)
+                .retryOnResult(s -> s.equals("Hello"))
+                .build();
+
+        var retryRegistry = RetryRegistry.of(retryConfig);
+        var retry = retryRegistry.retry("test");
+
+        retry.getEventPublisher().onEvent(System.out::println);
+        retry.executeSupplier(TestResilience4J::print);
+    }
+
+    private static String print() {
+        return "Hello";
+    }
+
+```
+
+```
+Exception in thread "main" io.github.resilience4j.retry.MaxRetriesExceededException: Retry 'test' has exhausted all attempts (3)
+```
+vs when ``writableStackTraceEnabled`` is true:
+```
+Exception in thread "main" io.github.resilience4j.retry.MaxRetriesExceededException: Retry 'test' has exhausted all attempts (3)
+	at io.github.resilience4j.retry.MaxRetriesExceededException.createMaxRetriesExceededException(MaxRetriesExceededException.java:27)
+	at io.github.resilience4j.retry.internal.RetryImpl$ContextImpl.onComplete(RetryImpl.java:174)
+	at io.github.resilience4j.retry.Retry.lambda$decorateSupplier$2(Retry.java:216)
+	at io.github.resilience4j.retry.Retry.executeSupplier(Retry.java:430)
+	at resilience.TestResilience4J.main(TestResilience4J.java:23)
+```
+
+#### ``retryExceptions``
+
+If retryException does not catch exception that the method throws, it will just pass it through to the caller:
+```
+    public static void main(String[] args) throws Throwable {
+        var retryConfig = RetryConfig.<String>custom()
+                .retryExceptions(RuntimeException.class)
+                .build();
+
+        var retryRegistry = RetryRegistry.of(retryConfig);
+        var retry = retryRegistry.retry("test");
+
+        retry.getEventPublisher().onEvent(System.out::println);
+        retry.executeCheckedSupplier(TestResilience4J::print);
+    }
+
+    private static String print() throws Exception {
+        throw new Exception();
+    }
+```
+
+```
+2021-04-02T15:18:26.503276700+03:00: Retry 'test' recorded an error which has been ignored: 'java.lang.Exception'.
+Exception in thread "main" java.lang.Exception
+	at resilience.TestResilience4J.print(TestResilience4J.java:24)
+	at io.github.resilience4j.retry.Retry.lambda$decorateCheckedSupplier$3f69f149$1(Retry.java:137)
+	at io.github.resilience4j.retry.Retry.executeCheckedSupplier(Retry.java:419)
+	at resilience.TestResilience4J.main(TestResilience4J.java:20)
+```
+
+If however, ``retryExceptions(Exception.class)``, then obviously it will retry:
+```
+2021-04-02T15:23:00.273836400+03:00: Retry 'test', waiting PT0.5S until attempt '1'. Last attempt failed with exception 'java.lang.Exception'.
+2021-04-02T15:23:00.823600100+03:00: Retry 'test', waiting PT0.5S until attempt '2'. Last attempt failed with exception 'java.lang.Exception'.
+2021-04-02T15:23:01.338639100+03:00: Retry 'test' recorded a failed retry attempt. Number of retry attempts: '3'. Giving up. Last exception was: 'java.lang.Exception'.
+Exception in thread "main" java.lang.Exception
+	at resilience.TestResilience4J.print(TestResilience4J.java:24)
+	at io.github.resilience4j.retry.Retry.lambda$decorateCheckedSupplier$3f69f149$1(Retry.java:137)
+	at io.github.resilience4j.retry.Retry.executeCheckedSupplier(Retry.java:419)
+	at resilience.TestResilience4J.main(TestResilience4J.java:20)
+
+Process finished with exit code 1
+```
 
 ### Circuit Breaker
 
