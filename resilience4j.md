@@ -349,6 +349,45 @@ Process finished with exit code 1
 
 ### Circuit Breaker
 
+#### Failure rate and slow call rate thresholds
+
+The state of the CircuitBreaker changes from CLOSED to OPEN when the failure rate is equal or greater than a configurable threshold. For example when more than 50% of the recorded calls have failed. By default all exceptions count as a failure.
+The CircuitBreaker also changes from CLOSED to OPEN when the percentage of slow calls is equal or greater than a configurable threshold. For example when more than 50% of the recorded calls took longer than 5 seconds.
+
+If 20 concurrent threads ask for the permission to execute a function and the state of the CircuitBreaker is closed, all threads are allowed to invoke the function. Even if the sliding window size is 15. The sliding window does not mean that only 15 calls are allowed to run concurrently. If you want to restrict the number of concurrent threads, please use a Bulkhead. You can combine a Bulkhead and a CircuitBreaker.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### Rate Limiter
 
 ### Time Limiter
@@ -358,18 +397,3 @@ Process finished with exit code 1
 ### Cache
 
 ### Fallback
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
