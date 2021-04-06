@@ -349,6 +349,8 @@ Process finished with exit code 1
 
 ### Circuit Breaker
 
+#### Simple setup
+
 #### Failure rate and slow call rate thresholds
 
 The state of the CircuitBreaker changes from CLOSED to OPEN when the failure rate is equal or greater than a configurable threshold. For example when more than 50% of the recorded calls have failed. By default all exceptions count as a failure.
