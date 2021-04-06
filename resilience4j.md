@@ -84,6 +84,8 @@ public class ResilientClient {
 
 ### Retry
 
+[Retry Documentation](https://resilience4j.readme.io/docs/retry)
+
 #### Tracking exponentialBackoff policy
 
 ```
@@ -349,7 +351,7 @@ Process finished with exit code 1
 
 ### Circuit Breaker
 
-#### Simple setup
+[Circuit Breaker Documentation](https://resilience4j.readme.io/docs/circuitbreaker)
 
 #### Failure rate and slow call rate thresholds
 
@@ -357,6 +359,244 @@ The state of the CircuitBreaker changes from CLOSED to OPEN when the failure rat
 The CircuitBreaker also changes from CLOSED to OPEN when the percentage of slow calls is equal or greater than a configurable threshold. For example when more than 50% of the recorded calls took longer than 5 seconds.
 
 If 20 concurrent threads ask for the permission to execute a function and the state of the CircuitBreaker is closed, all threads are allowed to invoke the function. Even if the sliding window size is 15. The sliding window does not mean that only 15 calls are allowed to run concurrently. If you want to restrict the number of concurrent threads, please use a Bulkhead. You can combine a Bulkhead and a CircuitBreaker.
+
+#### Simple demo
+
+```
+public class TestResilience4J {
+
+    public static void main(String[] args) throws Throwable {
+        var circuitBreaker = buildCircuitBreaker();
+
+        circuitBreaker.executeSupplier(TestResilience4J::throwException);
+        circuitBreaker.executeSupplier(TestResilience4J::throwException);
+    }
+
+    private static CircuitBreaker buildCircuitBreaker() {
+        var configs = CircuitBreakerConfig.custom()
+                .minimumNumberOfCalls(2)
+                .waitDurationInOpenState(Duration.ofSeconds(1L))
+                .build();
+
+        var registry = CircuitBreakerRegistry.of(configs);
+        var circuitBreaker = registry.circuitBreaker("test");
+        circuitBreaker.getEventPublisher().onEvent(System.out::println);
+
+        return circuitBreaker;
+    }
+
+    private static int throwException() {
+        throw new RuntimeException("Hello");
+    }
+}
+```
+
+Explanation of ``CircuitBreakerConfig`` configuration: 
+* ``minimumNumberOfCalls`` - from documentation: "Configures the minimum number of calls which are required (per sliding window period) before the CircuitBreaker can calculate the error rate or slow call rate. For example, if minimumNumberOfCalls is 10, then at least 10 calls must be recorded, before the failure rate can be calculated. If only 9 calls have been recorded the CircuitBreaker will not transition to open even if all 9 calls have failed. Default value is 100, hence it has to be lowered for demo.
+* ``waitDurationInOpenState`` - The time that the CircuitBreaker should wait before transitioning from open to half-open. Default value is 60 seconds, hence it has to be  lowered for demo.
+
+If application would be started, it would result in:
+```
+18:42:19.069 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+at resilience.TestResilience4J.throwException(TestResilience4J.java:33)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.lambda$decorateSupplier$4(CircuitBreaker.java:197)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.executeSupplier(CircuitBreaker.java:700)
+at resilience.TestResilience4J.main(TestResilience4J.java:15)
+2021-04-06T18:42:19.084745900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:42:19.100 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:42:19.084745900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+Exception in thread "main" java.lang.RuntimeException: Hello
+at resilience.TestResilience4J.throwException(TestResilience4J.java:33)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.lambda$decorateSupplier$4(CircuitBreaker.java:197)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.executeSupplier(CircuitBreaker.java:700)
+at resilience.TestResilience4J.main(TestResilience4J.java:15)
+```
+
+In other words, it just throws up. Hence, I need engulf this into ``try/catch``:
+```
+public class TestResilience4J {
+
+    public static void main(String[] args) throws Throwable {
+        var circuitBreaker = buildCircuitBreaker();
+
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+    }
+
+    private static CircuitBreaker buildCircuitBreaker() {
+        var configs = CircuitBreakerConfig.custom()
+                .minimumNumberOfCalls(2)
+                .waitDurationInOpenState(Duration.ofSeconds(1L))
+                .build();
+
+        var registry = CircuitBreakerRegistry.of(configs);
+        var circuitBreaker = registry.circuitBreaker("test");
+        circuitBreaker.getEventPublisher().onEvent(System.out::println);
+
+        return circuitBreaker;
+    }
+
+    private static void circuitBreakerThrowsException(CircuitBreaker circuitBreaker) {
+        try {
+            circuitBreaker.executeSupplier(() -> {
+                throw new RuntimeException("Hello");
+            });
+        } catch (Exception e) {
+            //Do something
+        }
+    }
+}
+```
+
+Now this, generates the following:
+```
+18:48:29.962 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+at resilience.TestResilience4J.lambda$circuitBreakerThrowsException$0(TestResilience4J.java:34)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.lambda$decorateSupplier$4(CircuitBreaker.java:197)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.executeSupplier(CircuitBreaker.java:700)
+at resilience.TestResilience4J.circuitBreakerThrowsException(TestResilience4J.java:33)
+at resilience.TestResilience4J.main(TestResilience4J.java:14)
+2021-04-06T18:48:29.978172400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:48:29.978172400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+at resilience.TestResilience4J.lambda$circuitBreakerThrowsException$0(TestResilience4J.java:34)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.lambda$decorateSupplier$4(CircuitBreaker.java:197)
+at io.github.resilience4j.circuitbreaker.CircuitBreaker.executeSupplier(CircuitBreaker.java:700)
+at resilience.TestResilience4J.circuitBreakerThrowsException(TestResilience4J.java:33)
+at resilience.TestResilience4J.main(TestResilience4J.java:15)
+2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event FAILURE_RATE_EXCEEDED published: 2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+2021-04-06T18:48:30.000331700+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+18:48:30.000 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T18:48:30.000331700+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+```
+
+I'll remove the exception details and just leave the interesting part:
+```
+18:48:29.962 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:48:29.978172400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+18:48:29.984 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event FAILURE_RATE_EXCEEDED published: 2021-04-06T18:48:29.984689200+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+2021-04-06T18:48:30.000331700+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+18:48:30.000 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T18:48:30.000331700+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+```
+
+Because it's configured ``minimumNumberOfCalls(2)``, ``CircuitBraker`` only needs two calls to evaluate whether CircuitBraker is open or closed. In this case, 2 calls were made, 2 calls resulted in error, hence the state transitions to OPEN.
+
+After waiting configured amount of time in ``waitDurationInOpenState(Duration.ofSeconds(1L))`` configuration, it will try to move from open to half-open, which means it will allow some calls to pass through to check, whether the downstream calls are responding. Firstly, let's not wait and try to do additional calls after state is open:
+```
+...
+    public static void main(String[] args) throws Throwable {
+        var circuitBreaker = buildCircuitBreaker();
+
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+    }
+...
+```
+
+The result is:
+```
+18:57:40.859 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T18:57:40.859564400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:57:40.875 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:57:40.859564400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:57:40.875 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T18:57:40.875190900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+18:57:40.875 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T18:57:40.875190900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-06T18:57:40.875190900+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+18:57:40.875 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event FAILURE_RATE_EXCEEDED published: 2021-04-06T18:57:40.875190900+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+18:57:40.903 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+18:57:40.903 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event NOT_PERMITTED published: 2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+18:57:40.903 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event NOT_PERMITTED published: 2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+```
+
+Once the ``CircuitBraker`` moved to open state, it does not permit additional calls and throws ``CallNotPermittedException`` which can be caught and handled accordingly (most likely, switching to default method:
+```
+...
+    private static void circuitBreakerThrowsException(CircuitBreaker circuitBreaker) {
+        try {
+            circuitBreaker.executeSupplier(() -> {
+                throw new RuntimeException("Hello");
+            });
+        } catch (CallNotPermittedException e) {
+            System.out.println("Call is not permited do something else");
+        } catch (Exception e) {
+            //Do something
+        }
+    }
+...
+```
+
+Now if I sleep for at least a second before doing additional two calls, those calls will be permited to execute and we'll be in a half-open state which will end up in open, because subsequential calls still produce errors:
+
+```
+    public static void main(String[] args) throws Throwable {
+        var circuitBreaker = buildCircuitBreaker();
+
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+        System.out.println("-".repeat(10) + "Sleep" + "-".repeat(10));
+        sleepSeconds(2);
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+    }
+```
+
+```
+19:09:32.058 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:09:32.068796400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:09:32.079 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:09:32.068796400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:09:32.089 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:09:32.089135+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:09:32.089 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:09:32.089135+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-06T19:09:32.089135+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+19:09:32.109 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event FAILURE_RATE_EXCEEDED published: 2021-04-06T19:09:32.089135+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+2021-04-06T19:09:32.129618800+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+19:09:32.129 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T19:09:32.129618800+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+----------Sleep----------
+2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+```
+
+During third call state moves from open to half_open, because of application gave time to for transition to happen. Of course, third and fourth result in exception, hence the state moves from half_open to open. Do have in my that if I were to increase ``.minimumNumberOfCalls(2)`` to 3, then it would have a completely different view. It would end up that third call would produce the state transition and last call would not be permited, because the sleeper is in the wrong step.
+```
+19:33:18.478 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:33:18.478999900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:33:18.501 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:33:18.478999900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:33:18.501 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:33:18.501145100+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:33:18.501 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:33:18.501145100+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+----------Sleep----------
+19:33:20.530 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-06T19:33:20.530941600+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+19:33:20.530 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-06T19:33:20.530941600+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-06T19:33:20.530941600+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+19:33:20.530 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event FAILURE_RATE_EXCEEDED published: 2021-04-06T19:33:20.530941600+03:00: CircuitBreaker 'test' exceeded failure rate threshold. Current failure rate: 100.0
+2021-04-06T19:33:20.546574200+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+19:33:20.546 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T19:33:20.546574200+03:00: CircuitBreaker 'test' changed state from CLOSED to OPEN
+2021-04-06T19:33:20.546574200+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+19:33:20.546 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event NOT_PERMITTED published: 2021-04-06T19:33:20.546574200+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+```
+
+#### ``permittedNumberOfCallsInHalfOpenState``
 
 
 
