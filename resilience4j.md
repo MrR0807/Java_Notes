@@ -520,7 +520,7 @@ The result is:
 18:57:40.903 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event NOT_PERMITTED published: 2021-04-06T18:57:40.903214100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
 ```
 
-Once the ``CircuitBraker`` moved to open state, it does not permit additional calls and throws ``CallNotPermittedException`` which can be caught and handled accordingly (most likely, switching to default method:
+Once the ``CircuitBraker`` moved to open state, it does not permit additional calls and throws ``CallNotPermittedException`` which can be caught and handled accordingly (most likely, switching to default method):
 ```
 ...
     private static void circuitBreakerThrowsException(CircuitBreaker circuitBreaker) {
@@ -576,7 +576,7 @@ Now if I sleep for at least a second before doing additional two calls, those ca
 19:09:34.165 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-06T19:09:34.165330500+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
 ```
 
-During third call state moves from open to half_open, because of application gave time to for transition to happen. Of course, third and fourth result in exception, hence the state moves from half_open to open. Do have in my that if I were to increase ``.minimumNumberOfCalls(2)`` to 3, then it would have a completely different view. It would end up that third call would produce the state transition and last call would not be permited, because the sleeper is in the wrong step.
+During third call, the state moves from open to half_open, because of application gave time to for transition to happen. Of course, third and fourth result in exception, hence the state moves from half_open to open. Do have in my that if I were to increase ``.minimumNumberOfCalls(2)`` to 3, then it would have a completely different view. It would end up that third call would produce the state transition and last call would not be permited, because the sleeper is in the wrong step.
 ```
 19:33:18.478 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
 2021-04-06T19:33:18.478999900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
