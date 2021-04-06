@@ -392,7 +392,7 @@ public class TestResilience4J {
 ```
 
 Explanation of ``CircuitBreakerConfig`` configuration: 
-* ``minimumNumberOfCalls`` - from documentation: "Configures the minimum number of calls which are required (per sliding window period) before the CircuitBreaker can calculate the error rate or slow call rate. For example, if minimumNumberOfCalls is 10, then at least 10 calls must be recorded, before the failure rate can be calculated. If only 9 calls have been recorded the CircuitBreaker will not transition to open even if all 9 calls have failed. Default value is 100, hence it has to be lowered for demo.
+* ``minimumNumberOfCalls`` - Configures the minimum number of calls which are required (per sliding window period) before the CircuitBreaker can calculate the error rate or slow call rate. For example, if minimumNumberOfCalls is 10, then at least 10 calls must be recorded, before the failure rate can be calculated. If only 9 calls have been recorded the CircuitBreaker will not transition to open even if all 9 calls have failed. Default value is 100, hence it has to be lowered for demo.
 * ``waitDurationInOpenState`` - The time that the CircuitBreaker should wait before transitioning from open to half-open. Default value is 60 seconds, hence it has to be  lowered for demo.
 
 If application would be started, it would result in:
@@ -412,7 +412,7 @@ at io.github.resilience4j.circuitbreaker.CircuitBreaker.executeSupplier(CircuitB
 at resilience.TestResilience4J.main(TestResilience4J.java:15)
 ```
 
-In other words, it just throws up. Hence, I need engulf this into ``try/catch``:
+In other words, it just throws up on first ``executeSupplier`` and does not execute the second one. Hence, I need to engulf into ``try/catch``:
 ```
 public class TestResilience4J {
 
