@@ -1445,14 +1445,81 @@ An analogy of how the authentication manager and authentication provider work to
 
 ### Applying custom authentication logic
 
-In this section, we implement custom authentication logic. You can find this example in the project ssia-ch5-ex1.
+In this section, we implement custom authentication logic. You can find this example in the project ssia-ch5-ex1. Step by step, an example of how to implement a custom AuthenticationProvider:
+* Declare a class that implements the ``AuthenticationProvider`` contract.
+* Decide which kinds of Authentication objects the new ``AuthenticationProvider`` supports:
+  * Override the supports(Class<?> c) method to specify which type of authentication is supported by the AuthenticationProvider that we define.
+  * Override the authenticate(Authentication a) method to implement the authentication logic.
+* Register an instance of the new AuthenticationProvider implementation with Spring Security.
 
 
+Then, we have to decide what kind of ``Authentication`` interface implementation this ``AuthenticationProvider`` supports. That depends on what type we expect to be provided as a parameter to the authenticate() method. If we don’t customize anything at the authentication-filter level, then the class ``UsernamePasswordAuthenticationToken`` defines the type.
 
+```
+@Component
+public class CustomAuthenticationProvider implements AuthenticationProvider {
 
+    private final UserDetailsService userDetailsService;
+    private final PasswordEncoder passwordEncoder;
 
+    public CustomAuthenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+        this.userDetailsService = userDetailsService;
+        this.passwordEncoder = passwordEncoder;
+    }
 
+    @Override
+    public Authentication authenticate(Authentication authentication) {
+        var username = authentication.getName();
+        var password = authentication.getCredentials().toString();
 
+        var userDetails = userDetailsService.loadUserByUsername(username);
+        if (passwordEncoder.matches(password, userDetails.getPassword())) {
+            return new UsernamePasswordAuthenticationToken(username, password, userDetails.getAuthorities());
+        } else {
+            throw new BadCredentialsException("Something went wrong!");
+        }
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return authentication.equals(UsernamePasswordAuthenticationToken.class);
+    }
+}
+```
+
+To plug in the new implementation of the ``AuthenticationProvider``, override the ``configure(AuthenticationManagerBuilder auth)`` method of the ``WebSecurityConfigurerAdapter`` class in the configuration class of the project:
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    private final AuthenticationProvider authenticationProvider;
+
+    public ProjectConfig(AuthenticationProvider authenticationProvider) {
+        this.authenticationProvider = authenticationProvider;
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        return new InMemoryUserDetailsManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) {
+        auth.authenticationProvider(authenticationProvider);
+    }
+}
+```
+
+That’s it! You successfully customized the implementation of the ``AuthenticationProvider``.
+
+## Using the SecurityContext
+
+113
 
 
 
