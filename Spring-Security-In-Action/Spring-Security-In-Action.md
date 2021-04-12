@@ -1380,6 +1380,107 @@ String encrypted2 = e.encrypt(valueToEncrypt);
 
 # Chapter 5. Implementing authentication
 
+The ``AuthenticationProvider`` layer, however, is the one responsible for the logic of authentication. The ``AuthenticationProvider`` is where you find the conditions and instructions that decide whether to authenticate a request or not. The component that delegates this responsibility to the ``AuthenticationProvider`` is the ``AuthenticationManager``, which receives the request from the HTTP filter layer. In this chapter, let’s look at the authentication process, which has only two possible results:
+* The **entity making the request is not authenticated**. The user is not recognized, and the application rejects the request without delegating to the authorization process. Usually, in this case, the response status sent back to the client is HTTP 401 Unauthorized.
+* The **entity making the request is authenticated**. The details about the requester are stored such that the application can use these for authorization. As you’ll find out in this chapter, the ``SecurityContext`` interface is the instance that stores the details about the current authenticated request.
+
+To remind you of the actors and the links between them, figure 5.1 provides the diagram that you also saw in chapter 2.
+
+![chapter-5-authentication-provider.PNG](pictures/chapter-5-authentication-provider.PNG)
+
+First, we need to discuss how to implement the AuthenticationProvider interface. You need to know how Spring Security understands a request in the authentication process.
+
+## Understanding the AuthenticationProvider
+
+In enterprise applications, you might find yourself in a situation in which the default implementation of authentication based on username and password does not apply. Additionally, when it comes to authentication, your application may require the implementation of several scenarios (figure 5.2). For example, you might want the user to be able to prove who they are by using a code received in an SMS message or displayed by a specific application. Or, you might need to implement authentication scenarios where the user has to provide a certain kind of key stored in a file. You might even need to use a representation of the user’s fingerprint to implement the authentication logic. A framework’s purpose is to be flexible enough to allow you to implement any of these required scenarios.
+
+### Representing the request during authentication
+
+You first need to understand how to represent the authentication event itself. 
+
+**Authentication** is one of the essential interfaces involved in the process with the same name. The **Authentication** interface represents the authentication request event and holds the details of the entity that requests access to the application. You can use the information related to the authentication request event during and after the authentication process. The user requesting access to the application is called a **principal**.
+
+![chapter-5-authentication-interface-principal.PNG](pictures/chapter-5-authentication-interface-principal.PNG)
+
+The **Authentication** contract in Spring Security not only represents a principal, it also adds information on whether the authentication process finishes, as well as a collection of authorities.
+
+Authentication interface:
+```
+public interface Authentication extends Principal, Serializable {
+
+  Collection<? extends GrantedAuthority> getAuthorities();
+  Object getCredentials();
+  Object getDetails();
+  Object getPrincipal();
+  boolean isAuthenticated();
+  void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException;
+}
+```
+
+For the moment, the only methods of this contract that you need to learn are these:
+* **isAuthenticated()** — Returns true if the authentication process ends or false if the authentication process is still in progress.
+* **getCredentials()** — Returns a password or any secret used in the process of authentication.
+* **getAuthorities()** — Returns a collection of granted authorities for the authenticated request.
+
+### Implementing custom authentication logic
+
+The **AuthenticationProvider** in Spring Security takes care of the authentication logic. The default implementation of the **AuthenticationProvider** interface delegates the responsibility of finding the system’s user to a **UserDetailsService**. It uses the **PasswordEncoder** as well for password management in the process of authentication. The following listing gives the definition of the **AuthenticationProvider**, which you need to implement to define a custom authentication provider for your application.
+```
+public interface AuthenticationProvider {
+  Authentication authenticate(Authentication authentication) throws AuthenticationException;
+  boolean supports(Class<?> authentication);
+}
+```
+
+The AuthenticationProvider responsibility is strongly coupled with the Authentication contract. The authenticate() method receives an Authentication object as a parameter and returns an Authentication object. We implement the authenticate() method to define the authentication logic. We can quickly summarize the way you should implement the authenticate() method with three bullets:
+* The method should throw an AuthenticationException if the authentication fails.
+* If the method receives an authentication object that is not supported by your implementation of AuthenticationProvider, then the method should return null. This way, we have the possibility of using multiple Authentication types separated at the HTTP-filter level.
+* The method should return an **Authentication** instance representing a fully authenticated object. For this instance, the **isAuthenticated()** method returns true, and it contains all the necessary details about the authenticated entity. Usually, the application also removes sensitive data like a password from this instance. After implementation, the password is no longer required and keeping these details can potentially expose them to unwanted eyes.
+
+The second method in the AuthenticationProvider interface is ``supports(Class<?> authentication)``. You can implement this method to return true if the current AuthenticationProvider supports the type provided as an Authentication object. Observe that even if this method returns true for an object, there is still a chance that the authenticate() method rejects the request by returning null. Spring Security is designed like this to be more flexible and to allow you to implement an AuthenticationProvider that can reject an authentication request based on the request’s details, not only by its type.
+
+An analogy of how the authentication manager and authentication provider work together to validate or invalidate an authentication request is having a more complex lock for your door. You can open this lock either by using a card or an old fashioned physical key (figure 5.4). The lock itself is the authentication manager that decides whether to open the door. To make that decision, it delegates to the two authentication providers: one that knows how to validate the card or the other that knows how to verify the physical key.
+
+![chapter-5-authentication-manager-lock-analogy.PNG](pictures/chapter-5-authentication-manager-lock-analogy.PNG)
+
+### Applying custom authentication logic
+
+In this section, we implement custom authentication logic. You can find this example in the project ssia-ch5-ex1.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
