@@ -1519,7 +1519,146 @@ That’s it! You successfully customized the implementation of the ``Authenticat
 
 ## Using the SecurityContext
 
-113
+It is likely that you will need details about the authenticated entity after the authentication process ends. You might, for example, need to refer to the username or the authorities of the currently authenticated user. Is this information still accessible after the authentication process finishes? Once the ``AuthenticationManager`` completes the authentication process successfully, it stores the ``Authentication`` instance for the rest of the request. The instance storing the ``Authentication`` object is called the **security context**.
+
+![chapter-5-security-context.PNG](pictures/chapter-5-security-context.PNG)
+
+The security context of Spring Security is described by the ``SecurityContext`` interface. The following listing defines this interface:
+```
+public interface SecurityContext extends Serializable {
+  Authentication getAuthentication();
+  void setAuthentication(Authentication authentication);
+}
+```
+
+As you can observe from the contract definition, the primary responsibility of the SecurityContext is to store the Authentication object. But how is the SecurityContext itself managed? Spring Security offers three strategies to manage the SecurityContext with an object in the role of a manager. It’s named the SecurityContextHolder:
+* MODE_THREADLOCAL—Allows each thread to store its own details in the security context. In a thread-per-request web application, this is a common approach as each request has an individual thread.
+* MODE_INHERITABLETHREADLOCAL—Similar to MODE_THREADLOCAL but also instructs Spring Security to copy the security context to the next thread in case of an asynchronous method. This way, we can say that the new thread running the @Async method inherits the security context.
+* MODE_GLOBAL—Makes all the threads of the application see the same security context instance.
+
+Besides these three strategies for managing the security context provided by Spring Security, in this section, we also discuss **what happens when you define your own threads that are not known by Spring.** As you will learn, for these cases, **you need to explicitly copy the details from the security context to the new thread.**
+
+### Using a holding strategy for the security context
+
+The first strategy for managing the security context is the **MODE_THREADLOCAL strategy.** This strategy is also the **default for managing the security context used by Spring Security.** With this strategy, Spring Security uses ThreadLocal to manage the context. ThreadLocal is an implementation provided by the JDK. This implementation works as a collection of data but makes sure that **each thread of the application can see only the data stored in the collection.** This way, each request has access to its security context. **No thread will have access to another’s ThreadLocal.**
+
+Each request (A, B, and C) has its own allocated thread (T1, T2, and T3). This way, each request only sees the details stored in their security context. But this also means that if a new thread is created (for example, when an asynchronous method is called), the new thread will have its own security context as well. The details from the parent thread (the original thread of the request) are not copied to the security context of the new thread.
+
+Being the default strategy for managing the security context, this process does not need to be explicitly configured. Just ask for the security context from the holder using the static getContext() method wherever you need it after the end of the authentication process.
+
+```
+@GetMapping("/hello")
+public String hello() {
+  SecurityContext context = SecurityContextHolder.getContext();
+  Authentication a = context.getAuthentication();
+  return "Hello, " + a.getName() + "!";
+}
+```
+
+Obtaining the authentication from the context is even more comfortable at the endpoint level, as Spring knows to inject it directly into the method parameters:
+```
+@GetMapping("/hello")
+public String hello(Authentication a) {
+  return "Hello, " + a.getName() + "!";
+}
+```
+
+### Using a holding strategy for asynchronous calls
+
+The situation gets more complicated if we have to deal with multiple threads per request. Look at what happens if you make the endpoint asynchronous. The thread that executes the method is no longer the same thread that serves the request. Being ``@Async``, the method is executed on a separate thread.
+
+```
+@GetMapping("/bye")
+@Async
+public void goodbye() {
+  SecurityContext context = SecurityContextHolder.getContext();
+  String username = context.getAuthentication().getName();
+  // do something with the username
+}
+```
+
+If you try the code as it is now, it throws a ``NullPointerException`` on the line that gets the name from the authentication. In this case, you could solve the problem by using the ``MODE_INHERITABLETHREADLOCAL`` strategy. This can be set either by calling the ``SecurityContextHolder.setStrategyName()`` method or by using the system property ``spring.security.strategy``. By setting this strategy, the framework knows to copy the details of the original thread of the request to the newly created thread of the asynchronous method.
+
+The next listing presents a way to set the security context management strategy by calling the ``setStrategyName()`` method:
+```
+@Configuration
+@EnableAsync
+public class ProjectConfig {
+
+  @Bean
+  public InitializingBean initializingBean() {
+    return () -> SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
+  }
+}
+```
+
+Calling the endpoint, you will observe now that the security context is propagated correctly to the next thread by Spring. Additionally, Authentication is not null anymore.
+
+### Using a holding strategy for standalone applications
+
+If what you need is a security context shared by all the threads of the application, you change the strategy to ``MODE_GLOBAL``. You would not use this strategy for a web server as it doesn’t fit the general picture of the application. But this can be a good use for a standalone application. As the following code snippet shows, you can change the strategy in the same way we did with ``MODE_INHERITABLETHREADLOCAL``.
+
+### Forwarding the security context with DelegatingSecurityContextRunnable
+
+What happens when your code starts new threads without the framework knowing about them? Sometimes we name these self-managed threads because it is we who manage them, not the framework. In this section, we apply some utility tools provided by Spring Security that help you propagate the security context to newly created threads.
+
+One solution for this is to use the ``DelegatingSecurityContextRunnable`` to decorate the tasks you want to execute on a separate thread. The ``DelegatingSecurityContextRunnable`` extends ``Runnable``. You can use it following the execution of the task when there is no value expected. If you have a return value, then you can use the ``Callable<T>`` alternative, which is ``DelegatingSecurityContextCallable<T>``. Both classes represent tasks executed asynchronously, as any other ``Runnable`` or ``Callable``.
+
+Listing 5.11 presents the use of ``DelegatingSecurityContextCallable``. Let’s start by defining a simple endpoint method that declares a ``Callable`` object. The ``Callable`` task returns the username from the current security context.
+
+```
+@GetMapping("/ciao")
+public String ciao() throws Exception {
+  Callable<String> task = () -> {
+    SecurityContext context = SecurityContextHolder.getContext();
+    return context.getAuthentication().getName();
+  };
+  ExecutorService e = Executors.newCachedThreadPool();
+  try {
+    return "Ciao, " + e.submit(task).get() + "!";
+  } finally {
+    e.shutdown();
+  }
+}
+```
+
+If you run the application as is, you get nothing more than a NullPointerException. Inside the newly created thread to run the callable task, the authentication does not exist anymore, and the security context is empty. To solve this problem, we decorate the task with DelegatingSecurityContextCallable, which provides the current context to the new thread, as provided by this listing:
+```
+@GetMapping("/ciao")
+public String ciao() throws Exception {
+  Callable<String> task = () -> {
+    SecurityContext context = SecurityContextHolder.getContext();
+    return context.getAuthentication().getName();
+  };
+  ExecutorService e = Executors.newCachedThreadPool();
+  try {
+    var contextTask = new DelegatingSecurityContextCallable<>(task);
+    return "Ciao, " + e.submit(contextTask).get() + "!";
+  } finally {
+    e.shutdown();
+  }
+}
+```
+
+Calling the endpoint now, you can observe that Spring propagated the security context to the thread in which the tasks execute:
+```
+curl -u user:2eb3f2e8-debd-420c-9680-48159b2ff905 http://localhost:8080/ciao
+```
+
+The response body for this call is:
+```
+Ciao, user!
+```
+
+### Forwarding the security context with DelegatingSecurityContextExecutorService
+
+An alternative to decorating tasks is to use a particular type of Executor - ``DelegatingSecurityContextExecutorService``.
+
+
+
+
+
+
 
 
 
