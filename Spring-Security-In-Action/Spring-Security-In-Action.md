@@ -1654,6 +1654,32 @@ Ciao, user!
 
 An alternative to decorating tasks is to use a particular type of Executor - ``DelegatingSecurityContextExecutorService``.
 
+```
+@GetMapping("/hola")
+public String hola() throws Exception {
+  Callable<String> task = () -> {
+    SecurityContext context = SecurityContextHolder.getContext();
+    return context.getAuthentication().getName();
+  };
+
+  ExecutorService e = Executors.newCachedThreadPool();
+  e = new DelegatingSecurityContextExecutorService(e);
+  try {
+    return "Hola, " + e.submit(task).get() + "!";
+  } finally {
+    e.shutdown();
+  }
+}
+```
+
+If you need to implement security context propagation for a scheduled task, then you will be happy to hear that Spring Security also offers you a decorator named ``DelegatingSecurityContextScheduledExecutorService``. It decorates a ``ScheduledExecutorService``, allowing you to work with scheduled tasks.
+
+## Understanding HTTP Basic and form-based login authentications
+
+### Using and configuring HTTP Basic
+
+For theoretical scenarios, the defaults that HTTP Basic authentication comes with are great. But in a more complex application, you might find the need to customize some of these settings. For example, you might want to implement a specific logic for the case in which the authentication process fails. You might even need to set some values on the response sent back to the client in this case.
+
 
 
 
