@@ -1866,9 +1866,18 @@ hello
 
 # Chapter 6. Hands-on: A small secured web application
 
+This hands-on example helps you to have a better overview of how all the components we discussed so far work together in a real application.
 
+## Project requirements and setup
 
+In this section, we implement a small web application where the user, after successful authentication, can see a list of products on the main page. For our project, a database stores the products and users for this application. The passwords for each user are hashed with either bcrypt or scrypt. I chose two hashing algorithms to give us a reason to customize the authentication logic in the example. A column in the users table stores the encryption type. A third table stores the users’ authorities.
 
+Figure 6.1 describes the authentication flow for this application. I have shaded the components that we’ll customize differently. For the others, we use the defaults provided by Spring Security. The AuthenticationFilter intercepts the request and then delegates the authentication responsibility to the AuthenticationManager, which uses the AuthenticationProvider to authenticate the request. It returns the details of a successfully authenticated call so that the AuthenticationFilter can store these in the SecurityContext.
+
+![chapter-6-project-structure.PNG](pictures/chapter-6-project-structure.PNG)
+
+AuthenticationProviderService class, which implements the Authentication- Provider interface. This implementation defines the authentication logic where it needs to call a UserDetailsService to find the user details from a database and the PasswordEncoder to validate if the password is correct. For this application, we create
+a JpaUserDetailsService that uses Spring Data JPA to work with the database.
 
 
 
