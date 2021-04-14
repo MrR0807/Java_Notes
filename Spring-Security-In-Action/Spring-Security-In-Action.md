@@ -1890,9 +1890,127 @@ a JpaUserDetailsService that uses Spring Data JPA to work with the database.
 
 
 
+## My own implementation using Jdbc and DelegatingPasswordEncoder
 
+schema.sql:
+```
+CREATE TABLE product (
+  id BIGINT NOT NULL IDENTITY(1,1),
+  product_name VARCHAR(255) NOT NULL,
 
+  CONSTRAINT PK__products__id PRIMARY KEY (id)
+);
 
+CREATE TABLE IF NOT EXISTS users (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45) NOT NULL,
+    password    VARCHAR(500) NOT NULL,
+    enabled     BIT         NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS authorities (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45) NOT NULL,
+    authority   VARCHAR(45) NOT NULL,
+    PRIMARY KEY (id)
+);
+```
+
+data.sql:
+```
+INSERT INTO product (product_name)
+VALUES ('apple'), ('orange'), ('carrot');
+
+INSERT INTO authorities (username, authority) VALUES ('john', 'write');
+INSERT INTO users (username, password, enabled) VALUES ('john', '{bcrypt}$2a$10$AxC8HJv26wuwbLCPl9acsetiloyaSNSremmFWBUeBIHDemBi1eQ7i', 1);
+```
+
+**The password is 12345**.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin()
+            .and()
+            .httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+```
+@Configuration
+public class UserDetailsConfig {
+
+    @Bean
+    public UserDetailsManager userDetailsManager(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        var encoders = Map.of(
+                "noop", NoOpPasswordEncoder.getInstance(),
+                "bcrypt", new BCryptPasswordEncoder(),
+                "scrypt", new SCryptPasswordEncoder());
+        return new DelegatingPasswordEncoder("bcrypt", encoders);
+    }
+}
+```
+
+```
+@RestController
+public class HelloController {
+
+    private final ProductsRepo productsRepo;
+
+    public HelloController(ProductsRepo productsRepo) {
+        this.productsRepo = productsRepo;
+    }
+
+    @GetMapping("products")
+    public List<Product> listProducts() {
+        return productsRepo.listProducts();
+    }
+}
+```
+
+```
+public record Product(long id, String name) {
+
+    public long getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+```
+
+```
+@Repository
+public class ProductsRepo {
+
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    public ProductsRepo(DataSource dataSource) {
+        this.jdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+    }
+
+    public List<Product> listProducts() {
+        return jdbcTemplate.query("SELECT id, product_name FROM product", (resultSet, i) -> {
+            var id = resultSet.getLong("id");
+            var productName = resultSet.getString("product_name");
+            return new Product(id, productName);
+        });
+    }
+}
+```
 
 
 
