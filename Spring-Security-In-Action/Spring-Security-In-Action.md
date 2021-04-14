@@ -1680,8 +1680,191 @@ If you need to implement security context propagation for a scheduled task, then
 
 For theoretical scenarios, the defaults that HTTP Basic authentication comes with are great. But in a more complex application, you might find the need to customize some of these settings. For example, you might want to implement a specific logic for the case in which the authentication process fails. You might even need to set some values on the response sent back to the client in this case.
 
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+    }
+}
+```
 
+You can also call the httpBasic() method of the HttpSecurity instance with a parameter of type Customizer. This parameter allows you to set up some configurations related to the authentication method, for example, the realm name, as shown in listing 5.16. You can think about the realm as a protection space that uses a specific authentication method.
+
+```
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic(c -> c.realmName("OTHER"));
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+```
+
+The lambda expression used is, in fact, an object of type ``Customizer<HttpBasicConfigurer<HttpSecurity>>``. The parameter of type ``HttpBasicConfigurer<HttpSecurity>`` allows us to call the realmName() method to rename the realm. You can use cURL with the -v flag to get a verbose HTTP response in which the realm name is indeed changed. However, note that you’ll find the WWW-Authenticate header in the response only when the HTTP response status is 401 Unauthorized and not when the HTTP response status is 200 OK. Here’s the call to cURL:
+```
+curl -v http://localhost:8080/hello
+```
+
+The response of the call is:
+```
+...
+< WWW-Authenticate: Basic realm="OTHER"
+...
+```
+
+Also, by using a Customizer, we can customize the response for a failed authentication. You need to do this if the client of your system expects something specific in the response in the case of a failed authentication. You might need to add or remove one or more headers. Or you can have some logic that filters the body to make sure that the application doesn’t expose any sensitive data to the client.
+
+To customize the response for a failed authentication, we can implement an AuthenticationEntryPoint. Its commence() method receives the HttpServlet- Request, the HttpServletResponse, and the AuthenticationException that cause the authentication to fail. Listing 5.17 demonstrates a way to implement the AuthenticationEntryPoint, which adds a header to the response and sets the HTTP status to 401 Unauthorized.
+
+```
+public class CustomEntryPoint implements AuthenticationEntryPoint {
+
+    @Override
+    public void commence(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, AuthenticationException e) 
+            throws IOException, ServletException {
+        httpServletResponse.addHeader("message", "Luke, I'm your father");
+        httpServletResponse.sendError(HttpStatus.UNAUTHORIZED.value());
+    }
+}
+```
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic(c -> c.authenticationEntryPoint(new CustomEntryPoint()));
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+```
+curl -v http://localhost:8080/hello
+```
+The response of the call is:
+```
+...
+< HTTP/1.1 401
+< Set-Cookie: JSESSIONID=459BAFA7E0E6246A463AD19B07569C7B; Path=/; HttpOnly
+< message: Luke, I am your father!
+...
+```
+
+### Implementing authentication with form-based login
+
+When developing a web application, you would probably like to present a userfriendly login form where the users can input their credentials. As well, you might like your authenticated users to be able to surf through the web pages after they logged in and to be able to log out. For a small web application, you can take advantage of the form-based login method.
+
+To change the authentication method to form-based login, in the ``configure(HttpSecurity http)`` method of the configuration class, instead of httpBasic(), call the formLogin() method of the HttpSecurity parameter. The following listing presents this change.
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+Even with this minimal configuration, Spring Security has already configured a login form, as well as a log-out page for your project (http://localhost:8080/logout). The ``formLogin()`` method returns an object of type ``FormLoginConfigurer<HttpSecurity>``, which allows us to work on customizations.
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin().defaultSuccessUrl("/home", true);
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+If you need to go even more in depth with this, using the ``AuthenticationSuccessHandler`` and ``AuthenticationFailureHandler`` objects offers a more detailed customization approach. These interfaces let you implement an object through which you can apply the logic executed for authentication.
+
+```
+@Component
+public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Authentication authentication)
+            throws IOException {
+        var authorities = authentication.getAuthorities();
+        var auth = authorities.stream()
+                .filter(a -> a.getAuthority().equals("read"))
+                .findFirst();
+        if (auth.isPresent()) {
+            httpServletResponse.sendRedirect("/home");
+        } else {
+            httpServletResponse.sendRedirect("/error");
+        }
+    }
+}
+```
+
+There are situations in practical scenarios when a client expects a certain format of the response in case of failed authentication. They may expect a different HTTP status code than 401 Unauthorized or additional information in the body of the response. The most typical case I have found in applications is to send a request identifier. This request identifier has a unique value used to trace back the request among multiple systems, and the application can send it in the body of the response in case of failed authentication. Another situation is when you want to sanitize the response to make sure that the application doesn’t expose sensitive data outside of the system.
+```
+@Component
+public class CustomAuthenticationFailureHandler implements AuthenticationFailureHandler {
+    
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, AuthenticationException e) {
+        httpServletResponse.setHeader("failed", LocalDateTime.now().toString());
+    }
+}
+```
+
+To use the two objects, you need to register them in the configure() method on the FormLoginConfigurer object returned by the formLogin() method.
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+    
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin()
+                .successHandler(new CustomAuthenticationSuccessHandler())
+                .failureHandler(new CustomAuthenticationFailureHandler());
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+If you try to do:
+```
+curl -u user:a9867de7-a6c4-4f4b-be34-b9ca48a6fa5b http://localhost:8080/hello -v
+```
+
+You'll get a:
+```
+...
+HTTP/1.1 302
+...
+```
+
+This response status code is how the application tells you that it is trying to do a redirect. Even if you have provided the right username and password, it won’t consider these and will instead try to send you to the login form as requested by the formLogin method.
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin()
+                .successHandler(new CustomAuthenticationSuccessHandler())
+                .failureHandler(new CustomAuthenticationFailureHandler())
+            .and()
+                .httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+```
+curl -u user:384e8f47-2e39-47fb-a776-619ab142782f http://localhost:8080/hello
+hello
+```
+
+# Chapter 6. Hands-on: A small secured web application
 
 
 
