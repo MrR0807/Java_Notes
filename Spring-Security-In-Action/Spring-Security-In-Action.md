@@ -1879,42 +1879,352 @@ Figure 6.1 describes the authentication flow for this application. I have shaded
 AuthenticationProviderService class, which implements the Authentication- Provider interface. This implementation defines the authentication logic where it needs to call a UserDetailsService to find the user details from a database and the PasswordEncoder to validate if the password is correct. For this application, we create
 a JpaUserDetailsService that uses Spring Data JPA to work with the database.
 
+The main steps we take to implement this project are as follows:
+* Set up the database
+* Define user management
+* Implement the authentication logic
+* Implement the main page
+* Run and test the application
+
+The ``schema.sql`` file contains all the queries that create or alter the structure of the database, while the ``data.sql`` file stores all the queries that work with data.
+
+``schema.sql``:
+```
+CREATE SCHEMA spring;
+
+CREATE TABLE IF NOT EXISTS spring.user (
+    id          INT             NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45)     NOT NULL,
+    password    TEXT            NOT NULL,
+ -- Algorithm stories either BCRYPT or SCRYPT
+    algorithm   VARCHAR(45)     NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS spring.authority (
+    id          INT             NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(45)     NOT NULL,
+    user_id     INT             NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS spring.product (
+    id          INT             NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(45)     NOT NULL,
+    price       DECIMAL(19,2)   NOT NULL,
+    currency    VARCHAR(45)     NOT NULL,
+    PRIMARY KEY (id)
+);
+```
+
+**NOTE**. It is advisable to have a many-to-many relationship between the authorities and the users. To keep the example simpler from the point of view of the persistence layer and focus on the essential aspects of Spring Security, I decided to make this one-to-many.
+
+``data.sql``:
+```
+INSERT INTO spring.user (id, username, password, algorithm)
+VALUES (1, 'john', '$2a$10$/5P0VqbNr.KP5XbRwG7H2.da.yIv545Jya11ciRihjxuvMyPXHcnO', 'BCRYPT');
+
+INSERT INTO spring.authority (id, `name`, user_id)
+VALUES (1,'READ', '1'), (2,'WRITE', '1');
+
+INSERT INTO spring.product (id, `name`, price, currency)
+VALUES (1, 'Chocolate', 10.00, 'USD');
+```
+
+In this code snippet, for user John, the password is hashed using bcrypt. **The raw password is 12345.**
+
+``pom.xml``:
+```
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+```
+
+``application.yaml``:
+```
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:security;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    platform: h2
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database: h2
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+      path: /h2
+  application:
+    name: security
+
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
+```
 
 
+## Implementing user management
+
+In this section, we discuss implementing the user management part of the application. The representative component of user management in regards to Spring Security is the UserDetailsService. You need to implement at least this contract to instruct Spring Security how to retrieve the details of your users.
+
+Now that we have a project in place and the database connection configured, it is time to think about the implementations related to application security. The steps we need to take to build this part of the application that takes care of the user management are as follows:
+1 Define the password encoder objects for the two hashing algorithms.
+2 Define the JPA entities to represent the user and authority tables that store the details needed in the authentication process.
+3 Declare the JpaRepository contracts for Spring Data. In this example, we only need to refer directly to the users, so we declare a repository named UserRepository.
+4 Create a decorator that implements the UserDetails contract over the User JPA entity. Here, we use the approach to separate responsibilities discussed in section 3.2.5.
+5 Implement the UserDetailsService contract. For this, create a class named JpaUserDetailsService. This class uses the UserRepository we create in step 3 to obtain the details about users from the database. If JpaUserDetailsService finds the users, it returns them as an implementation of the decorator we define in step 4.
+
+For user management, we need to declare a UserDetailsService implementation, which retrieves the user by its name from the database.
+```
+@Entity
+@Table(schema = "spring", name = "user")
+public class UserEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(length = 45)
+    private String username;
+    private String password;
+    @Enumerated(EnumType.STRING)
+    private Algorithm algorithm;
+
+    @OneToMany(fetch = FetchType.LAZY, mappedBy = "userEntity", cascade = CascadeType.ALL)
+    private Set<AuthorityEntity> authorities = new HashSet<>();
+    
+    ...
+}
+```
+
+```
+public enum Algorithm {
+    BCRYPT, SCRYPT;
+}
+```
+
+```
+@Entity
+@Table(schema = "spring", name = "authority")
+public class AuthorityEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(length = 45)
+    private String name;
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private UserEntity userEntity;
+    ...
+}
+```
+
+```
+public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
+
+    @EntityGraph(attributePaths = {"authorities"})
+    Optional<UserEntity> findUserEntitiesByUsername(String username);
+}
+```
+
+```
+public class CustomUserDetails implements UserDetails {
+
+    private final UserEntity userEntity;
+
+    public CustomUserDetails(UserEntity userEntity) {
+        this.userEntity = userEntity;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return userEntity.getAuthorities().stream()
+                         .map(authorityEntity -> new SimpleGrantedAuthority(authorityEntity.getName()))
+                         .toList();
+    }
+
+    @Override
+    public String getPassword() {
+        return userEntity.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+        return userEntity.getUsername();
+    }
+
+    public Algorithm getAlgorithm() {
+        return userEntity.getAlgorithm();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+}
+```
+
+You can now implement the UserDetailsService:
+```
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UserJpaRepository userJpaRepository;
+
+    public CustomUserDetailsService(UserJpaRepository userJpaRepository) {
+        this.userJpaRepository = userJpaRepository;
+    }
+
+    @Override
+    public CustomUserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        return userJpaRepository.findUserEntitiesByUsername(username)
+                                .map(CustomUserDetails::new)
+                                .orElseThrow(() -> new UsernameNotFoundException("Bad credentials. Hohoho"));
+    }
+}
+```
 
 
+## Implementing custom authentication logic
+
+Having completed user and password management, we can begin writing custom authentication logic. To do this, we have to implement an ``AuthenticationProvider``.
+
+```
+@Service
+public class CustomAuthenticationProvider implements AuthenticationProvider {
+
+    private final CustomUserDetailsService userDetailsService;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
+    private final SCryptPasswordEncoder sCryptPasswordEncoder;
+
+    public CustomAuthenticationProvider(CustomUserDetailsService userDetailsService, BCryptPasswordEncoder bCryptPasswordEncoder,
+                                        SCryptPasswordEncoder sCryptPasswordEncoder) {
+        this.userDetailsService = userDetailsService;
+        this.bCryptPasswordEncoder = bCryptPasswordEncoder;
+        this.sCryptPasswordEncoder = sCryptPasswordEncoder;
+    }
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        var username = authentication.getName();
+        var password = authentication.getCredentials().toString();
+
+        var userDetails = userDetailsService.loadUserByUsername(username);
+        return switch (userDetails.getAlgorithm()) {
+            case BCRYPT -> checkPassword(userDetails, password, bCryptPasswordEncoder);
+            case SCRYPT -> checkPassword(userDetails, password, sCryptPasswordEncoder);
+        };
+    }
+
+    private Authentication checkPassword(CustomUserDetails user, String rawPassword, PasswordEncoder encoder) {
+        if (encoder.matches(rawPassword, user.getPassword())) {
+            return new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword(), user.getAuthorities());
+        } else {
+            throw new BadCredentialsException("Bad credentials. Hohoho");
+        }
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+}
+```
+```
+@Configuration
+public class PasswordEncodersConfig {
+
+    @Bean
+    public BCryptPasswordEncoder bCryptPasswordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SCryptPasswordEncoder sCryptPasswordEncoder() {
+        return new SCryptPasswordEncoder();
+    }
+}
+```
 
 
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
+    private final CustomAuthenticationProvider authenticationProvider;
 
+    public ProjectConfig(CustomAuthenticationProvider authenticationProvider) {
+        this.authenticationProvider = authenticationProvider;
+    }
 
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic()
+            .and()
+            .formLogin();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
 
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) {
+        auth.authenticationProvider(authenticationProvider);
+    }
+}
+```
 
 ## My own implementation using Jdbc and DelegatingPasswordEncoder
 
 schema.sql:
 ```
-CREATE TABLE product (
-  id BIGINT NOT NULL IDENTITY(1,1),
-  product_name VARCHAR(255) NOT NULL,
 
-  CONSTRAINT PK__products__id PRIMARY KEY (id)
-);
-
-CREATE TABLE IF NOT EXISTS users (
-    id          INT         NOT NULL AUTO_INCREMENT,
-    username    VARCHAR(45) NOT NULL,
-    password    VARCHAR(500) NOT NULL,
-    enabled     BIT         NOT NULL,
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE IF NOT EXISTS authorities (
-    id          INT         NOT NULL AUTO_INCREMENT,
-    username    VARCHAR(45) NOT NULL,
-    authority   VARCHAR(45) NOT NULL,
-    PRIMARY KEY (id)
-);
 ```
 
 data.sql:
@@ -2013,48 +2323,6 @@ public class ProductsRepo {
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## Running and testing the application
 
 
