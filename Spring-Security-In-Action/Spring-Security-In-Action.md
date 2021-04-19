@@ -2224,42 +2224,161 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
 schema.sql:
 ```
+CREATE SCHEMA spring;
 
+CREATE TABLE IF NOT EXISTS spring.user (
+    id          INT             NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(45)     NOT NULL,
+    password    TEXT            NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS spring.authority (
+    id          INT             NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(45)     NOT NULL,
+    user_id     INT             NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS spring.product (
+    id          INT             NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(45)     NOT NULL,
+    price       DECIMAL(19,2)   NOT NULL,
+    currency    VARCHAR(45)     NOT NULL,
+    PRIMARY KEY (id)
+);
 ```
 
 data.sql:
 ```
-INSERT INTO product (product_name)
-VALUES ('apple'), ('orange'), ('carrot');
+INSERT INTO spring.user (id, username, password)
+VALUES (1, 'john', '{bcrypt}$2a$10$AxC8HJv26wuwbLCPl9acsetiloyaSNSremmFWBUeBIHDemBi1eQ7i');
 
-INSERT INTO authorities (username, authority) VALUES ('john', 'write');
-INSERT INTO users (username, password, enabled) VALUES ('john', '{bcrypt}$2a$10$AxC8HJv26wuwbLCPl9acsetiloyaSNSremmFWBUeBIHDemBi1eQ7i', 1);
+INSERT INTO spring.authority (id, `name`, user_id)
+VALUES (1,'READ', 1), (2,'WRITE', 1);
+
+INSERT INTO spring.product (id, `name`, price, currency)
+VALUES (1, 'Chocolate', 10.00, 'USD');
 ```
 
 **The password is 12345**.
 
 ```
-@Configuration
-public class ProjectConfig extends WebSecurityConfigurerAdapter {
+public record Authority(Long id, String name) {
+}
+
+public record User(Long id, String username, String password, Set<Authority> authorities) {
+}
+```
+
+```
+public class CustomUserDetails implements UserDetails {
+
+    private final User user;
+
+    public CustomUserDetails(User user) {
+        this.user = user;
+    }
 
     @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.formLogin()
-            .and()
-            .httpBasic();
-        http.authorizeRequests().anyRequest().authenticated();
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return user.authorities().stream()
+                   .map(authorityEntity -> new SimpleGrantedAuthority(authorityEntity.name()))
+                   .toList();
+    }
+
+    @Override
+    public String getPassword() {
+        return user.password();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.username();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+}
+```
+
+```
+@Repository
+public class UserJdbcRepo {
+
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    private static final String SELECT_SQL = "SELECT u.id, u.username, u.password, a.id AS a_id, a.name AS a_name FROM spring.user AS u INNER JOIN spring.authority AS a ON u.id = a.user_id";
+
+    public UserJdbcRepo(DataSource dataSource) {
+        this.jdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+    }
+
+    public Optional<User> findUser(String username) {
+        try {
+            var user = jdbcTemplate.query(SELECT_SQL + " WHERE u.username = :userName", Map.of("userName", username), UserJdbcRepo::extractUser);
+            return Optional.ofNullable(user);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static User extractUser(ResultSet rs) throws SQLException {
+        var authorities = new HashSet<Authority>();
+        User user = null;
+        while (rs.next()) {
+            if (user == null) {
+                var userId = rs.getLong("id");
+                var username1 = rs.getString("username");
+                var password = rs.getString("password");
+                user = new User(userId, username1, password, authorities);
+            }
+            authorities.add(new Authority(rs.getLong("a_id"), rs.getString("a_name")));
+        }
+        return user;
+    }
+}
+```
+
+```
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UserJdbcRepo userJdbcRepo;
+
+    public CustomUserDetailsService(UserJdbcRepo userJdbcRepo) {
+        this.userJdbcRepo = userJdbcRepo;
+    }
+
+    @Override
+    public CustomUserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        return userJdbcRepo.findUser(username)
+                           .map(CustomUserDetails::new)
+                           .orElseThrow(() -> new UsernameNotFoundException("Bad credentials. Hohoho"));
     }
 }
 ```
 
 ```
 @Configuration
-public class UserDetailsConfig {
-
-    @Bean
-    public UserDetailsManager userDetailsManager(DataSource dataSource) {
-        return new JdbcUserDetailsManager(dataSource);
-    }
+public class PasswordEncoderConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -2273,13 +2392,117 @@ public class UserDetailsConfig {
 ```
 
 ```
+@Service
+public class CustomAuthenticationProvider implements AuthenticationProvider {
+
+    private final CustomUserDetailsService userDetailsService;
+    private final PasswordEncoder passwordEncoder;
+
+    public CustomAuthenticationProvider(CustomUserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+        this.userDetailsService = userDetailsService;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        var username = authentication.getName();
+        var password = authentication.getCredentials().toString();
+
+        var userDetails = userDetailsService.loadUserByUsername(username);
+        return checkPassword(userDetails, password);
+    }
+
+    private Authentication checkPassword(CustomUserDetails user, String rawPassword) {
+        if (passwordEncoder.matches(rawPassword, user.getPassword())) {
+            return new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword(), user.getAuthorities());
+        } else {
+            throw new BadCredentialsException("Bad credentials. Hohoho");
+        }
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+}
+```
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    private final CustomAuthenticationProvider authenticationProvider;
+
+    public ProjectConfig(CustomAuthenticationProvider authenticationProvider) {
+        this.authenticationProvider = authenticationProvider;
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic()
+            .and()
+            .formLogin();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) {
+        auth.authenticationProvider(authenticationProvider);
+    }
+}
+```
+
+```
+public record Product(Long id, String name, BigDecimal price, String currency) {
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+}
+```
+
+```
+@Repository
+public class ProductRepo {
+
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    public ProductRepo(DataSource dataSource) {
+        this.jdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
+    }
+
+    public List<Product> listProducts() {
+        return jdbcTemplate.query("SELECT id, name, price, currency FROM spring.product", (rs, i) -> {
+            var id = rs.getLong("id");
+            var productName = rs.getString("name");
+            var price = rs.getBigDecimal("price");
+            var currency = rs.getString("currency");
+            return new Product(id, productName, price, currency);
+        });
+    }
+}
+```
+
+```
 @RestController
 public class HelloController {
 
-    private final ProductsRepo productsRepo;
+    private final ProductRepo productsRepo;
 
-    public HelloController(ProductsRepo productsRepo) {
-        this.productsRepo = productsRepo;
+    public HelloController(ProductRepo productRepo) {
+        this.productsRepo = productRepo;
     }
 
     @GetMapping("products")
@@ -2289,40 +2512,6 @@ public class HelloController {
 }
 ```
 
-```
-public record Product(long id, String name) {
 
-    public long getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-}
-```
-
-```
-@Repository
-public class ProductsRepo {
-
-    private final NamedParameterJdbcTemplate jdbcTemplate;
-
-    public ProductsRepo(DataSource dataSource) {
-        this.jdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
-    }
-
-    public List<Product> listProducts() {
-        return jdbcTemplate.query("SELECT id, product_name FROM product", (resultSet, i) -> {
-            var id = resultSet.getLong("id");
-            var productName = resultSet.getString("product_name");
-            return new Product(id, productName);
-        });
-    }
-}
-```
-
-
-## Running and testing the application
 
 
