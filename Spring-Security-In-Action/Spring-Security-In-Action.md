@@ -2512,6 +2512,280 @@ public class HelloController {
 }
 ```
 
+# Chapter 7. Configuring authorization: Restricting access
+
+Up to now, we’ve only discussed authentication, which is, as you learned, the process in which the application identifies the caller of a resource. In the examples we worked on in the previous chapters, we didn’t implement any rule to decide whether to approve a request. We only cared if the system knew the user or not. **Authorization** is the process during which the system decides if an identified client has permission to access the requested resource. 
+
+In Spring Security, once the application ends the authentication flow, it delegates the request to an authorization filter.
+
+![chapter-7-authorization-flow.PNG](pictures/chapter-7-authorization-flow.PNG)
+
+## Restricting access based on authorities and roles
+
+In chapter 3, you implemented the GrantedAuthority interface. I introduced this contract when discussing another essential component: the ``UserDetails`` interface. We didn’t work with ``GrantedAuthority`` then because, as you’ll learn in this chapter, this interface is mainly related to the authorization process.
+
+An authority is an action that a user can perform with a system resource. An authority has a name that the ``getAuthority()`` behavior of the object returns as a String. We use the name of the authority when defining the custom authorization rule. Often an authorization rule can look like this: “Jane is allowed to *delete* the product records,” or “John is allowed to *read* the document records.” In these cases, delete and read are the granted authorities. The application allows the users Jane and John to perform these actions, which often have names like read, write, or delete.
+
+```
+public interface GrantedAuthority extends Serializable {
+  String getAuthority();
+}
+```
+
+### Restricting access for all endpoints based on user authorities
+
+Up to now in our examples, any authenticated user could call any endpoint of the application. From now on, you’ll learn to customize this access. We start a new project that I name ssia-ch7-ex1. I show you three ways in which you can configure access as mentioned using these methods:
+* ``hasAuthority()`` — Receives as parameters only one authority for which the application configures the restrictions. Only users having that authority can call the endpoint.
+* ``hasAnyAuthority()`` — Can receive more than one authority for which the application configures the restrictions. I remember this method as “has any of the given authorities.” The user must have at least one of the specified authorities to make a request.
+* ``access()`` — Offers you unlimited possibilities for configuring access because the application builds the authorization rules based on the Spring Expression Language (SpEL).
+
+However, ``access()`` makes the code more difficult to read and debug. For this reason, **I recommend it as the lesser solution and only if you cannot apply the hasAnyAuthority() or hasAuthority() methods.**
+
+The only dependencies needed in your pom.xml file are ``spring-boot-starterweb`` and ``spring-boot-starter-security``.
+
+We also add an endpoint in the application to test our authorization configuration:
+```
+@RestController
+public class HelloController {
+
+    @GetMapping("hello")
+    public String hello() {
+        return "Hello";
+    }
+}
+```
+
+In a configuration class, we declare an InMemoryUserDetailsManager as our UserDetailsService and add two users, John and Jane, to be managed by this instance. Each user has a different authority.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+    
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var manager = new InMemoryUserDetailsManager();
+        var john = User
+                .withUsername("john")
+                .password("12345")
+                .authorities("read")
+                .build();
+        var jane = User
+                .withUsername("jane")
+                .password("12345")
+                .authorities("write")
+                .build();
+        manager.createUser(john);
+        manager.createUser(jane);
+        return manager;
+    }
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+The next thing we do is add the authorization configuration.
+
+```
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+
+        http.authorizeRequests().anyRequest().permitAll();
+    }
+```
+
+The ``authorizeRequests()`` method lets us continue with specifying authorization rules on endpoints. The ``anyRequest()`` method indicates that the rule applies to all the requests, regardless of the URL or HTTP method used. The ``permitAll()`` method allows access to all requests, authenticated or not.
+
+Let’s say we want to make sure that only users having WRITE authority can access all endpoints. For our example, this means only Jane. We can achieve our goal and restrict access this time based on a user’s authorities.
+
+```
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+
+        http.authorizeRequests().anyRequest().hasAuthority("write");
+    }
+```
+
+We can now start to test the application by calling the endpoint with each of the two users:
+```
+curl -u jane:12345 http://localhost:8080/hello
+Hello
+
+curl -u john:12345 http://localhost:8080/hello
+
+{
+  "status":403,
+  "error":"Forbidden",
+  "message":"Forbidden",
+  "path":"/hello"
+}
+```
+
+In a similar way, you can use the hasAnyAuthority() method. This method has the parameter varargs; this way, it can receive multiple authority names.
+
+```
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+
+        http.authorizeRequests().anyRequest().hasAnyAuthority("write", "read");
+    }
+```
+
+Then:
+```
+curl -u jane:12345 http://localhost:8080/hello
+Hello
+
+curl -u john:12345 http://localhost:8080/hello
+Hello
+```
+
+The ``access()`` method is not all evil. As I stated earlier, it offers you flexibility. You’ll find situations in real-world scenarios in which you could use it to write more complex expressions, based on which the application grants access. You wouldn’t be able to implement these scenarios without the access() method.
+
+```
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+
+        String expression = "hasAuthority('read') and !hasAuthority('delete')";
+        http.authorizeRequests().anyRequest().access(expression);
+    }
+```
+
+### Restricting access for all endpoints based on user roles
+
+Roles are another way to refer to what a user can do (figure 7.5). You find these as well in realworld applications, so this is why it is important to understand roles and the difference between roles and authorities.
+
+![chapter-7-roles.PNG](pictures/chapter-7-roles.PNG)
+
+Some applications always provide the same groups of authorities to specific users. Imagine, in your application, a user can either only have read authority or have all: read, write, and delete authorities. In this case, it might be more comfortable to think that those users who can only read have a role named READER, while the others have the role ADMIN.
+
+
+The names that you give to roles are like the names for authorities—it’s your own choice. We could say that roles are coarse grained when compared with authorities. Behind the scenes, anyway, roles are represented using the same contract in Spring Security, GrantedAuthority. **When defining a role, its name should start with the ROLE_ prefix.** At the implementation level, this prefix specifies the difference between a role and an authority.
+
+```
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var manager = new InMemoryUserDetailsManager();
+        var john = User
+                .withUsername("john")
+                .password("12345")
+                .authorities("ROLE_ADMIN")
+                .build();
+        var jane = User
+                .withUsername("jane")
+                .password("12345")
+                .authorities("ROLE_MANAGER")
+                .build();
+        manager.createUser(john);
+        manager.createUser(jane);
+        return manager;
+    }
+```
+
+To set constraints for user roles, you can use one of the following methods:
+* ``hasRole()`` — Receives as a parameter the role name for which the application authorizes the request.
+* ``hasAnyRole()`` — Receives as parameters the role names for which the application approves the request.
+* ``access()`` - Uses a Spring expression to specify the role or roles for which the application authorizes requests. In terms of roles, you could use hasRole() or hasAnyRole() as SpEL expressions.
+
+We use these in the same way, but to apply configurations for roles instead of authorities. My recommendations are also similar: use the hasRole() or hasAnyRole() methods as your first option, and fall back to using access() only when the previous two don’t apply.
+
+```
+@Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+
+        http.authorizeRequests().anyRequest().hasRole("ADMIN");
+    }
+```
+    
+When testing the application, you should observe that user John can access the endpoint, while Jane receives an HTTP 403 Forbidden.
+
+When building users with the User builder class as we did in the example for this section, you specify the role by using the roles() method. This method creates the GrantedAuthority object and automatically adds the ROLE_ prefix to the names you provide.
+```
+var user1 = User.withUsername("john")
+                .password("12345")
+                .roles("ADMIN")
+                .build();
+
+var user2 = User.withUsername("jane")
+                .password("12345")
+                .roles("MANAGER")
+                .build();
+```
+
+### Restricting access to all endpoints
+
+The ``denyAll()`` method is just the opposite of the ``permitAll()`` method. 
+
+# Chapter 8. Configuring authorization: Applying restrictions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
