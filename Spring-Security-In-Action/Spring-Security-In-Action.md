@@ -2725,6 +2725,11 @@ The ``denyAll()`` method is just the opposite of the ``permitAll()`` method.
 
 # Chapter 8. Configuring authorization: Applying restrictions
 
+Even though we didn’t call attention to it, the first matcher method you used was the anyRequest() method. As you used it in the previous chapters, you know now that it refers to all requests, regardless of the path or HTTP method. First, let’s talk about selecting requests by path; then we can also add the HTTP method to the scenario. To choose the requests to which we apply authorization configuration, we use matcher methods. Spring Security offers you three types of matcher methods:
+* **MVC matchers** — You use MVC expressions for paths to select endpoints.
+* **Ant matchers** — You use Ant expressions for paths to select endpoints.
+* **regex matchers** — You use regular expressions (regex) for paths to select endpoints.
+
 
 
 
