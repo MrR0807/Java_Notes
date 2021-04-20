@@ -865,23 +865,88 @@ public class TrustingRestTemplateConfiguration {
 
 ### Mount application on volume containing certificate, create ``TrustStore`` and merge with default Java's ``TrustStore``
 
-TODO
+This example is run on Kubernetes cluster.
 
 #### What you'll need
 
-TODO
+* Kubernetes cluster;
+* Secret containing certificate information;
+* ``CompositeX509ExtendedTrustManager``.
 
 #### Creating SSLContext
 
-TODO
+```
+public class ReadCertificateFromVolumeAndDefault {
+
+    //Path can be configurable via properties
+    private static final Path pathToCertificate = Path.of("/certificates/ca.crt");
+
+    public SSLContext sslContext() {
+        var keyStore = organisationCertificateKeyStore();
+        var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
+        var compositeTrustManager = new CompositeX509ExtendedTrustManager(trustManagers[0]);
+
+        try {
+            var sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{compositeTrustManager}, null);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private TrustManager[] trustingOnlyOrganisationCertificates(KeyStore keyStore) {
+        try {
+            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(keyStore);
+            return trustManagerFactory.getTrustManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private KeyStore organisationCertificateKeyStore() {
+        try {
+            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null); //To create an empty keystore pass null as the InputStream argument [from JavaDocs]
+
+            //No need for classLoader to read certificate content, because it's placed outside JAR
+            var organisationRootCertBytes = Files.readAllBytes(pathToCertificate);
+            var certificateFactory = CertificateFactory.getInstance("X.509");//Currently, there is only one type of factory
+            var certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(organisationRootCertBytes));
+            keyStore.setCertificateEntry("organization-root-ca", certificate);
+
+            return keyStore;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+}
+```
+
+pod config:
+```
+...
+
+volumeMounts:
+  - mountPath: /certificates
+    name: root-ca
+    readOnly: true
+...
+
+  volumes:
+  - name: root-ca
+    secret:
+      secretName: organization-root-ca
+```
 
 #### Java's HTTP Client
 
-TODO
+As in previous examples.
 
 #### Spring's RestTemplate
 
-TODO
+As in previous examples.
 
 ### Import certificate into Java's default ``TrustStore``
 
