@@ -456,23 +456,120 @@ public class TrustingRestTemplateConfiguration {
 
 ### Mount application on volume containing certificate and create ``TrustStore`` with only organisation certificate
 
-TODO
+This example is run on Kubernetes cluster.
 
 #### What you'll need
 
-TODO
+* Kubernetes cluster;
+* Secret containing certificate information;
 
 #### Creating SSLContext
 
-TODO
+```
+public class ReadCertificateFromOpenshiftVolume {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReadCertificateFromOpenshiftVolume.class);
+
+    //Path can be configurable via properties
+    private static final Path pathToCertificate = Path.of("/certificates/ca.crt");
+
+    public static SSLContext sslContext() {
+        var keyStore = organisationCertificateKeyStore();
+        var trustManagers = trustingOnlyOrganisationCertificates(keyStore);
+
+        try {
+            var sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustManagers, null);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private static TrustManager[] trustingOnlyOrganisationCertificates(KeyStore keyStore) {
+        try {
+            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(keyStore);
+            return trustManagerFactory.getTrustManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+
+    private static KeyStore organisationCertificateKeyStore() {
+        try {
+            LOGGER.info("Reading certificate");
+            var keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            keyStore.load(null); //To create an empty keystore pass null as the InputStream argument [from JavaDocs]
+
+            //No need for classLoader to read certificate content, because it's placed outside JAR
+            var organisationRootCertBytes = Files.readAllBytes(pathToCertificate);
+            var certificateFactory = CertificateFactory.getInstance("X.509");//Currently, there is only one type of factory
+            var certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(organisationRootCertBytes));
+            keyStore.setCertificateEntry("organization-root-ca", certificate);
+
+            return keyStore;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException e) {
+            throw new RuntimeException("Couldn't initialize", e);
+        }
+    }
+}
+```
+
+pod config:
+```
+...
+
+volumeMounts:
+  - mountPath: /certificates
+    name: root-ca
+    readOnly: true
+...
+
+  volumes:
+  - name: root-ca
+    secret:
+      secretName: organization-root-ca
+```
 
 #### Java's HTTP Client
 
-TODO
+```
+public class TrustingHttpClientConfiguration {
+
+    public static HttpClient httpClient() {
+        var sslContext = new ReadCertificateFromVolume().sslContext();
+
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10L))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
+                .sslContext(sslContext)
+                .build();
+    }
+}
+```
 
 #### Spring's RestTemplate
 
-TODO
+```
+@Configuration
+public class TrustingRestTemplateConfiguration {
+
+    @Bean
+    public static RestTemplate restTemplate(RestTemplateBuilder builder) {
+        var restTemplate = builder.build();
+        var sslContext = new ReadCertificateFromVolume().sslContext();
+
+        var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
+        var requestFactory = new HttpComponentsClientHttpRequestFactory();
+        requestFactory.setHttpClient(httpClient);
+        restTemplate.setRequestFactory(requestFactory);
+        return restTemplate;
+    }
+}
+```
 
 ### Create new ``TrustStore`` with only organization certificates via ``keytool``
 
