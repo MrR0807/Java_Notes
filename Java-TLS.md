@@ -461,7 +461,7 @@ This example is run on Kubernetes cluster.
 #### What you'll need
 
 * Kubernetes cluster;
-* Secret containing certificate information;
+* Secret containing certificate information.
 
 #### Creating SSLContext
 
@@ -526,7 +526,7 @@ volumeMounts:
     readOnly: true
 ...
 
-  volumes:
+volumes:
   - name: root-ca
     secret:
       secretName: organization-root-ca
@@ -538,7 +538,7 @@ volumeMounts:
 public class TrustingHttpClientConfiguration {
 
     public static HttpClient httpClient() {
-        var sslContext = new ReadCertificateFromVolume().sslContext();
+        var sslContext = new ReadCertificateFromOpenshiftVolume().sslContext();
 
         return HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -560,7 +560,7 @@ public class TrustingRestTemplateConfiguration {
     @Bean
     public static RestTemplate restTemplate(RestTemplateBuilder builder) {
         var restTemplate = builder.build();
-        var sslContext = new ReadCertificateFromVolume().sslContext();
+        var sslContext = new ReadCertificateFromOpenshiftVolume().sslContext();
 
         var httpClient = HttpClients.custom().setSSLContext(sslContext).build();
         var requestFactory = new HttpComponentsClientHttpRequestFactory();
@@ -934,7 +934,7 @@ volumeMounts:
     readOnly: true
 ...
 
-  volumes:
+volumes:
   - name: root-ca
     secret:
       secretName: organization-root-ca
