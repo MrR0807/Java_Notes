@@ -2730,6 +2730,143 @@ Even though we didn’t call attention to it, the first matcher method you used 
 * **Ant matchers** — You use Ant expressions for paths to select endpoints.
 * **regex matchers** — You use regular expressions (regex) for paths to select endpoints.
 
+## Using matcher methods to select endpoints
+
+We create an application that exposes two endpoints: /hello and /ciao. We want to make sure that only users having the ADMIN role can call the /hello endpoint. Similarly, we want to make sure that only users having the MANAGER role can call the /ciao endpoint.
+
+```
+@RestController
+public class HelloController {
+
+    @GetMapping("hello")
+    public String hello() {
+        return "Hello";
+    }
+    
+    @GetMapping("ciao")
+    public String ciao() {
+        return "Ciao";
+    }
+}
+```
+
+In the configuration class, we declare an InMemoryUserDetailsManager as our UserDetailsService instance and add two users with different roles. The user John has the ADMIN role, while Jane has the MANAGER role.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+
+        http.authorizeRequests()
+            .mvcMatchers("/hello").hasRole("ADMIN")
+            .mvcMatchers("/ciao").hasRole("MANAGER");
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var manager = new InMemoryUserDetailsManager();
+        var john = User.withUsername("john")
+                .password("12345")
+                .authorities("ROLE_ADMIN")
+                .build();
+        var jane = User.withUsername("jane")
+                .password("12345")
+                .authorities("ROLE_MANAGER")
+                .build();
+        manager.createUser(john);
+        manager.createUser(jane);
+        return manager;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+```
+curl -u john:12345 http://localhost:8080/hello
+Hello!
+curl -u jane:12345 http://localhost:8080/hello
+{"timestamp":"2021-04-21T13:58:54.588+00:00","status":403,"error":"Forbidden","message":"","path":"/hello"}
+
+curl -u jane:12345 http://localhost:8080/ciao
+Ciao
+curl -u john:12345 http://localhost:8080/ciao
+{"timestamp":"2021-04-21T13:59:06.558+00:00","status":403,"error":"Forbidden","message":"","path":"/ciao"}
+```
+
+If you now add any other endpoint to your application, it is accessible by default to anyone, even unauthenticated users. Let’s assume you add a new endpoint /hola as presented in the next listing.
+
+```
+...
+    @GetMapping("hola")
+    public String hola() {
+        return "Hola";
+    }
+...
+```
+
+```
+curl -u john:12345 http://localhost:8080/hola
+Hola
+curl -u jane:12345 http://localhost:8080/hola
+Hola
+```
+
+You can also make this explicit:
+```
+http.authorizeRequests()
+            .mvcMatchers("/hello").hasRole("ADMIN")
+            .mvcMatchers("/ciao").hasRole("MANAGER")
+            .anyRequest().permitAll();
+```
+
+Also, it'll work if you'll call without authenticating:
+```
+curl http://localhost:8080/hola
+Hola
+```
+
+However, if bad credentials are provided, then it'll fail. But it makes sense, because authentication fails, not authorization, and authentication happens first:
+```
+curl -u bod:abcd http://localhost:8080/hola
+{"timestamp":"2021-04-21T14:30:53.550+00:00","status":401,"error":"Unauthorized","message":"","path":"/hola"}
+```
+
+But if:
+```
+http.authorizeRequests()
+    .mvcMatchers("/hello").hasRole("ADMIN")
+    .mvcMatchers("/ciao").hasRole("MANAGER")
+    .anyRequest().denyAll();
+```
+
+Then, without user fails:
+```
+curl http://localhost:8080/hola
+{"timestamp":"2021-04-21T14:32:06.946+00:00","status":401,"error":"Unauthorized","message":"","path":"/hola"}
+```
+
+Hence, always lock down your application. Better approach is to use ``authenticated()``:
+```
+http.authorizeRequests()
+    .mvcMatchers("/hello").hasRole("ADMIN")
+    .mvcMatchers("/ciao").hasRole("MANAGER")
+    .anyRequest().authenticated();
+```
+
+Now we must go more in depth with the syntaxes you can use.
+
+In most practical scenarios, multiple endpoints can have the same authorization rules, so you don’t have to set them up endpoint by endpoint. As well, you sometimes need to specify the HTTP method, not only the path, as we’ve done until now. Sometimes, you only need to configure rules for an endpoint when its path is called with HTTP GET. In this case, you’d need to define different rules for HTTP POST and HTTP DELETE. In the next sections, we take each type of matcher method and discuss these aspects in detail.
+
+## Selecting requests for authorization using MVC matchers
+
+
 
 
 
