@@ -3164,6 +3164,41 @@ Regexes are powerful tools. You can use them to refer to paths for any given req
 
 You learned about a component we named the authentication filter, which delegates the authentication responsibility to the authentication manager. You learned as well that a certain filter takes care of authorization configuration after successful authentication. In Spring Security, in general, HTTP filters manage each responsibility that must be applied to the request. The filters form a chain of responsibilities.
 
+In this chapter, we’ll discuss how you can customize filters that are part of the authentication and authorization architecture in Spring Security. For example, you might want to augment authentication by adding one more step for the user, like checking their email address or using a one-time password. You can, as well, add functionality referring to auditing authentication events. You’ll find various scenarios where applications use auditing authentication: from debugging purposes to identifying a user’s behavior.
+
+Knowing how to customize the HTTP filter chain of responsibilities is a valuable skill. In practice, applications come with various requirements, where using default configurations doesn’t work anymore. You’ll need to add or replace existing components of the chain. With the default implementation, you use the HTTP Basic authentication
+method, which allows you to rely on a username and password. But in practical scenarios, there are plenty of situations in which you’ll need more than this. Maybe you need to implement a different strategy for authentication, notify an external system about an authorization event, or simply log a successful or failed authentication that’s later used in tracing and auditing (figure 9.3).
+
+![chapter-9-filter-chain.PNG](pictures/chapter-9-filter-chain.PNG)
+
+## Implementing filters in the Spring Security architecture
+
+You learned in the previous chapters that the authentication filter intercepts the request and delegates authentication responsibility further to the authorization manager. If we want to execute certain logic before authentication, we do this by inserting a filter before the authentication filter.
+
+The filters in Spring Security architecture are typical HTTP filters. We can create filters by implementing the ``Filter`` interface from the ``javax.servlet`` package. As for any other HTTP filter, you need to override the ``doFilter()`` method to implement its logic. This method receives as parameters the ``ServletRequest``, ``ServletResponse``, and ``FilterChain``:
+* ``ServletRequest`` — Represents the HTTP request. We use the ServletRequest object to retrieve details about the request.
+* ``ServletResponse`` — Represents the HTTP response. We use the ServletResponse object to alter the response before sending it back to the client or further along the filter chain.
+* ``FilterChain`` — Represents the chain of filters. We use the FilterChain object to forward the request to the next filter in the chain.
+
+The filter chain represents a collection of filters with a defined order in which they act. Spring Security provides some filter implementations and their order for us. Among the provided filters
+* ``BasicAuthenticationFilter`` takes care of HTTP Basic authentication, if present.
+* ``CsrfFilter`` takes care of cross-site request forgery (CSRF) protection, which we’ll discuss in chapter 10.
+* ``CorsFilter`` takes care of cross-origin resource sharing (CORS) authorization rules, which we’ll also discuss in chapter 10.
+
+You don’t need to know all of the filters as you probably won’t touch these directly from your code, but you do need to understand how the filter chain works and to be aware of a few implementations. In this book, I only explain those filters that are essential to the various topics we discuss.
+
+It is important to understand that an application doesn’t necessarily have instances of all these filters in the chain. For example, in chapters 2 and 3, you learned that you need to call the ``httpBasic()`` method of the ``HttpSecurity`` class if you want to use the HTTP Basic authentication method. What happens is that if you call the ``httpBasic()`` method, an instance of the ``BasicAuthenticationFilter`` is added to the chain.
+
+![chapter-9-filter-order.PNG](pictures/chapter-9-filter-order.PNG)
+
+## Adding a filter before an existing one in the chain
+
+For our first custom filter implementation, let’s consider a trivial scenario. We want to make sure that any request has a header called Request-Id. We assume that our application uses this header for tracking requests and that this header is mandatory. At the same time, we want to validate these assumptions before the application performs authentication. The authentication process might involve querying the database or other resource-consuming actions that we don’t want the application to execute if the format of the request isn’t valid. To solve the current requirement only takes two steps:
+* Implement the filter. Create a RequestValidationFilter class that checks that the needed header exists in the request.
+* Add the filter to the filter chain. Do this in the configuration class, overriding the configure() method.
+
+
+
 
 
 
