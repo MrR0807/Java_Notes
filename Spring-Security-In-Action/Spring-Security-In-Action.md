@@ -3162,6 +3162,8 @@ Regexes are powerful tools. You can use them to refer to paths for any given req
 
 # Chapter 9. Implementing filters
 
+You learned about a component we named the authentication filter, which delegates the authentication responsibility to the authentication manager. You learned as well that a certain filter takes care of authorization configuration after successful authentication. In Spring Security, in general, HTTP filters manage each responsibility that must be applied to the request. The filters form a chain of responsibilities.
+
 
 
 
