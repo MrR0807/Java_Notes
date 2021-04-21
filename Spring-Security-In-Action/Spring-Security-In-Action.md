@@ -2866,6 +2866,305 @@ In most practical scenarios, multiple endpoints can have the same authorization 
 
 ## Selecting requests for authorization using MVC matchers
 
+This matcher uses the standard MVC syntax for referring to paths. This syntax is the same one you use when writing endpoint mappings with annotations like @RequestMapping, @GetMapping, @PostMapping, and so forth. The two methods you can use to declare MVC matchers are as follows:
+* ``mvcMatchers(HttpMethod method, String... patterns)`` — Lets you specify both the HTTP method to which the restrictions apply and the paths. This method is useful if you want to apply different restrictions for different HTTP methods for the same path.
+* ``mvcMatchers(String... patterns)`` — Simpler and easier to use if you only need to apply authorization restrictions based on paths. The restrictions can automatically apply to any HTTP method used with the path.
+
+For a long time, CSRF was present in the OWASP Top 10 vulnerabilities. In chapter 10, we’ll discuss how Spring Security mitigates this vulnerability by using CSRF tokens. But to make things simpler for the current example and to be able to call all endpoints, including those exposed with POST, PUT, or DELETE, we need to disable CSRF protection in our configure() method:
+```
+http.csrf().disable();
+```
+
+We start by defining four endpoints to use in our tests:
+* /a using the HTTP method GET
+* /a using the HTTP method POST
+* /a/b using the HTTP method GET
+* /a/b/c using the HTTP method GET
+
+```
+@RestController
+public class HelloController {
+
+    @GetMapping("a")
+    public String hello() {
+        return "Works!";
+    }
+
+    @PostMapping("a")
+    public String postHello() {
+        return "Works!";
+    }
+
+    @GetMapping("a/b")
+    public String ciao() {
+        return "Works!";
+    }
+
+    @GetMapping("a/b/c")
+    public String hola() {
+        return "Works!";
+    }
+}
+```
+
+We also need a couple of users with different roles. To keep things simple, we continue using an InMemoryUserDetailsManager. In the next listing, you can see the definition of the UserDetailsService in the configuration class.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.csrf().disable();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var manager = new InMemoryUserDetailsManager();
+        var john = User.withUsername("john")
+                       .password("12345")
+                       .roles("ADMIN")
+                       .build();
+        var jane = User.withUsername("jane")
+                       .password("12345")
+                       .roles("MANAGER")
+                       .build();
+        manager.createUser(john);
+        manager.createUser(jane);
+        return manager;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+Let’s start with the first scenario. For requests done with an HTTP GET method for the /a path, the application needs to authenticate the user. For the same path, requests using an HTTP POST method don’t require authentication. The application denies all other requests.
+
+```
+http.authorizeRequests()
+    .mvcMatchers(HttpMethod.GET, "a").authenticated()
+    .mvcMatchers(HttpMethod.POST, "a").permitAll()
+    .anyRequest().denyAll();
+```
+
+```
+curl http://localhost:8080/a
+{"timestamp":"2021-04-21T14:53:06.261+00:00","status":401,"error":"Unauthorized","message":"","path":"/a"}
+curl -XPOST http://localhost:8080/a
+Works!
+
+curl -u john:12345 http://localhost:8080/a
+Works!
+curl -XPOST -u john:12345 http://localhost:8080/a
+Works!
+```
+
+But user John isn’t allowed to call path /a/b, so authenticating with his credentials for this call generates a 403 Forbidden:
+```
+curl -u john:12345 -XGET http://localhost:8080/a/b
+{"timestamp":"2021-04-21T14:54:57.891+00:00","status":403,"error":"Forbidden","message":"","path":"/a/b"}
+```
+
+With this example, you now know how to differentiate requests based on the HTTP method. But, what if multiple paths have the same authorization rules? Of course, we can enumerate all the paths for which we apply authorization rules, but if we have too many paths, this makes reading code uncomfortable. As well, we might know from the beginning that a group of paths with the same prefix always has the same authorization rules. We want to make sure that if a developer adds a new path to the same group, it doesn’t also change the authorization configuration. To manage these cases, we use **path expressions**.
+
+For the current project, we want to ensure that the same rules apply for all requests for paths starting with /a/b. These paths in our case are /a/b and /a/b/c. To achieve this, we use the ** operator.
+
+```
+http.authorizeRequests()
+    .mvcMatchers("/a/b/**").authenticated()
+    .anyRequest().permitAll();
+```
+
+With the configuration given, you can call path /a without being authenticated, but for all paths prefixed with /a/b, the application needs to authenticate the user.
+
+```
+curl -XGET http://localhost:8080/a
+Works!
+curl -XGET http://localhost:8080/a/b
+{"timestamp":"2021-04-21T15:03:46.950+00:00","status":401,"error":"Unauthorized","message":"","path":"/a/b"}
+curl -XGET http://localhost:8080/a/b/c
+{"timestamp":"2021-04-21T15:03:48.623+00:00","status":401,"error":"Unauthorized","message":"","path":"/a/b/c"}
+
+curl -XGET -u john:12345 http://localhost:8080/a
+Works!
+curl -XGET -u john:12345 http://localhost:8080/a/b
+Works!
+curl -XGET -u john:12345 http://localhost:8080/a/b/c
+Works!
+```
+
+As presented in the previous examples, the ** operator refers to any number of pathnames. You can use it as we have done in the last example so that you can match requests with paths having a known prefix. You can also use it in the middle of a path to refer to any number of pathnames or to refer to paths ending in a specific pattern
+like ``/a/**/c``. Therefore, ``/a/**/c`` would not only match ``/a/b/c`` but also ``/a/b/d/c`` and ``a/b/c/d/e/c`` and so on.
+
+If you only want to match one pathname, then you can use a single ``*``. For example, ``a/*/c`` would match ``a/b/c`` and ``a/d/c`` but not ``a/b/d/c``.
+
+Let’s turn now to a more suitable example of what you have learned in this section. We have an endpoint with a path variable, and we want to deny all requests that use a value for the path variable that has anything else other than digits.
+
+```
+    @GetMapping("product/{code}")
+    public String productCode(@PathVariable("code") String code) {
+        return code;
+    }
+```
+
+The next listing shows you how to configure authorization such that only calls that have a value containing only digits are always permitted, while all other calls are denied.
+
+```
+http.authorizeRequests()
+    .mvcMatchers("/product/{code:^[0-9]*$}").permitAll()
+    .anyRequest().denyAll();
+```
+
+```
+curl http://localhost:8080/product/1
+1
+curl http://localhost:8080/product/hello
+{"timestamp":"2021-04-21T15:11:05.508+00:00","status":401,"error":"Unauthorized","message":"","path":"/product/hello"}
+C:\Users\BC6250>curl http://localhost:8080/product/12312312131321
+12312312131321
+```
+
+![chapter-8-mvc-matcher.PNG](pictures/chapter-8-mvc-matcher.PNG)
+
+## Selecting requests for authorization using Ant matchers
+
+In this section, we discuss Ant matchers for selecting requests for which the application applies authorization rules. Because Spring borrows the MVC expressions to match paths to endpoints from Ant, the syntaxes that you can use with Ant matchers are the same as those that you saw in previous section. **But there’s a trick I’ll show you in this section.**
+
+**Because of this, I recommend that you use MVC matchers rather than Ant matchers.** The three methods when using Ant matchers are:
+* antMatchers(HttpMethod method, String patterns) — Allows you to specify both the HTTP method to which the restrictions apply and the Ant patterns that refer to the paths. This method is useful if you want to apply different restrictions for different HTTP methods for the same group of paths.
+* antMatchers(String patterns) — Simpler and easier to use if you only need to apply authorization restrictions based on paths. The restrictions automatically apply for any HTTP method.
+* antMatchers(HttpMethod method), which is the equivalent of ant Matchers(httpMethod, ``“/**”``) — Allows you to refer to a specific HTTP method disregarding the paths.
+
+The way that you apply these is similar to the MVC matchers in the previous section. Also, the syntaxes we use for referring to paths are the same. So what is different then? The MVC matchers refer exactly to how your Spring application understands matching requests to controller actions. And, sometimes, multiple paths could be interpreted
+by Spring to match the same action. My favorite example that’s simple but makes a significant impact in terms of security is the following: any path (let’s take, for example, /hello) to the same action can be interpreted by Spring if you append another / after the path. **In this case, /hello and /hello/ call the same method. If you use an MVC matcher and configure security for the /hello path, it automatically secures the /hello/ path with the same rules.** This is huge! A developer not knowing this and using Ant matchers could leave a path unprotected without noticing it. And this, as you can imagine, creates a major security breach for the application.
+
+```
+@RestController
+public class HelloController {
+
+    @GetMapping("hello")
+    public String hello() {
+        return "Works!";
+    }
+}
+```
+
+```
+http.authorizeRequests()
+    .mvcMatchers("/hello").authenticated()
+    .anyRequest().denyAll();
+```
+
+```
+curl http://localhost:8080/hello
+{"timestamp":"2021-04-21T15:28:05.665+00:00","status":401,"error":"Unauthorized","message":"","path":"/hello"}
+curl http://localhost:8080/hello/
+{"timestamp":"2021-04-21T15:28:07.182+00:00","status":401,"error":"Unauthorized","message":"","path":"/hello/"}
+
+curl -u john:12345 http://localhost:8080/hello/
+Works!
+```
+
+All of these responses are what you probably expected. But let’s see what happens if we change the implementation to use Ant matchers. If you just change the configuration class to use an Ant matcher for the same expression, the result changes.
+
+```
+http.authorizeRequests()
+    .antMatchers("/hello").authenticated();
+```
+
+```
+curl http://localhost:8080/hello
+{"timestamp":"2021-04-21T15:38:05.610+00:00","status":401,"error":"Unauthorized","message":"","path":"/hello"}
+curl http://localhost:8080/hello/
+Works!
+```
+
+But if you do:
+```
+http.authorizeRequests()
+    .antMatchers("/hello").authenticated()
+    .anyRequest().denyAll();
+```
+
+```
+curl http://localhost:8080/hello
+{"timestamp":"2021-04-21T15:39:13.998+00:00","status":401,"error":"Unauthorized","message":"","path":"/hello"}
+curl http://localhost:8080/hello/
+{"timestamp":"2021-04-21T15:39:16.039+00:00","status":401,"error":"Unauthorized","message":"","path":"/hello/"}
+```
+
+## Selecting requests for authorization using regex matchers
+
+In some cases, however, you might have requirements that are more particular, and you cannot solve those with Ant and MVC expressions. An example of such a requirement could be this: “Deny all requests when paths contain specific symbols or characters.” For these scenarios, you need to use a more powerful expression like a regex.
+
+You can use regexes to represent any format of a string, so they offer limitless possibilities for this matter. But they have the disadvantage of being difficult to read, even when applied to simple scenarios. For this reason, you might prefer to use MVC or Ant matchers and fall back to regexes only when you have no other option.
+
+The two methods that you can use to implement regex matchers are as follows:
+* ``regexMatchers(HttpMethod method, String regex)`` — Specifies both the HTTP method to which restrictions apply and the regexes that refer to the paths. This method is useful if you want to apply different restrictions for different HTTP methods for the same group of paths.
+* ``regexMatchers(String regex)`` — Simpler and easier to use if you only need to apply authorization restrictions based on paths. The restrictions automatically apply for any HTTP method.
+
+To prove how regex matchers work, let’s put them into action with an example: building an application that provides video content to its users. The application that presents the video gets its content by calling the endpoint /video/{country}/{language}. For the sake of the example, the application receives the country and language in two path variables from where the user makes the request. We consider that any authenticated user can see the video content if the request comes from the US, Canada, or the UK, or if they use English.
+
+```
+    @GetMapping("/video/{country}/{language}")
+    public String video(@PathVariable String country, @PathVariable String language) {
+        return "Video allowed for %s %s".formatted(country, language);
+    }
+```
+
+We also add two users with different authorities to test the implementation.
+```
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var manager = new InMemoryUserDetailsManager();
+        var john = User.withUsername("john")
+                       .password("12345")
+                       .authorities("read")
+                       .build();
+        var jane = User.withUsername("jane")
+                       .password("12345")
+                       .authorities("read", "premium")
+                       .build();
+        manager.createUser(john);
+        manager.createUser(jane);
+        return manager;
+    }
+```
+
+```
+http.authorizeRequests()
+    .regexMatchers(".*/(us|uk|ca)+/(en|fr).*").authenticated()
+    .anyRequest().hasAuthority("premium");
+```
+
+```
+curl http://localhost:8080/video/us/en
+{"timestamp":"2021-04-21T15:48:54.027+00:00","status":401,"error":"Unauthorized","message":"","path":"/video/us/en"}
+curl -u john:12345 http://localhost:8080/video/us/en
+Video allowed for us en
+curl -u john:12345 http://localhost:8080/video/us/fr
+Video allowed for us fr
+curl -u john:12345 http://localhost:8080/video/us/ltu
+{"timestamp":"2021-04-21T15:49:14.941+00:00","status":403,"error":"Forbidden","message":"","path":"/video/us/ltu"}
+curl -u jane:12345 http://localhost:8080/video/us/ltu
+Video allowed for us ltu
+```
+
+Regexes are powerful tools. You can use them to refer to paths for any given requirement. But because regexes are hard to read and can become quite long, they should remain your last choice. For example, a regex used to match an email address might look like the one in the next code snippet. Can you easily read and understand it?
+
+```
+(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])
+```
+
+# Chapter 9. Implementing filters
+
+
+
+
 
 
 
