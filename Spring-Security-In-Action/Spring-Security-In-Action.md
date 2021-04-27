@@ -3197,6 +3197,74 @@ For our first custom filter implementation, let’s consider a trivial scenario.
 * Implement the filter. Create a RequestValidationFilter class that checks that the needed header exists in the request.
 * Add the filter to the filter chain. Do this in the configuration class, overriding the configure() method.
 
+![chapter-9-request-validator-filter.PNG](pictures/chapter-9-request-validator-filter.PNG)
+
+To accomplish step 1, implementing the filter, we define a custom filter. Inside the doFilter() method, we write the logic of the filter. In our example, we check if the Request-Id header exists. If it does, we forward the request to the next filter in the chain by calling the doFilter() method. If the header doesn’t exist, we set an HTTP status 400 Bad Request on the response without forwarding it to the next filter in the chain:
+
+```
+public class RequestValidationFilter implements Filter {
+    
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain) throws IOException, ServletException {
+        var httpRequest = (HttpServletRequest) request;
+        var httpResponse = (HttpServletResponse) response;
+        
+        String requestId = httpRequest.getHeader("Request-Id");
+        if (requestId == null || requestId.isBlank()) {
+            httpResponse.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+        
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+To implement step 2, applying the filter within the configuration class, we use the addFilterBefore() method of the HttpSecurity object because we want the application to execute this custom filter before authentication. This method receives two parameters:
+* An instance of the custom filter we want to add to the chain — In our example, this is an instance of the RequestValidationFilter class presented in listing 9.1.
+* The type of filter before which we add the new instance — For this example, because the requirement is to execute the filter logic before authentication, we need to add our custom filter instance before the authentication filter. The class BasicAuthenticationFilter defines the default type of the authentication filter.
+
+To make the example simpler, I use the permitAll() method to allow all unauthenticated requests.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.addFilterBefore(new RequestValidationFilter(), BasicAuthenticationFilter.class)
+            .authorizeRequests().anyRequest().permitAll();
+    }
+}
+```
+
+```
+@RestController
+public class HelloController {
+
+    @GetMapping("hello")
+    public String hello() {
+        return "Hello!";
+    }
+}
+```
+
+You can now run and test the application. Calling the endpoint without the header generates a response with HTTP status 400 Bad Request.
+
+```
+curl -v http://localhost:8080/hello
+
+...
+HTTP/1.1 400
+...
+
+curl -H "Request-Id:nonsense" http://localhost:8080/hello
+Hello!
+```
+
+## Adding a filter after an existing one in the chain
+
+
 
 
 
