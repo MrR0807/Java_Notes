@@ -3373,7 +3373,7 @@ In this case, because we don’t configure a UserDetailsService, Spring Boot aut
 
 ## Filter implementations provided by Spring Security
 
-
+In this section, we discuss classes provided by Spring Security, which implement the Filter interface.
 
 
 
