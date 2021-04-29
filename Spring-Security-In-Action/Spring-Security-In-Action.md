@@ -3375,11 +3375,7 @@ In this case, because we don’t configure a UserDetailsService, Spring Boot aut
 
 In this section, we discuss classes provided by Spring Security, which implement the Filter interface.
 
-
-
-
-
-
+Spring Security offers a few abstract classes that implement the Filter interface and for which you can extend your filter definitions. These classes also add functionality your implementations could benefit from when you extend them. For example, you could extend the GenericFilterBean class, which allows you to use initialization parameters that you would define in a web.xml descriptor file where applicable. A more useful class that extends the GenericFilterBean is OncePerRequestFilter. When adding a filter to the chain, the framework doesn’t guarantee it will be called only once per request. OncePerRequestFilter, as the name suggests, implements logic to make sure that the filter’s doFilter() method is executed only one time per request.
 
 
 
