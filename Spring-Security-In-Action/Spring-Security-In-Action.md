@@ -3264,16 +3264,114 @@ Hello!
 
 ## Adding a filter after an existing one in the chain
 
+Let’s assume that you have to execute some logic after the authentication process. Examples for this could be notifying a different system after certain authentication events or simply for logging and tracing purposes. 
 
+```
+public class AuthenticationLoggingFilter implements Filter {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthenticationLoggingFilter.class);
 
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        if (servletRequest instanceof HttpServletRequest request) {
+            var requestId = request.getHeader("Request-Id");
 
+            LOGGER.info("Successfully authenticated request with id " + requestId);
+        }
+        filterChain.doFilter(servletRequest, servletResponse);
+    }
+}
+```
 
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.addFilterBefore(new RequestValidationFilter(), BasicAuthenticationFilter.class)
+            .addFilterAfter(new AuthenticationLoggingFilter(), BasicAuthenticationFilter.class)
+            .authorizeRequests().anyRequest().permitAll();
+    }
+}
+```
 
+```
+curl -H "Request-Id:12345" http://localhost:8080/hello
+Hello!
 
+INFO 5876 --- [nio-8080-exec-2] c.l.s.f.AuthenticationLoggingFilter: Successfully authenticated request with id 12345
+```
 
+## Adding a filter at the location of another in the chain
 
+In this section, we discuss adding a filter at the location of another one in the filter chain. You use this approach especially when providing a different implementation for a responsibility that is already assumed by one of the filters known by Spring Security. A typical scenario is authentication.
+
+Let’s assume that instead of the HTTP Basic authentication flow, you want to implement something different. Instead of using a username and a password as input credentials based on which the application authenticates the user, you need to apply another approach. Some examples of scenarios that you could encounter are
+* Identification based on a static header value for authentication
+* Using a symmetric key to sign the request for authentication
+* Using a one-time password (OTP) in the authentication process
+
+In our first scenario, identification based on a static key for authentication, the client sends a string to the app in the header of HTTP request, which is always the same. The application stores these values somewhere, most probably in a database or a secrets vault. Based on this static value, the application identifies the client.
+This approach offers weak security related to authentication, but architects and developers often choose it in calls between backend applications for its simplicity. The implementations also execute fast because these don’t need to do complex calculations, as in the case of applying a cryptographic signature. This way, static keys used for authentication represent a compromise where developers rely more on the infrastructure level in terms of security and also don’t leave the endpoints wholly unprotected.
+
+In our second scenario, using symmetric keys to sign and validate requests, both client and server know the value of a key (client and server share the key). The client uses this key to sign a part of the request (for example, to sign the value of specific headers), and the server checks if the signature is valid using the same key. The server can store individual keys for each client in a database or a secrets vault.
+
+And finally, for our third scenario, using an OTP in the authentication process, the user receives the OTP via a message or by using an authentication provider app like Google Authenticator.
+
+![chapter-9-otp-overriding-sprin-filter.PNG](pictures/chapter-9-otp-overriding-sprin-filter.PNG)
+
+Let’s implement an example to demonstrate how to apply a custom filter. To keep the case relevant but straightforward, we focus on configuration and consider a simple logic for authentication. In our scenario, we have the value of a static key, which is the same for all requests. To be authenticated, the user must add the correct value of the static key in the Authorization header.
+
+```
+public class StaticKeyAuthenticationFilter implements Filter {
+
+    private static final String AUTHORIZATION_KEY = "Yes this is authorization key";
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        if (servletRequest instanceof HttpServletRequest request && servletResponse instanceof HttpServletResponse response) {
+            var authorization = request.getHeader("Authorization");
+            if (AUTHORIZATION_KEY.equals(authorization)) {
+                filterChain.doFilter(servletRequest, servletResponse);
+            } else {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            }
+        }
+    }
+}
+```
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.addFilterAt(new StaticKeyAuthenticationFilter(), BasicAuthenticationFilter.class)
+            .authorizeRequests().anyRequest().permitAll();
+    }
+}
+```
+
+```
+curl -H "Request-Id:nonsense" http://localhost:8080/hello
+HTTP/1.1 401
+
+curl -H "Authorization:Yes this is authorization key" http://localhost:8080/hello
+Hello!
+```
+
+When adding a filter at a specific position, Spring Security does not assume it is the only one at that position. You might add more filters at the same location in the chain. In this case, Spring Security doesn’t guarantee in which order these will act. I tell you this again because I’ve seen many people confused by how this works. Some developers think that when you apply a filter at a position of a known one, it will be replaced. This is not the case! **We must make sure not to add filters that we don’t need to the chain.**
+
+Observe that we don’t call the httpBasic() method from the HttpSecurity class, because we don’t want the BasicAuthenticationFilter instance to be added to the filter chain.
+
+In this case, because we don’t configure a UserDetailsService, Spring Boot automatically configures one, as you learned in chapter 2. But in our scenario, you don’t need a UserDetailsService at all because the concept of the user doesn’t exist. o disable the configuration of the default UserDetailsService, you can use the exclude attribute of the @SpringBootApplication annotation on the main class like this:
+```
+@SpringBootApplication(exclude = {UserDetailsServiceAutoConfiguration.class})
+```
+
+## Filter implementations provided by Spring Security
 
 
 
