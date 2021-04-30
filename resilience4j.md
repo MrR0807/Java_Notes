@@ -971,7 +971,272 @@ Reult:
 13:00:46 Resource acquired
 ```
 
+Building SemaphoreBulkhead:
+```
+public class BulkHead {
 
+    public static void main(String[] args) {
+        var executorService = Executors.newFixedThreadPool(4);
+
+        var bulkhead = buildBulkhead();
+
+        executorService.submit(() -> bulkhead.executeRunnable(BulkHead::action));
+        executorService.submit(() -> bulkhead.executeRunnable(BulkHead::action));
+        executorService.submit(() -> bulkhead.executeRunnable(BulkHead::action));
+
+        executorService.shutdown();
+    }
+
+    private static Bulkhead buildBulkhead() {
+        var bulkheadConfig = BulkheadConfig.custom()
+                                  .maxConcurrentCalls(2)
+                                  .maxWaitDuration(Duration.ofSeconds(4L))
+                                  .build();
+        var bulkheadRegistry = BulkheadRegistry.of(bulkheadConfig);
+        bulkheadRegistry.getEventPublisher().onEvent(System.out::println);
+        return bulkheadRegistry.bulkhead("test");
+    }
+
+    private static void action() {
+        System.out.printf("%tT Starting action%n", LocalTime.now());
+        sleepSeconds(2);
+    }
+
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+Result:
+```
+15:45:43 Starting action
+15:45:43 Starting action
+15:45:45 Starting action
+```
+
+If I remove ``maxWaitDuration(Duration.ofSeconds(4L))``, then it will default to ``Duration.ofSeconds(0)`` and the result will be:
+```
+15:47:15 Starting action
+15:47:15 Starting action
+```
+
+That means that one additional Thread wanted to start an action in BulkHead, but was not allowed.
+
+#### FixedThreadPoolBulkhead
+
+If I exchange BulkHead with ThreadPoolBulkhead, I don't need ``Executor``, because underneath, it's using ``ThreadPoolExecutor``.
+
+```
+public class BulkHead {
+
+    public static void main(String[] args) {
+        var bulkhead = buildBulkhead();
+
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+    }
+
+    private static ThreadPoolBulkhead buildBulkhead() {
+        var threadPoolBulkheadConfig = ThreadPoolBulkheadConfig.ofDefaults();
+
+        var bulkheadRegistry = ThreadPoolBulkheadRegistry.of(threadPoolBulkheadConfig);
+        bulkheadRegistry.getEventPublisher().onEvent(System.out::println);
+        return bulkheadRegistry.bulkhead("test");
+    }
+
+    private static void action() {
+        System.out.printf("%tT Starting action%n", LocalTime.now());
+        sleepSeconds(2);
+    }
+
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+Result. And loops forever:
+```
+16:14:27 Starting action
+16:14:27 Starting action
+16:14:27 Starting action
+```
+
+#### ``coreThreadPoolSize`` and ``maxThreadPoolSize``
+
+These two are configure the minimum and maximum amount of threads that are available. Defaults are:
+```
+public static final int DEFAULT_CORE_THREAD_POOL_SIZE = Runtime.getRuntime().availableProcessors() > 1 
+            ? Runtime.getRuntime().availableProcessors() - 1 
+            : 1;
+    public static final int DEFAULT_MAX_THREAD_POOL_SIZE = Runtime.getRuntime().availableProcessors();
+```
+
+In other words, they will take the maximum amount assigned to the computer, which I don't think is a good idea for a bulkhead pattern. We should start from:
+```
+ThreadPoolBulkheadConfig.custom()
+        .coreThreadPoolSize(1)
+        .maxThreadPoolSize(4)
+        .build();
+```
+
+That means that at maximum, only two threads are working. Example:
+```
+public class BulkHead {
+
+    public static void main(String[] args) {
+        var bulkhead = buildBulkhead();
+
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+    }
+
+    private static ThreadPoolBulkhead buildBulkhead() {
+        var threadPoolBulkheadConfig = ThreadPoolBulkheadConfig.custom()
+                                                               .coreThreadPoolSize(1)
+                                                               .maxThreadPoolSize(10)
+                                                               .build();
+
+        var bulkheadRegistry = ThreadPoolBulkheadRegistry.of(threadPoolBulkheadConfig);
+        bulkheadRegistry.getEventPublisher().onEvent(System.out::println);
+        return bulkheadRegistry.bulkhead("test");
+    }
+
+    private static void action() {
+        System.out.printf("%tT Starting action%n", LocalTime.now());
+        sleepSeconds(2);
+    }
+
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+Result:
+```
+16:28:44 Starting action
+16:28:46 Starting action
+16:28:48 Starting action
+16:28:50 Starting action
+```
+
+That is strange. It doesn't seem to start additional, second thread. That is because, like I've said, underneath, it's a ThreadPoolExecutor. And ThreadPoolExecutor, only starts a new thread, when internal queue reaches a limit, which in this case is 100. If I lower queue capacity to 3, I should see additional thread taking on the job:
+```
+ThreadPoolBulkheadConfig.custom()
+        .coreThreadPoolSize(1)
+        .maxThreadPoolSize(4)
+        .queueCapacity(1)
+        .build();
+```
+
+Results:
+```
+16:39:04 Starting action
+16:39:04 Starting action
+16:39:04 Starting action
+16:39:06 Starting action
+```
+
+What happens there's more to do that we have the capacity?
+
+```
+public class BulkHead {
+
+    public static void main(String[] args) {
+        var bulkhead = buildBulkhead();
+
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+        bulkhead.executeRunnable(BulkHead::action);
+    }
+
+    private static ThreadPoolBulkhead buildBulkhead() {
+        var threadPoolBulkheadConfig = ThreadPoolBulkheadConfig.custom()
+                                                               .coreThreadPoolSize(1)
+                                                               .maxThreadPoolSize(2)
+                                                               .queueCapacity(1)
+                                                               .build();
+
+        var bulkheadRegistry = ThreadPoolBulkheadRegistry.of(threadPoolBulkheadConfig);
+        bulkheadRegistry.getEventPublisher().onEvent(System.out::println);
+        return bulkheadRegistry.bulkhead("test");
+    }
+
+    private static void action() {
+        System.out.printf("%tT Starting action%n", LocalTime.now());
+        sleepSeconds(2);
+    }
+
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+Result:
+```
+Exception in thread "main" io.github.resilience4j.bulkhead.BulkheadFullException: Bulkhead 'test' is full and does not permit further calls
+	at io.github.resilience4j.bulkhead.BulkheadFullException.createBulkheadFullException(BulkheadFullException.java:64)
+	at io.github.resilience4j.bulkhead.internal.FixedThreadPoolBulkhead.submit(FixedThreadPoolBulkhead.java:187)
+	at io.github.resilience4j.bulkhead.internal.FixedThreadPoolBulkhead.submit(FixedThreadPoolBulkhead.java:47)
+	at io.github.resilience4j.bulkhead.ThreadPoolBulkhead.lambda$decorateRunnable$2(ThreadPoolBulkhead.java:83)
+	at io.github.resilience4j.bulkhead.ThreadPoolBulkhead.executeRunnable(ThreadPoolBulkhead.java:269)
+	at resilience.BulkHead.main(BulkHead.java:18)
+16:41:49 Starting action
+16:41:49 Starting action
+16:41:51 Starting action
+```
+
+#### rejectedExecutionHandler
+
+To gracefully handle rejections, I can configure ``rejectedExecutionHandler``:
+```
+ThreadPoolBulkheadConfig.custom()
+        .coreThreadPoolSize(1)
+        .maxThreadPoolSize(2)
+        .queueCapacity(1)
+        .rejectedExecutionHandler((r,executor)->System.out.println("Rejected"))
+        .build();
+```
+
+Running same example produces:
+```
+16:45:06 Starting action
+Rejected
+16:45:06 Starting action
+16:45:08 Starting action
+```
+
+If I would add one more ``bulkhead.executeRunnable(BulkHead::action);`` it would produce:
+```
+16:45:36 Starting action
+Rejected
+16:45:36 Starting action
+Rejected
+16:45:38 Starting action
+```
 
 ### Rate Limiter
 
