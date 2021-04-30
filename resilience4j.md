@@ -4,6 +4,20 @@
 
 [Documentation](https://resilience4j.readme.io/docs/getting-started)
 
+## Why resilience4j
+
+What is resilience4j
+
+Resilience4j is a lightweight, easy-to-use fault tolerance library inspired by Netflix Hystrix, but designed for Java 8 and functional programming. **Lightweight**, because the library only uses Vavr, which does not have any other external library dependencies. Netflix Hystrix, in contrast, has a compile dependency to Archaius which has many more external library dependencies such as Guava and Apache Commons Configuration.
+
+Resilience4j provides higher-order functions (decorators) to enhance any functional interface, lambda expression or method reference with a Circuit Breaker, Rate Limiter, Retry or Bulkhead. You can stack more than one decorator on any functional interface, lambda expression or method reference. The advantage is that you have the choice to select the decorators you need and nothing else.
+
+Netflix Hystrix is currently in maintenance mode and states the following:
+> Hystrix is no longer in active development, and is currently in maintenance mode.
+
+> Hystrix (at version 1.5.18) is stable enough to meet the needs of Netflix for our existing applications. <...> For the cases where something like Hystrix makes sense, we intend to continue using Hystrix for existing applications, and to leverage open and active projects like resilience4j for new internal projects. We are beginning to recommend others do the same.
+
+
 ## Server
 
 ```
