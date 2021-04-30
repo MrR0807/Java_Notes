@@ -607,6 +607,14 @@ Now if I sleep for at least a second before doing additional two calls, those ca
         circuitBreakerThrowsException(circuitBreaker);
         circuitBreakerThrowsException(circuitBreaker);
     }
+    
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 ```
 
 ```
@@ -657,7 +665,177 @@ During third call, the state moves from open to half_open, because application g
 
 Configures the number of permitted calls when the CircuitBreaker is half open. Default is 10.
 
+Looking at source code:
+```
+    @Override
+    public boolean tryAcquirePermission() {
+        if (permittedNumberOfCalls.getAndUpdate(current -> current == 0 ? current : --current)
+                > 0) {
+            return true;
+        }
+        circuitBreakerMetrics.onCallNotPermitted();
+        return false;
+    }
+    ...
+    @Override
+    public void acquirePermission() {
+        if (!tryAcquirePermission()) {
+            throw CallNotPermittedException
+                    .createCallNotPermittedException(CircuitBreakerStateMachine.this);
+        }
+    }
+    ...
+    @Override
+    public void acquirePermission() {
+        try {
+            stateReference.get().acquirePermission();
+        } catch (Exception e) {
+            publishCallNotPermittedEvent();
+            throw e;
+        }
+    }
+    ...
+    static <T> Supplier<T> decorateSupplier(CircuitBreaker circuitBreaker, Supplier<T> supplier) {
+        return () -> {
+            circuitBreaker.acquirePermission();
+            final long start = circuitBreaker.getCurrentTimestamp();
+            try {
+                T result = supplier.get();
+                long duration = circuitBreaker.getCurrentTimestamp() - start;
+                circuitBreaker.onResult(duration, circuitBreaker.getTimestampUnit(), result);
+                return result;
+            } catch (Exception exception) {
+                // Do not handle java.lang.Error
+                long duration = circuitBreaker.getCurrentTimestamp() - start;
+                circuitBreaker.onError(duration, circuitBreaker.getTimestampUnit(), exception);
+                throw exception;
+            }
+        };
+    }
+```
 
+In other words, before doing anything, circuitBreaker tries to acquire permission, which is directly tied to how many permitted number of calls can be made.
+
+To trigger this property, one has to do a little more setup.
+
+```
+public class TestResilience4J {
+
+    public static void main(String[] args) throws Throwable {
+        var circuitBreaker = buildCircuitBreaker();
+        var executorService = Executors.newFixedThreadPool(4);
+
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+        System.out.println("-".repeat(10) + "Sleep" + "-".repeat(10));
+        sleepSeconds(2);
+
+        executorService.submit(() -> circuitBreakerThrowsException(circuitBreaker));
+        sleepMilliseconds(100);
+        executorService.submit(() -> circuitBreakerThrowsException(circuitBreaker));
+        sleepMilliseconds(100);
+        executorService.submit(() -> circuitBreakerThrowsException(circuitBreaker));
+        sleepMilliseconds(100);
+        executorService.submit(() -> circuitBreakerThrowsException(circuitBreaker));
+
+        executorService.shutdown();
+    }
+
+    private static CircuitBreaker buildCircuitBreaker() {
+        var configs = CircuitBreakerConfig.custom()
+                .minimumNumberOfCalls(2)
+                .waitDurationInOpenState(Duration.ofSeconds(1L))
+                .permittedNumberOfCallsInHalfOpenState(1)
+                .build();
+
+        var registry = CircuitBreakerRegistry.of(configs);
+        var circuitBreaker = registry.circuitBreaker("test");
+        circuitBreaker.getEventPublisher().onEvent(System.out::println);
+
+        return circuitBreaker;
+    }
+
+    private static void circuitBreakerThrowsException(CircuitBreaker circuitBreaker) {
+        try {
+            circuitBreaker.executeSupplier(() -> { sleepSeconds(4); throw new RuntimeException("Hello"); });
+        } catch (CallNotPermittedException e) {
+            System.out.println("Call is not permited do something else");
+        } catch (Exception e) {
+            //Do something
+        }
+    }
+
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void sleepMilliseconds(long milliseconds) {
+        try {
+            TimeUnit.MILLISECONDS.sleep(milliseconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+Several points:
+* Added ``sleepSeconds(4)`` to ``circuitBreakerThrowsException`` method, otherwise the time executing a function would be too short to capture that several calls are in active state and more shouldn't be allowed;
+* ``sleepMilliseconds(100);`` between calls, otherwise, it seems all threads are allowed to execute;
+* ``permittedNumberOfCallsInHalfOpenState(1)`` to ``buildCircuitBreaker``;
+* Add ``Executors.newFixedThreadPool(4);`` to simulate several concurrent actions.
+
+If I don't add ``sleepMilliseconds(100);``:
+```
+2021-04-30T10:34:22.863785400+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+10:34:22.863 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T10:34:22.863785400+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+10:34:26.869 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+10:34:26.869 [pool-1-thread-2] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+10:34:26.869 [pool-1-thread-4] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4000 ms
+10:34:26.869 [pool-1-thread-3] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4002 ms
+2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4001 ms
+10:34:26.871 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4000 ms
+2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4001 ms
+10:34:26.872 [pool-1-thread-2] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4002 ms
+10:34:26.872 [pool-1-thread-4] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4001 ms
+2021-04-30T10:34:26.872480100+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+10:34:26.872 [pool-1-thread-3] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T10:34:26.871812400+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4001 ms
+10:34:26.872 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T10:34:26.872480100+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+```
+
+Notice that all threads ``[pool-1-thread-1]`` - ``[pool-1-thread-4]`` are allowed to be executed, even though, it should be gatekept. With added delay:
+```
+2021-04-30T10:22:30.216441900+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+10:22:30.216 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T10:22:30.216441900+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+2021-04-30T10:22:30.433458100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+10:22:30.433 [pool-1-thread-3] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event NOT_PERMITTED published: 2021-04-30T10:22:30.433458100+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+Call is not permited do something else
+2021-04-30T10:22:30.548722200+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+10:22:30.548 [pool-1-thread-4] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event NOT_PERMITTED published: 2021-04-30T10:22:30.548722200+03:00: CircuitBreaker 'test' recorded a call which was not permitted.
+Call is not permited do something else
+10:22:34.231 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+2021-04-30T10:22:34.231172800+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4002 ms
+10:22:34.231 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T10:22:34.231172800+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4002 ms
+2021-04-30T10:22:34.231172800+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+10:22:34.231 [pool-1-thread-1] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T10:22:34.231172800+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+10:22:34.327 [pool-1-thread-2] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+java.lang.RuntimeException: Hello
+2021-04-30T10:22:34.327201600+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4003 ms
+10:22:34.327 [pool-1-thread-2] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T10:22:34.327201600+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 4003 ms
+```
+
+Now thread-1 is permitted, while thread-3 and thread-4 are gatekept and CircuitBrake throws ``NOT_PERMITTED``. What's happening with thread-2 - I have no idea.
 
 
 
