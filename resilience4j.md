@@ -916,7 +916,8 @@ Remaining properties are pretty much self explanatory.
 
 Because documentation does not provide definition of bulkhead, here it is:
 > A ship is split into small multiple compartments using Bulkheads. Bulkheads are used to seal parts of the ship to prevent the entire ship from sinking in case of a flood. Similarly, failures should be expected when we design software. The application should be split into multiple components and resources should be isolated in such a way that failure of one component is not affecting the other.
-For ex: let's assume that there are 2 services A and B. Some of the APIs of A depends on B. For some reason, B is very slow. So, When we get multiple concurrent requests to A which depends on B, A’s performance will also get affected. It could block A’s threads. Due to that A might not be able to serve other requests which do NOT depend on B. So, the idea here is to isolate resources / allocate some threads in A for B. So that We do not consume all the threads of A and prevent A from hanging for all the requests!
+
+For example: let's assume that there are 2 services A and B. Some of the APIs of A depends on B. For some reason, B is very slow. So, When we get multiple concurrent requests to A which depends on B, A’s performance will also get affected. It could block A’s threads. Due to that A might not be able to serve other requests which do NOT depend on B. So, the idea here is to isolate resources / allocate some threads in A for B. So that We do not consume all the threads of A and prevent A from hanging for all the requests!
 
 Resilience4j provides two implementations of a bulkhead pattern that can be used to limit the number of concurrent execution:
 
