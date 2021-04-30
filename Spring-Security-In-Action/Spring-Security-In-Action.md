@@ -3377,7 +3377,50 @@ In this section, we discuss classes provided by Spring Security, which implement
 
 Spring Security offers a few abstract classes that implement the Filter interface and for which you can extend your filter definitions. These classes also add functionality your implementations could benefit from when you extend them. For example, you could extend the GenericFilterBean class, which allows you to use initialization parameters that you would define in a web.xml descriptor file where applicable. A more useful class that extends the GenericFilterBean is OncePerRequestFilter. When adding a filter to the chain, the framework doesn’t guarantee it will be called only once per request. OncePerRequestFilter, as the name suggests, implements logic to make sure that the filter’s doFilter() method is executed only one time per request.
 
+If you need such functionality in your application, use the classes that Spring provides. But if you don’t need them, I’d always recommend you to go as simple as possible with your implementations. Too often, I’ve seen developers extending the GenericFilterBean class instead of implementing the Filter interface in functionalities that don’t require the custom logic added by the GenericFilterBean class. When asked why, it seems they don’t know. They probably copied the implementation as they found it in examples on the web.
 
+To make it crystal clear how to use such a class, let’s write an example.
+
+In listing 9.9, you find the change I made for the AuthenticationLoggingFilter class. Instead of implementing the Filter interface directly, as was the case in the example in section 9.3, now it extends the OncePerRequestFilter class. The method we override here is doFilterInternal().
+
+```
+public class AuthenticationLoggingFilter extends OncePerRequestFilter {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthenticationLoggingFilter.class);
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        var requestId = request.getHeader("Request-Id");
+        
+        LOGGER.info("Successfully authenticated request with id " + requestId);
+
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+A few short observations about the OncePerRequestFilter class that you might find useful: 
+* It supports only HTTP requests, but that’s actually what we always use. The advantageis that it casts the types, and we directly receive the requests as HttpServletRequest and HttpServletResponse. Remember, with the Filter interface, we had to cast the request and the response. 
+* You can implement logic to decide if the filter is applied or not. Even if you added thefilter to the chain, you might decide it doesn’t apply for certain requests. You set this by overriding the shouldNotFilter(HttpServletRequest) method. By default, the filter applies to all requests. 
+* By default, a OncePerRequestFilter doesn’t apply to asynchronous requests orerror dispatch requests. You can change this behavior by overriding the methods shouldNotFilterAsyncDispatch() and shouldNotFilterErrorDispatch().
+
+# Chapter 10. Applying CSRF protection and CORS
+
+## Applying cross-site request forgery (CSRF) protection in applications
+
+You have probably observed that in most of the examples up to now, we only implemented our endpoints with HTTP GET. Moreover, when we needed to configure HTTP POST, we also had to add a supplementary instruction to the configuration to disable CSRF protection. The reason why you can’t directly call an endpoint with HTTP POST is because of CSRF protection, which is enabled by default in Spring Security.
+
+In this section, we discuss CSRF protection and when to use it in your applications. CSRF is a widespread type of attack, and applications vulnerable to CSRF can force users to execute unwanted actions on a web application after authentication. You don’t want the applications you develop to be CSRF vulnerable and allow attackers to trick your users into making unwanted actions.
+
+### How CSRF protection works in Spring Security
+
+In this section, we discuss how Spring Security implements CSRF protection. It is important to first understand the underlying mechanism of CSRF protection. I encounter many situations in which misunderstanding the way CSRF protection works leads developers to misuse it, either disabling it in scenarios where it should be enabled or the other way around. Like any other feature in a framework, you have to use it correctly to bring value to your applications.
+
+As an example, consider this scenario (figure 10.1): you are at work, where you use a web tool to store and manage your files. With this tool, in a web interface you can add new files, add new versions for your records, and even delete them. You receive an email asking you to open a page for a specific reason. You open the page, but the page is blank or it redirects you to a known website. You go back to your work but observe that all your files are gone!
+
+What happened? You were logged into the application so you could manage your files. When you add, change, or delete a file, the web page you interact with calls some endpoints from the server to execute these operations. When you opened the foreign page by clicking the unknown link in the email, that page called the server and executed actions on your behalf (it deleted your files). It could do that because you logged in previously, so the server trusted that the actions came from you. You might think that someone couldn’t trick you so easily into clicking a link from a foreign email or message, but trust me, this happens to a lot of people
+
+![chapter-10-CSRF-attack.PNG](pictures/chapter-10-CSRF-attack.PNG)
 
 
 
