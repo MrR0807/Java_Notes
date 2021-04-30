@@ -173,7 +173,7 @@ Because backoff policy is exponential first retry is 1 sec, next one is 1 * 1.5 
                 .maxAttempts(3)
                 .intervalFunction(IntervalFunction.ofExponentialBackoff(Duration.ofSeconds(1L)))
                 .failAfterMaxAttempts(true)
-                .retryExceptions(RetryableException.class)
+                .retryExceptions(RuntimeException.class)
                 .retryOnResult(result -> result.equals("Hello"))
                 .build();
 
@@ -190,7 +190,40 @@ Because backoff policy is exponential first retry is 1 sec, next one is 1 * 1.5 
     }
 ```
 
-If ``failAfterMaxAttempts`` is true, it will throw ``MaxRetriesExceededException: Retry 'test' has exhausted all attempts (3)``. However, if ``failAfterMaxAttempts`` is false, then it will just silently end retrying ant continue with the remaining instructions.
+If ``failAfterMaxAttempts`` is true, it will throw ``MaxRetriesExceededException: Retry 'test' has exhausted all attempts (3)``. However, if ``failAfterMaxAttempts`` is false, then it will just silently end retrying ant continue with the remaining instructions. If however, supplier function itself returns an exception, it will be propogated instead of throwing ``MaxRetriesExceededException``:
+```
+    public static void main(String[] args) throws Throwable {
+        var retryConfig = RetryConfig.<String>custom()
+                                     .maxAttempts(3)
+                                     .intervalFunction(IntervalFunction.ofExponentialBackoff(Duration.ofSeconds(1L)))
+                                     .failAfterMaxAttempts(true)
+                                     .retryExceptions(RuntimeException.class)
+                                     .retryOnResult(result -> result.equals("Hello"))
+                                     .build();
+
+        var retryRegistry = RetryRegistry.of(retryConfig);
+        var retry = retryRegistry.retry("test");
+
+        retry.getEventPublisher().onEvent(System.out::println);
+
+        retry.executeCheckedSupplier(Retry::exception);
+    }
+    
+    private static String exception() {
+        throw new RuntimeException("");
+    }
+```
+
+```
+2021-04-30T07:52:53.520931300+03:00: Retry 'test', waiting PT1S until attempt '1'. Last attempt failed with exception 'java.lang.RuntimeException: '.
+2021-04-30T07:52:54.583049800+03:00: Retry 'test', waiting PT1.5S until attempt '2'. Last attempt failed with exception 'java.lang.RuntimeException: '.
+2021-04-30T07:52:56.089247200+03:00: Retry 'test' recorded a failed retry attempt. Number of retry attempts: '3'. Giving up. Last exception was: 'java.lang.RuntimeException:'.
+Exception in thread "main" java.lang.RuntimeException:
+at resilience.Retry.exception(Retry.java:33)
+at io.github.resilience4j.retry.Retry.lambda$decorateCheckedSupplier$3f69f149$1(Retry.java:137)
+at io.github.resilience4j.retry.Retry.executeCheckedSupplier(Retry.java:419)
+at resilience.Retry.main(Retry.java:25)
+```
 
 #### ``waitDuration`` and ExponentialBackoff
 
