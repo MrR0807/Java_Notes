@@ -274,7 +274,6 @@ Hence, the proper way to register waitDuration with exponentialBackoff is:
             .maxAttempts(3)
             .intervalFunction(IntervalFunction.ofExponentialBackoff(Duration.ofSeconds(1)))
             .build();
-
 ```
 
 #### ``intervalFunction``
@@ -912,6 +911,65 @@ No more transition to OPEN. In other words Do 2 calls which result in error -> O
 Remaining properties are pretty much self explanatory.
 
 ### Bulkhead
+
+[Bulkhead Documentation](https://resilience4j.readme.io/docs/bulkhead)
+
+Because documentation does not provide definition of bulkhead, here it is:
+> A ship is split into small multiple compartments using Bulkheads. Bulkheads are used to seal parts of the ship to prevent the entire ship from sinking in case of a flood. Similarly, failures should be expected when we design software. The application should be split into multiple components and resources should be isolated in such a way that failure of one component is not affecting the other.
+For ex: let's assume that there are 2 services A and B. Some of the APIs of A depends on B. For some reason, B is very slow. So, When we get multiple concurrent requests to A which depends on B, A’s performance will also get affected. It could block A’s threads. Due to that A might not be able to serve other requests which do NOT depend on B. So, the idea here is to isolate resources / allocate some threads in A for B. So that We do not consume all the threads of A and prevent A from hanging for all the requests!
+
+Resilience4j provides two implementations of a bulkhead pattern that can be used to limit the number of concurrent execution:
+
+* a **SemaphoreBulkhead** which uses Semaphores
+* a **FixedThreadPoolBulkhead** which uses a bounded queue and a fixed thread pool.
+
+#### SemaphoreBulkhead
+
+Firstly, what is Semaphore? Semaphores are often used to restrict the number of threads than can access some (physical or logical) resource:
+
+```
+public class BulkHead {
+
+    private static final Semaphore semaphore = new Semaphore(2);
+
+    public static void main(String[] args) throws InterruptedException {
+        var executorService = Executors.newFixedThreadPool(6);
+        executorService.submit(BulkHead::acquireResource);
+        executorService.submit(BulkHead::acquireResource);
+        executorService.submit(BulkHead::acquireResource);
+        executorService.shutdown();
+    }
+
+    private static void acquireResource() {
+        System.out.printf("%tT Trying to acquire resource%n", LocalTime.now());
+        try {
+            semaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.printf("%tT Resource acquired%n", LocalTime.now());
+        sleepSeconds(3);
+        semaphore.release();
+    }
+
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+Reult:
+```
+13:00:43 Trying to acquire resource
+13:00:43 Trying to acquire resource
+13:00:43 Resource acquired
+13:00:43 Trying to acquire resource
+13:00:43 Resource acquired
+13:00:46 Resource acquired
+```
 
 
 
