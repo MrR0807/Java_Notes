@@ -837,39 +837,87 @@ java.lang.RuntimeException: Hello
 
 Now thread-1 is permitted, while thread-3 and thread-4 are gatekept and CircuitBrake throws ``NOT_PERMITTED``. What's happening with thread-2 - I have no idea.
 
+#### ``maxWaitDurationInHalfOpenState``
 
+Configures a maximum wait duration which controls the longest amount of time a CircuitBreaker could stay in Half Open state, before it switches to open. Value 0 means Circuit Breaker would wait infinitely in HalfOpen State until all permitted calls have been completed. Default is 0.
 
+```
+ public static void main(String[] args) throws Throwable {
+        var circuitBreaker = buildCircuitBreaker();
 
+        circuitBreakerThrowsException(circuitBreaker);
+        circuitBreakerThrowsException(circuitBreaker);
+        System.out.println("-".repeat(10) + "Sleep" + "-".repeat(10));
+        sleepSeconds(2);
+        circuitBreakerThrowsException(circuitBreaker);
+        sleepSeconds(2);
+    }
 
+    private static CircuitBreaker buildCircuitBreaker() {
+        var configs = CircuitBreakerConfig.custom()
+                .minimumNumberOfCalls(2)
+                .waitDurationInOpenState(Duration.ofSeconds(1L))
+                .maxWaitDurationInHalfOpenState(Duration.ofSeconds(1L))
+                .build();
 
+        var registry = CircuitBreakerRegistry.of(configs);
+        var circuitBreaker = registry.circuitBreaker("test");
+        circuitBreaker.getEventPublisher().onEvent(System.out::println);
 
+        return circuitBreaker;
+    }
 
+    private static void circuitBreakerThrowsException(CircuitBreaker circuitBreaker) {
+        try {
+            circuitBreaker.executeSupplier(() -> { throw new RuntimeException("Hello"); });
+        } catch (CallNotPermittedException e) {
+            System.out.println("Call is not permited do something else");
+        } catch (Exception e) {
+            //Do something
+        }
+    }
 
+    private static void sleepSeconds(long seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
 
+```
+----------Sleep----------
+2021-04-30T11:08:49.502747900+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+11:08:49.502 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T11:08:49.502747900+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+11:08:49.502 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-30T11:08:49.502747900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+11:08:49.502 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T11:08:49.502747900+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+2021-04-30T11:08:50.508240700+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+11:08:50.508 [CircuitBreakerAutoTransitionThread] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T11:08:50.508240700+03:00: CircuitBreaker 'test' changed state from HALF_OPEN to OPEN
+```
 
+Notice the last statement - ``HALF_OPEN to OPEN``. This is ``maxWaitDurationInHalfOpenState`` in working. If I omnit it:
+```
+2021-04-30T11:11:47.362512500+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+11:11:47.362 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event STATE_TRANSITION published: 2021-04-30T11:11:47.362512500+03:00: CircuitBreaker 'test' changed state from OPEN to HALF_OPEN
+11:11:47.362 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
+2021-04-30T11:11:47.362512500+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+11:11:47.362 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - Event ERROR published: 2021-04-30T11:11:47.362512500+03:00: CircuitBreaker 'test' recorded an error: 'java.lang.RuntimeException: Hello'. Elapsed time: 0 ms
+```
 
+No more transition to OPEN. In other words Do 2 calls which result in error -> OPEN -> Sleep -> OPEN -> HALF_OPEN -> Do 1 call which result in error -> Sleep -> HALF_OPEN -> OPEN.
 
+Remaining properties are pretty much self explanatory.
 
-
-
-
-
-
-
-
-
-
-
-
-
+### Bulkhead
 
 
 
 ### Rate Limiter
 
 ### Time Limiter
-
-### Bulkhead
 
 ### Cache
 
