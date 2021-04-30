@@ -3422,6 +3422,30 @@ What happened? You were logged into the application so you could manage your fil
 
 ![chapter-10-CSRF-attack.PNG](pictures/chapter-10-CSRF-attack.PNG)
 
+CSRF attacks assume that a user is logged into a web application. They’re tricked by the attacker into opening a page that contains scripts that execute actions in the same application the user was working on.
+
+Because the user has already logged in (as we’ve assumed from the beginning), the forgery code can now impersonate the user and do actions on their behalf.
+
+How do we protect our users from such scenarios? What CSRF protection wants to ensure is that only the frontend of web applications can perform mutating operations (by convention, HTTP methods other than GET, HEAD, TRACE, or OPTIONS). Then, a foreign page, like the one in our example, can’t act on behalf of the user.
+
+How can we achieve this? What you know for sure is that before being able to do any action that could change data, a user must send a request using HTTP GET to see the web page at least once. When this happens, the application generates a unique token. The application now accepts only requests for mutating operations (POST, PUT, DELETE, and so forth) that contain this unique value in the header. The application considers that knowing the value of the token is proof that it is the app itself making the mutating request and not another system. Any page containing mutating calls, like POST, PUT, DELETE, and so on, should receive through the response the CSRF token, and the page must use this token when making mutating calls.
+
+The starting point of CSRF protection is a filter in the filter chain called CsrfFilter. The CsrfFilter intercepts requests and allows all those that use these HTTP methods: GET, HEAD, TRACE, and OPTIONS. For all other requests, the filter expects to receive a header containing a token. If this header does not exist or contains an incorrect token value, the application rejects the request and sets the status of the response to HTTP 403 Forbidden.
+
+What is this token, and where does it come from? These tokens are nothing more than string values. You have to add the token in the header of the request when you use any method other than GET, HEAD, TRACE, or OPTIONS. If you don’t add the header containing the token, the application doesn’t accept the request
+
+![chapter-10-CSRF-token.PNG](pictures/chapter-10-CSRF-token.PNG)
+
+The CsrfFilter (figure 10.3) uses a component named CsrfTokenRepository to manage the CSRF token values that generate new tokens, store tokens, and eventually invalidate these. By default, the CsrfTokenRepository stores the token on the HTTP session and generates the tokens as random universally unique identifiers (UUIDs). In most cases, this is enough, but as you’ll learn in section 10.1.3, you can use your own implementation of CsrfTokenRepository if the default one doesn’t apply to the requirements you need to implement.
+
+Let’s create an application that exposes two endpoints. We can call one of these with HTTP GET and the other with HTTP POST. As you know by now, you are not able to call endpoints with POST directly without disabling CSRF protection.
+
+![chapter-10-csrf-token-repository.PNG](pictures/chapter-10-csrf-token-repository.PNG)
+
+As you learn with this example, the CsrfFilter adds the generated CSRF token to the attribute of the HTTP request named ``_csrf``. If we know this, we know that after the CsrfFilter, we can find this attribute and take the value of the token from it. For this small application, we choose to add a custom filter after the CsrfFilter
+
+You use this custom filter to print in the console of the application the CSRF token that the app generates when we call the end point using HTTP GET. We can then copy the value of the token from the console and use it to make the mutating call with HTTP POST.
+
 
 
 
