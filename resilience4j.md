@@ -240,7 +240,7 @@ at resilience.Retry.main(Retry.java:25)
 
 #### ``waitDuration`` and ExponentialBackoff
 
-Initially I wanted to configure ``Retry`` to have ``initialDuration`` of 1 second and have exponential backoff policy. Naturally, RetryConfig look like so:
+Initially I wanted to configure ``Retry`` to have ``initialDuration`` of 1 second and have exponential backoff policy. Naturally, RetryConfig looked like so:
 ```
     var retryConfig = RetryConfig.custom()
             .waitDuration(Duration.ofSeconds(1))
@@ -282,7 +282,6 @@ Hence, the proper way to register waitDuration with exponentialBackoff is:
 > An IntervalFunction which can be used to calculate the wait interval. The input parameter of the function is the number of attempts (attempt), the output parameter the wait interval in milliseconds. The attempt parameter starts at 1 and increases with every further attempt.
  
 #### ``intervalBiFunction``
-
 
 > An ``IntervalBiFunction`` which can be used to calculate the wait interval. The input parameters of the bifunction is the number of attempts (attempt) and either result or exception, the output parameter is the wait interval in milliseconds. The attempt parameter starts at 1 and increases with every further attempt.
 
@@ -453,7 +452,7 @@ Explanation of ``CircuitBreakerConfig`` configuration:
 * ``minimumNumberOfCalls`` - Configures the minimum number of calls which are required (per sliding window period) before the CircuitBreaker can calculate the error rate or slow call rate. For example, if minimumNumberOfCalls is 10, then at least 10 calls must be recorded, before the failure rate can be calculated. If only 9 calls have been recorded the CircuitBreaker will not transition to open even if all 9 calls have failed. Default value is 100, hence it has to be lowered for demo.
 * ``waitDurationInOpenState`` - The time that the CircuitBreaker should wait before transitioning from open to half-open. Default value is 60 seconds, hence it has to be  lowered for demo.
 
-If application would be started, it would result in:
+Starting application results in:
 ```
 18:42:19.069 [main] DEBUG io.github.resilience4j.circuitbreaker.internal.CircuitBreakerStateMachine - CircuitBreaker 'test' recorded an exception as failure:
 java.lang.RuntimeException: Hello
