@@ -3446,10 +3446,145 @@ As you learn with this example, the CsrfFilter adds the generated CSRF token to 
 
 You use this custom filter to print in the console of the application the CSRF token that the app generates when we call the end point using HTTP GET. We can then copy the value of the token from the console and use it to make the mutating call with HTTP POST.
 
+```
+@RestController
+public class HelloController {
 
+    @GetMapping("/hello")
+    public String getHello() {
+        return "Get Hello!";
+    }
+    @PostMapping("/hello")
+    public String postHello() {
+        return "Post Hello!";
+    }
+}
+```
 
+```
+public class CsrfTokenLogger implements Filter {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(CsrfTokenLogger.class);
 
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain) throws IOException, ServletException {
+        var csrf = request.getAttribute("_csrf");
+        var token = (CsrfToken) csrf;
+
+        LOGGER.info("CSRF token " + token.getToken());
+
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.addFilterAfter(new CsrfTokenLogger(), CsrfFilter.class)
+            .authorizeRequests().anyRequest().permitAll();
+    }
+}
+```
+
+Observe that I don’t disable CSRF protection in the listing.
+
+We can now test the endpoints. We begin by calling the endpoint with HTTP GET. Because the default implementation of the CsrfTokenRepository interface uses the HTTP session to store the token value on the server side, we also need to remember the session ID. For this reason, I add the -v flag to the call so that I can see more details from the response, including the session ID. Calling the endpoint
+```
+curl -v http://localhost:8080/hello
+```
+returns this (truncated) response:
+```
+... < Set-Cookie: JSESSIONID=21ADA55E10D70BA81C338FFBB06B0206; ... Get Hello!
+```
+Following the request in the application console, you can find a log line that contains the CSRF token:
+```
+INFO 21412 --- [nio-8080-exec-1] c.l.ssia.filters.CsrfTokenLogger : CSRF token c5f0b3fa-2cae-4ca8-b1e6-6d09894603df
+```
+If you call the endpoint using the HTTP POST method without providing the CSRF token, the response status is 403 Forbidden, as this command line shows:
+```
+curl -XPOST http://localhost:8080/hello
+```
+```
+{ 
+    "status":403, 
+    "error":"Forbidden", 
+    "message":"Forbidden", 
+    "path":"/hello" 
+}
+```
+
+But if you provide the correct value for the CSRF token, the call is successful. You also need to specify the session ID (JSESSIONID) because the default implementation of CsrfTokenRepository stores the value of the CSRF token on the session:
+```
+curl -X POST http://localhost:8080/hello -H 'Cookie: JSESSIONID=21ADA55E10D70BA81C338FFBB06B0206' -H 'X-CSRF-TOKEN: 1127bfda-57b1-43f0-bce5-bacd7d94694e'
+
+Post Hello!
+```
+
+Side note. When using Windows, use ``"`` instead of ``'``. 
+
+### Using CSRF protection in practical scenarios
+
+In this section, we discuss applying CSRF protection in practical situations. Now that you know how CSRF protection works in Spring Security, you need to know where you should use it in the real world.
+
+You use CSRF protection for web apps running in a browser, where you should expect that mutating operations can be done by the browser that loads the displayed content of the app. The most basic example I can provide here is a simple web application developed on the standard Spring MVC flow. We already made such an application when discussing form login in chapter 5, and that web app actually used CSRF protection. Did you notice that the login operation in that application used HTTP POST? Then why didn’t we need to do anything explicitly about CSRF in that case? The reason why we didn’t observe this was because we didn’t develop any mutating operation within it ourselves.
+
+For the default login, Spring Security correctly applies CSRF protection for us. The framework takes care of adding the CSRF token to the login request. Let’s now develop a similar application to look closer at how CSRF protection works: 
+* Build an example of a web application with the login form
+* Look at how the default implementation of the login uses CSRF tokens
+* Implement an HTTP POST call from the main page
+
+Spring Boot project. You can find this example in the project ssia-ch10-ex2. The next code snippet presents the needed dependencies:
+```
+<dependency> 
+    <groupId>org.springframework.boot</groupId> 
+    <artifactId>spring-boot-starter-security</artifactId> 
+</dependency> 
+
+<dependency> 
+    <groupId>org.springframework.boot</groupId> 
+    <artifactId>spring-boot-starter-thymeleaf</artifactId> 
+</dependency> 
+
+<dependency> 
+    <groupId>org.springframework.boot</groupId> 
+    <artifactId>spring-boot-starter-web</artifactId> 
+</dependency>
+```
+
+Then we need, of course, to configure the form login and at least one user. The following listing presents the configuration class, which defines the UserDetailsService, adds a user, and configures the formLogin method.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Bean
+    public UserDetailsService uds() {
+        var uds = new InMemoryUserDetailsManager();
+        var u1 = User.withUsername("mary")
+                     .password("12345")
+                     .authorities("READ")
+                     .build();
+        uds.createUser(u1);
+        return uds;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests().anyRequest().authenticated();
+        http.formLogin()
+            .defaultSuccessUrl("/main", true);
+    }
+}
+```
 
 
 
