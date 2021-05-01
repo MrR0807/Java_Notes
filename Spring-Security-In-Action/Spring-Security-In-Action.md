@@ -3939,7 +3939,56 @@ In our example, the browser makes the request, but we don’t accept the respons
 
 ### Applying CORS policies with the @CrossOrigin annotation
 
+In this section, we discuss how to configure CORS to allow requests from different domains using the @CrossOrigin annotation. You can place the @CrossOrigin annotation directly above the method that defines the endpoint and configure it using the allowed origins and methods. As you learn in this section, the advantage of using the @CrossOrigin annotation is that it makes it easy to configure CORS for each endpoint.
 
+To make the cross-origin call work in the application, the only thing you need to do is to add the @CrossOrigin annotation over the test() method in the controller class.
+
+```
+    @PostMapping("/test")
+    @CrossOrigin("http://localhost:8080")
+    @ResponseBody
+    public String test() {
+        LOGGER.info("Test method called");
+        return "Hello";
+    }
+```
+
+You can rerun and test the application. This should now display on the page the string returned by the /test endpoint: HELLO.
+
+The value parameter of @CrossOrigin receives an array to let you define multiple origins; for example, @CrossOrigin({"example.com", "example.org"}). You can also set the allowed headers and methods using the allowedHeaders attribute and the methods attribute of the annotation. For both origins and headers, you can use the asterisk (*) to represent all headers or all origins. But I recommend you exercise caution with this approach. It’s always better to filter the origins and headers that you want to allow and never allow any domain to implement code that accesses your applications’ resources.
+
+By allowing all origins, you expose the application to cross-site scripting (XSS) requests, which eventually can lead to DDoS attacks.
+
+The advantage of using @CrossOrigin to specify the rules directly where the endpoints are defined is that it creates good transparency of the rules. The disadvantage is that it might become verbose, forcing you to repeat a lot of code. It also imposes the risk that the developer might forget to add the annotation for newly implemented endpoints.
+
+### Applying CORS using a CorsConfigurer
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.cors(c -> {
+            CorsConfigurationSource source = request -> {
+                CorsConfiguration config = new CorsConfiguration();
+                config.setAllowedOrigins(List.of("example.com", "example.org"));
+                config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+                return config;
+            };
+            c.configurationSource(source);
+        });
+        
+        http.csrf().disable();
+        http.authorizeRequests()
+            .anyRequest().permitAll();
+    }
+}
+```
+
+The cors() method that we call from the HttpSecurity object receives as a parameter a Customizer<CorsConfigurer> object. For this object, we set a CorsConfigurationSource, which returns CorsConfiguration for an HTTP request. CorsConfiguration is the object that states which are the allowed origins, methods, and headers. If you use this approach, you have to specify at least which are the origins and the methods. If you only specify the origins, your application won’t allow the requests. This behavior happens because a CorsConfiguration object doesn’t define any methods by default.
+
+# Chapter 11. Hands-on: A separation of responsibilities
 
 
 
