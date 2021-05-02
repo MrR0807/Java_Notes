@@ -3990,7 +3990,91 @@ The cors() method that we call from the HttpSecurity object receives as a parame
 
 # Chapter 11. Hands-on: A separation of responsibilities
 
+In this chapter, we’ll design a system of three actors: the client, the authentication server, and the business logic server. From these three actors, we’ll implement the backend part of the authentication server and a business logic server. As you’ll observe, our examples are more complex. This is a sign that we are getting closer and closer to real-world scenarios.
 
+## The scenario and requirements of the example
+
+You’ll find these components illustrated in figure 11.1. The three components are
+* The **client** — This is the application consuming the backend. It could be a mobileapp or the frontend of a web application developed using a framework like Angular, ReactJS, or Vue.js. We don’t implement the client part of the system, but keep in mind that it exists in a real-world application. Instead of using the client to call endpoints, we use cURL.
+* The **authentication server** — This is an application with a database of user credentials.The purpose of this application is to authenticate users based on their credentials (username and password) and send them a one-time password (OTP) through SMS. Because we won’t actually send an SMS in this example, we’ll read the value of the OTP from the database directly.
+* The **business logic server** — This is the application exposing endpoints that our clientconsumes. We want to secure access to these endpoints. Before calling an endpoint, the user must authenticate with their username and password and then send an OTP. The user receives the OTP through an SMS message. Because this application is our target application, we secure it with Spring Security.
+
+![chapter-11-figure-11-1.PNG](pictures/chapter-11-figure-11-1.PNG)
+
+To call any endpoint on the business logic server, the client has to follow three steps: 
+* Authenticate the username and password by calling the /login endpoint on the business logic server to obtain a randomly generated OTP.
+* Call the /login endpoint with the username and OTP. 
+* Call any endpoint by adding the token received in step 2 to the Authorization header of the HTTP request.
+
+When the client authenticates the username and password, the business logic server sends a request for an OTP to the authentication server. After successful authentication, the authentication server sends a randomly generated OTP to the client via SMS. This way of identifying the user is called multi-factor authentication (MFA), and it’s pretty common nowadays. We generally need users to prove who they are both by using their credentials and with another means of identification (for example, they own a specific mobile device).
+
+In the second authentication step, once the client has the code from the received SMS, the user can call the /login endpoint, again with the username and the code. The business logic server validates the code with the authentication server. If the code is valid, the client receives a token that it can use to call any endpoint on the business logic server.
+
+In the third authentication step, the client can now call any endpoint by adding the token it receives in step 2 to the Authorization header of the HTTP request.
+
+## Implementing and using tokens
+
+A token is similar to an access card. An application obtains a token as a result of the authentication process and to access resources. Endpoints represent the resources in a web application. For a web application, a token is a string, usually sent through an HTTP header by clients that want to access a particular endpoint. This string can be plain like a pure universally unique identifier (UUID), or it might have a more complex shape like a JSON Web Token (JWT).
+
+### What is a token?
+
+Tokens provide a method that an application uses to prove it has authenticated a user, which allows the user to access the application’s resources.
+
+What are tokens? A token is just an access card, theoretically. When you visit an office building, you first go to the reception desk. There, you identify yourself (authentication), and you receive an access card (token). You can use the access card to open some doors, but not necessarily all doors. This way, the token authorizes your access and decides whether you’re allowed to do something, like opening a particular door.
+
+At the implementation level, tokens can even be regular strings. What’s most important is to be able to recognize these after you issue them. You can generate UUIDs and store them in memory or in a database. Let’s assume the following scenario: 
+* The client proves its identity to the server with its credentials. 
+* The server issues the client a token in the format of a UUID. This token, now associated with the client, is stored in memory by the server (figure 11.6).
+* When the client calls an endpoint, the client provides the token and gets authorized. Figure 11.7 presents this step.
+
+![chapter-11-figure-11-6.PNG](pictures/chapter-11-figure-11-6.PNG)
+
+![chapter-11-figure-11-7.PNG](pictures/chapter-11-figure-11-7.PNG)
+
+This is the general flow associated with using tokens in the authentication and authorization process. Which are its main advantages? Why would you use such a flow? Doesn’t it add more complexity than a simple login? (You can rely only on the user and the password anyway, you might think.) But tokens bring more advantages, so let’s enumerate them and then discuss them one by one: 
+* Tokens help you avoid sharing credentials in all requests.
+* You can define tokens with a short lifetime.
+* You can invalidate tokens without invalidating the credentials.
+* Tokens can also store details like user authorities that the client needs to sendin the request. 
+* Tokens help you delegate the authentication responsibility to another componentin the system.
+
+**Tokens help you avoid sharing credentials in all requests**. In chapters 2 through 10, we worked with HTTP Basic as the authentication method for all requests. And this method, as you learned, assumes you send credentials for each request. Sending credentials with each request isn’t OK because it often means that you expose them. The more often you expose the credentials, the bigger the chances are that someone intercepts them. With tokens, we change the strategy. We send credentials only in the first request to authenticate. Once authenticated, we get a token, and we can use it to get authorized for calling resources. This way, we only have to send credentials once to obtain the token.
+
+**You can define tokens with a short lifetime**. If a deceitful individual steals the token, they won’t be able to use it forever. Most probably, the token might expire before they find out how to use it to break into your system.
+
+Tokens can also store details needed in the request. We can use tokens to store details like authorities and roles of the user. This way, we can replace a server-side session with a clientside session, which offers us better flexibility for horizontal scaling.
+
+### What is a JSON Web Token?
+
+In this section, we discuss a more specific implementation of tokens — **the JSON Web Token (JWT)**. This token implementation has benefits that make it quite common in today’s applications.
+
+You already learned in section 11.2.1 that a token is anything the server can identify later: a UUID, an access card, and even the sticker you receive when you buy a ticket in a museum. Let’s find out what a JWT looks like, and why a JWT is special. It’s easy to understand a lot about JWTs from the name of the implementation itself: 
+* JSON — It uses JSON to format the data it contains.
+* Web — It’s designed to be used for web requests.
+* Token — It’s a token implementation.
+
+A JWT has three parts, each part separated from the others by a dot (a period). You find an example in this code snippet:
+
+![chapter-11-JWT.PNG](pictures/chapter-11-JWT.PNG)
+
+The first two parts are the header and the body. The header (from the beginning of the token to the first dot) and the body (between the first and the second dot) are formatted as JSON and then are Base64 encoded. We use the header and the body to store details in the token. The next code snippet shows what the header and the body look like before these are Base64 encoded:
+
+![chapter-11-JWT-header-and-body.PNG](pictures/chapter-11-JWT-header-and-body.PNG)
+
+In the header, you store metadata related to the token. In this case, because I chose to sign the token (as you’ll soon learn in the example), the header contains the name of the algorithm that generates the signature (HS256). In the body, you can include details needed later for authorization. In this case, we only have the username. I recommend that you keep the token as short as possible and that you don’t add a lot of data in the body. Even if, technically, there’s no limitation, you’ll find that 
+* If the token is long, it slows the request.
+* When you sign the token, the longer the token, the more time the cryptographic algorithm needs for signing it.
+
+The last part of the token (from the second dot to the end) is the digital signature, but this part can be missing. Because you’ll usually prefer to sign the header and the body, when you sign the content of the token, you can later use the signature to check that the content hasn’t changed. Without a signature, you can’t be sure that someone didn’t intercept the token when transferred on the network and chang its content.
+
+![chapter-11-figure-11-8.PNG](pictures/chapter-11-figure-11-8.PNG)
+
+In this chapter, we’ll use Java JSON Web Token (JJWT) as the library to create and parse JWTs. This is one of the most frequently used libraries to generate and parse JWT tokens in Java applications. Besides all the needed details related to how to use this library, on JJWT’s GitHub repository, I also found a great explanation of JWTs. You might find it useful to read as well:
+```
+https://github.com/jwtk/jjwt#overview
+```
+
+## Implementing the authentication server
 
 
 
