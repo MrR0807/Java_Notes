@@ -4662,15 +4662,11 @@ If, however, a code is sent in the request, we assume it’s the second authenti
 ```
 @Component
 public class InitialAuthenticationFilter extends OncePerRequestFilter {
-
-    private final AuthenticationManager authenticationManager;
-    private final String signingKey;
-
-    public InitialAuthenticationFilter(AuthenticationManager authenticationManager,
-                                       @Value("${jwt.signing.key}") String signingKey) {
-        this.authenticationManager = authenticationManager;
-        this.signingKey = signingKey;
-    }
+    
+    @Autowired //Due to circular depedencies
+    private AuthenticationManager authenticationManager;
+    @Value("${jwt.signing.key}")
+    private String signingKey;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -4703,6 +4699,7 @@ public class InitialAuthenticationFilter extends OncePerRequestFilter {
 ```
 
 The following code snippet builds the JWT. I use the setClaims() method to add a value in the JWT body and the signWith() method to attach a signature to the token. For our example, I use a symmetric key to generate the signature:
+
 ```
 SecretKey key = Keys.hmacShaKeyFor(signingKey.getBytes(StandardCharsets.UTF_8));
 
@@ -4715,6 +4712,7 @@ String jwt = Jwts.builder()
 This key is known only by the business logic server. The business logic server signs the token and can use the same key to validate the token when the client calls an endpoint. For simplicity of the example, I use here one key for all users. In a real-world scenario, however, I would have a different key for each user, but as an exercise, you can change this application to use different keys. **The advantage of using individual keys for users is that if you need to invalidate all the tokens for a user, you need only to change its key.**
 
 Because we inject the value of the key used to sign the JWT from the properties, we need to change the application.properties file to define this value.
+
 ```
 jwt.signing.key=ymLTU8rq83…
 ```
@@ -4801,6 +4799,12 @@ public class ProjectConfig extends WebSecurityConfigurerAdapter {
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         auth.authenticationProvider(otpAuthenticationProvider)
             .authenticationProvider(usernamePasswordAuthenticationProvider);
+    }
+    
+    @Override
+    @Bean
+    protected AuthenticationManager authenticationManager() throws Exception {
+        return super.authenticationManager();
     }
 }
 ```
