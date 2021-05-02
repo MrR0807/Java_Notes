@@ -4076,7 +4076,306 @@ https://github.com/jwtk/jjwt#overview
 
 ## Implementing the authentication server
 
+In this section, we start the implementation of our hands-on example. The first dependency we have is the authentication server.
 
+In our scenario, the authentication server connects to a database where it stores the user credentials and the OTPs generated during request authentication events. We need this application to expose three endpoints (figure 11.9): 
+* /user/add — Adds a user that we use later for testing our implementation.
+* /user/auth — Authenticates a user by their credentials and sends an SMS withan OTP. We take out the part that sends the SMS, but you can do this as an exercise. 
+* /otp/check — Verifies that an OTP value is the one that the authentication servergenerated earlier for a specific user.
+
+We create a new project and add the needed dependencies as the next code snippet shows.
+
+```
+<dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+```
+
+application.yml
+```
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:auth-server;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    platform: h2
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database: h2
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+      path: /h2
+  application:
+    name: auth-server
+
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
+```
+
+We also need to make sure we create the database for the application. Because we store user credentials (username and password), we need a table for this.
+
+I use a database named spring and add the scripts to create the two tables required in a schema.sql file. Remember to place the schema.sql file in the resources folder of your project as this is where Spring Boot picks it up to execute the scripts.
+
+```
+CREATE SCHEMA spring;
+
+CREATE TABLE spring.user (
+    username    VARCHAR(45) NULL,
+    password    TEXT NULL,
+
+    PRIMARY KEY (username)
+);
+
+CREATE TABLE spring.otp (
+    username    VARCHAR(45) NOT NULL,
+    code        VARCHAR(45) NULL,
+
+    PRIMARY KEY (username)
+);
+```
+
+I added Spring Security to the dependencies as well for this application. The only reason I did this for the authentication server is to have the BCryptPasswordEncoder that I like to use to hash the users’ passwords when stored in the database. To keep the example short and relevant to our purpose, I don’t implement authentication between the business logic server and the authentication server.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.csrf().disable();
+
+        http.authorizeRequests().anyRequest().permitAll();
+        http.headers().frameOptions().disable(); //Required for accessing H2 via webpage. Otherwise - errors
+    }
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+```
+
+```
+@Entity
+@Table(schema = "spring")
+public class User {
+
+    @Id
+    private String username;
+    private String password;
+    
+}
+```
+
+```
+@Entity
+@Table(schema = "spring")
+public class Otp {
+
+    @Id
+    private String username;
+    private String code;
+}
+
+```
+
+```
+public interface UserRepository extends JpaRepository<User, String> {
+
+    Optional<User> findUserByUsername(String username);
+}
+```
+
+```
+public interface OtpRepository extends JpaRepository<Otp, String> {
+
+    Optional<Otp> findOtpByUsername(String username);
+}
+```
+
+```
+@Service
+public class UserService {
+    
+    private final PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final OtpRepository otpRepository;
+
+    public UserService(PasswordEncoder passwordEncoder, UserRepository userRepository, OtpRepository otpRepository) {
+        this.passwordEncoder = passwordEncoder;
+        this.userRepository = userRepository;
+        this.otpRepository = otpRepository;
+    }
+
+    @Transactional
+    public void addUser(User user) {
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void auth(User user) {
+        var maybeUser = userRepository.findUserByUsername(user.getUsername());
+        
+        if (maybeUser.isPresent()) {
+            var u = maybeUser.get();
+            if (passwordEncoder.matches(user.getPassword(), u.getPassword())) {
+                renewOtp(u);
+            } else {
+                throw new BadCredentialsException("Bad credentials");
+            }
+        } else {
+            throw new BadCredentialsException("Bad credentials");
+        }
+    }
+
+    private void renewOtp(User user) {
+        var code = generateCode();
+
+        otpRepository.findOtpByUsername(user.getUsername())
+                     .ifPresentOrElse(otp -> otp.setCode(code), () -> saveNewOtp(user, code));
+    }
+
+    private void saveNewOtp(User user, String code) {
+        var otp = new Otp();
+        otp.setUsername(user.getUsername());
+        otp.setCode(code);
+        otpRepository.save(otp);
+    }
+
+    private static String generateCode() {
+        try {
+            var random = SecureRandom.getInstanceStrong();
+            var c = random.nextInt(9000) + 1000; //Generates a value between 0 and 8999. Add 1000. This way between 1000 and 9999.
+            return String.valueOf(c);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Problem when generating the random code");
+        }
+    }
+
+    public boolean check(Otp otpToValidate) {
+        var maybeOtp = otpRepository.findOtpByUsername(otpToValidate.getUsername());
+        return maybeOtp
+                .map(otp -> otpToValidate.getCode().equals(otp.getCode()))
+                .orElse(false);
+    }
+}
+```
+
+```
+@RestController
+public class AuthController {
+    
+    private final UserService userService;
+
+    public AuthController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @PostMapping("/user/add")
+    public void addUser(@RequestBody User user) {
+        userService.addUser(user);
+    }
+
+    @PostMapping("/user/auth")
+    public void auth(@RequestBody User user) {
+        userService.auth(user);
+    }
+
+    @PostMapping("/otp/check")
+    public void check(@RequestBody Otp otp, HttpServletResponse response) {
+        if (userService.check(otp)) {
+            response.setStatus(HttpServletResponse.SC_OK);
+        } else {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        }
+    }
+}
+```
+
+With this setup, we now have the authentication server. Let’s start it and make sure that the endpoints work the way we expect. To test the functionality of the authentication server, we need to 
+* Add a new user to the database by calling the /user/add endpoint 
+* Validate that the user was correctly added by checking the users table in the database 
+* Call the /user/auth endpoint for the user added in step 1 
+* Validate that the application generates and stores an OTP in the otp table 
+* Use the OTP generated in step 3 to validate that the /otp/check endpoint works as desired
+
+We begin by adding a user to the database of the authentication server. We need at least one user to use for authentication.
+```
+curl -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"password\":\"12345\"}" http://localhost:8080/user/add
+```
+
+After using the curl command presented by the previous code snippet to add a user, we check the database to validate that the record was added correctly. In my case, I can see the following details:
+```
+Username: danielle 
+Password: $2a$10$.bI9ix.Y0m70iZitP.RdSuwzSqgqPJKnKpRUBQPGhoRvHA.1INYmy
+```
+
+We have a user, so let’s generate an OTP for the user by calling the /user/auth endpoint.
+```
+curl -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"password\":\"12345\"}" http:/./localhost:8080/user/auth
+```
+
+In the otp table in our database, the application generates and stores a random fourdigit code. In my case, its value is 8173.
+
+The last step for testing our authentication server is to call the /otp/check endpoint and verify that it returns an HTTP 200 OK status code in the response when the OTP is correct and 403 Forbidden if the OTP is wrong. The following code snippets show you the test for the correct OTP value, as well as the test for a wrong OTP value.
+```
+curl -v -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"code\":\"8173\"}" http:/./localhost:8080/otp/check
+```
+the response status is
+```
+... 
+< HTTP/1.1 200 
+...
+```
+
+If the OTP value is wrong:
+```
+curl -v -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"code\":\"9999\"}" http:/./localhost:8080/otp/check
+```
+
+the response status is
+```
+... 
+< HTTP/1.1 403 
+...
+```
+
+We just proved that the authentication server components work!
 
 
 
