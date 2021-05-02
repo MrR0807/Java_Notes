@@ -4347,14 +4347,14 @@ Password: $2a$10$.bI9ix.Y0m70iZitP.RdSuwzSqgqPJKnKpRUBQPGhoRvHA.1INYmy
 
 We have a user, so let’s generate an OTP for the user by calling the /user/auth endpoint.
 ```
-curl -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"password\":\"12345\"}" http:/./localhost:8080/user/auth
+curl -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"password\":\"12345\"}" http://localhost:8080/user/auth
 ```
 
 In the otp table in our database, the application generates and stores a random fourdigit code. In my case, its value is 8173.
 
 The last step for testing our authentication server is to call the /otp/check endpoint and verify that it returns an HTTP 200 OK status code in the response when the OTP is correct and 403 Forbidden if the OTP is wrong. The following code snippets show you the test for the correct OTP value, as well as the test for a wrong OTP value.
 ```
-curl -v -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"code\":\"8173\"}" http:/./localhost:8080/otp/check
+curl -v -XPOST -H "content-type: application/json" -d "{\"username\":\"danielle\",\"code\":\"8173\"}" http://localhost:8080/otp/check
 ```
 the response status is
 ```
@@ -4377,9 +4377,469 @@ the response status is
 
 We just proved that the authentication server components work!
 
+## Implementing the business logic server
 
+In this section, we implement the business logic server. With this part of the system, you learn to implement and use JWTs for authentication and authorization.
 
+To accomplish our task, at a high level, we need to:
+* Create an endpoint that represents the resource we want to secure.
+* Implement the first authentication step in which the client sends the user credentials (username and password) to the business logic server to log in.
+* Implement the second authentication step in which the client sends the OTP the user receives from the authentication server to the business logic server. Once authenticated by the OTP, the client gets back a JWT, which it can use to access a user’s resources.
+* Implement authorization based on the JWT. The business logic server validates the JWT received from a client and, if valid, allows the client to access the resource.
 
+Technically, to achieve these four high-level points, we need to:
+* Create the business logic server project
+* Implement the Authentication objects that have the role of representing the two authentication steps.
+* Implement a proxy to establish communication between the authentication server and the business logic server.
+* Define the AuthenticationProvider objects that implement the authentication logic for the two authentication steps using the Authentication objects defined in step 2.
+* Define the custom filter objects that intercept the HTTP request and apply the authentication logic implemented by the AuthenticationProvider objects.
+* Write the authorization configurations.
+
+```
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.1</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.1</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.xml.bind</groupId>
+            <artifactId>jakarta.xml.bind-api</artifactId>
+            <version>2.3.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+            <version>2.3.2</version>
+        </dependency>
+```
+
+In this application, we only define a /test endpoint. Everything else we write in this project is to secure this endpoint.
+
+```
+@RestController
+public class TestController {
+    
+    @GetMapping("/test")
+    public String test() {
+        return "Test";
+    }
+}
+```
+
+To secure the app now, we have to define the three authentication levels:
+* Authentication with username and password to receive an OTP (figure 11.11)
+* Authentication with OTP to receive a token (figure 11.12)
+* Authentication with the token to access the endpoint (figure 11.13).
+
+![chapter-11-figure-11-11.PNG](pictures/chapter-11-figure-11-11.PNG)
+
+![chapter-11-figure-11-12.PNG](pictures/chapter-11-figure-11-12.PNG)
+
+![chapter-11-figure-11-13.PNG](pictures/chapter-11-figure-11-13.PNG)
+
+With the given requirements for this example, which is more complex and assumes multiple authentication steps, HTTP Basic authentication can’t help us anymore. We need to implement special filters and authentication providers to customize the authentication logic for our scenario.
+
+![chapter-11-figure-11-14.PNG](pictures/chapter-11-figure-11-14.PNG)
+
+Often, when developing an application, there’s more than one good solution. When designing an architecture, you should always think about all possible implementations and choose the best fit for your scenario. If more than one option is applicable and you can’t decide which is the best to implement, you should write a proof-of-concept for each option to help you decide which solution to choose. For our scenario, I present two options, and then we continue the implementation with one of these. I leave the other choice as an exercise for you to implement.
+
+The first option for us is to define three custom Authentication objects, three custom AuthenticationProvider objects, and a custom filter to delegate to these by making use of the AuthenticationManager (figure 11.15).
+
+![chapter-11-figure-11-15.PNG](pictures/chapter-11-figure-11-15.PNG)
+
+The second option, which I chose to implement in this example, is to have two custom Authentication objects and two custom AuthenticationProvider objects. These objects can help us apply the logic related to the /login endpoint. These will 
+* Authenticate the user with a username and password
+* Authenticate the user with an OTP
+
+Then we implement the validation of the token with a second filter. Figure 11.16 presents this approach.
+
+![chapter-11-figure-11-16.PNG](pictures/chapter-11-figure-11-16.PNG)
+
+Both approaches are equally good. I describe both of these only to illustrate that you can find cases in which you have multiple ways to develop the same scenario, especially because Spring Security offers quite a flexible architecture. I chose the second one because it offers me the possibility to recap more things, like having multiple custom filters and using the shouldNotFilter() method of the OncePerRequestFilter class.
+
+### Implementing the Authentication objects
+
+We need two types of Authentication objects, one to represent authentication by username and password and a second to represent authentication by OTP. As you learned in chapter 5, the Authentication contract represents the authentication process for a request. It can be a process in progress or after its completion. We need to implement the Authentication interface for both cases in which the application authenticates the user with their username and password, as well as for a OTP.
+
+In listing 11.14, you find the UsernamePasswordAuthentication class, which implements authentication with username and password. To make the classes shorter, I extend the UsernamePasswordAuthenticationToken class and, indirectly, the Authentication interface. You saw the UsernamePasswordAuthenticationToken class in chapter 5, where we discussed applying custom authentication logic.
+
+```
+public class UsernamePasswordAuthentication extends UsernamePasswordAuthenticationToken {
+    
+    public UsernamePasswordAuthentication(Object principal, Object credentials) {
+        super(principal, credentials);
+    }
+
+    public UsernamePasswordAuthentication(Object principal, Object credentials, Collection<? extends GrantedAuthority> authorities) {
+        super(principal, credentials, authorities);
+    }
+}
+```
+
+Note that I define both constructors in this class. There’s a big difference between these: when you call the one with **two parameters, the authentication instance remains unauthenticated**, while the one with **three parameters sets the Authentication object as authenticated**. As you learned in chapter 5, when the Authentication instance is authenticated it means that the authentication process ends.
+
+**The third parameter is the collection of granted authorities, which is mandatory for an authentication process that has ended.**
+
+Similarly to the UsernamePasswordAuthentication, we implement the second Authentication object for the second authentication step with OTP. I name this class OtpAuthentication.
+
+```
+public class OtpAuthentication extends UsernamePasswordAuthenticationToken {
+    
+    public OtpAuthentication(Object principal, Object credentials) {
+        super(principal, credentials);
+    }
+
+    public OtpAuthentication(Object principal, Object credentials, Collection<? extends GrantedAuthority> authorities) {
+        super(principal, credentials, authorities);
+    }
+}
+```
+
+### Implementing the proxy to the authentication server
+
+To complete authentication, we need a way to call the authentication server.
+
+![chapter-11-figure-11-17.PNG](pictures/chapter-11-figure-11-17.PNG)
+
+We can now write the AuthenticationServerProxy class, which we use to call the two REST endpoints exposed by the authentication server application.
+
+```
+@Component
+public class AuthenticationServerProxy {
+
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+
+    private final String serverUrl = "http://localhost:8080";
+
+    public void sendAuth(String username, String password) {
+        var url = serverUrl + "/user/auth";
+
+        var requestBody = """
+                {
+                  "username": "%s",
+                  "password": "%s"
+                }""".formatted(username, password);
+
+        var request = HttpRequest.newBuilder(URI.create(url))
+                               .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                               .header("Content-Type", "application/json")
+                               .build();
+
+        try {
+            var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println(response);
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public boolean sendOTP(String username, String code) {
+        var url = serverUrl + "/otp/check";
+
+        var requestBody = """
+                {
+                  "username": "%s",
+                  "code": "%s"
+                }""".formatted(username, code);
+
+        var request = HttpRequest.newBuilder(URI.create(url))
+                                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                                 .header("Content-Type", "application/json")
+                                 .build();
+
+        try {
+            var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println(response);
+            return response.statusCode() == 200;
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("Could not send request", e);
+        }
+    }
+}
+```
+
+### Implementing the AuthenticationProvider interface
+
+In this section, we implement the AuthenticationProvider classes. Now we have everything we need to start working on the authentication providers. We need these because this is where we write the custom authentication logic.
+
+We create a class named UsernamePasswordAuthenticationProvider to serve the UsernamePasswordAuthentication type of Authentication.
+
+Because we design our flow to have two authentication steps, and we have one filter that takes care of both steps, we know that authentication doesn’t finish with this provider. We use the constructor with two parameters to build the Authentication object: new UsernamePasswordAuthenticationToken (username, password). Remember, we discussed in section 11.4.1 that the constructor with two parameters doesn’t mark the object as being authenticated.
+
+```
+@Component
+public class UsernamePasswordAuthenticationProvider implements AuthenticationProvider {
+    
+    private final AuthenticationServerProxy proxy;
+
+    public UsernamePasswordAuthenticationProvider(AuthenticationServerProxy proxy) {
+        this.proxy = proxy;
+    }
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        var username = authentication.getName();
+        var password = String.valueOf(authentication.getCredentials());
+
+        proxy.sendAuth(username, password);
+        
+        return new UsernamePasswordAuthentication(username, password);
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return UsernamePasswordAuthentication.class.isAssignableFrom(authentication);
+    }
+}
+```
+
+The logic implemented by this AuthenticationProvider is simple. It calls the authentication server to find out if the OTP is valid. If he OTP is correct and valid, it returns an instance of Authentication. The filter ends back the token in the HTTP response. If the OTP isn’t correct, the authentication rovider throws an exception.
+
+```
+@Component
+public class OtpAuthenticationProvider implements AuthenticationProvider {
+
+    private final AuthenticationServerProxy proxy;
+
+    public OtpAuthenticationProvider(AuthenticationServerProxy proxy) {
+        this.proxy = proxy;
+    }
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        var username = authentication.getName();
+        var code = String.valueOf(authentication.getCredentials());
+
+        var result = proxy.sendOTP(username, code);
+        
+        if (result) {
+            return new OtpAuthentication(username, code);
+        } else {
+            throw new BadCredentialsException("Bad credentials.");
+        }
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return OtpAuthentication.class.isAssignableFrom(authentication);
+    }
+}
+```
+
+### Implementing the filters
+
+In this section, we implement the custom filters that we add to the filter chain. Their purpose is to intercept requests and apply authentication logic. We chose to implement one filter to deal with authentication done by the authentication server and another one for authentication based on the JWT. We implement an InitialAuthenticationFilter class, which deals with the first authentication steps that are done using the authentication server.
+
+We start by injecting the AuthenticationManager to which we delegate the authentication responsibility, override the doFilterInternal() method, which is called when the request reaches this filter in the filter chain, and override the shouldNotFilter() method. As we discussed in chapter 9, the shouldNotFilter() method is one of the reasons why we would choose to extend the OncePerRequestFilter class instead of implementing the Filter interface directly. When we override this method, we define a specific condition on when the filters execute. In our case, we want to execute any request only on the /login path and skip all others.
+
+We continue writing the InitialAuthenticationFilter class with the first authentication step, the one in which the client sends the username and password to obtain the OTP. We assume that if the user doesn’t send an OTP (a code), we have to do authentication based on username and password. We take all the values from the HTTP request header where we expect them to be, and if a code wasn’t sent, we call the first authentication step by creating an instance of UsernamePasswordAuthentication and forwarding the responsibility to the AuthenticationManager.
+
+We know (since chapter 2) that next, the AuthenticationManager tries to find a proper AuthenticationProvider. In our case, this is the UsernamePasswordAuthenticationProvider. It’s the one triggered because its supports() method states that it accepts the UsernamePasswordAuthentication type.
+
+If, however, a code is sent in the request, we assume it’s the second authentication step. In this case, we create an OtpAuthentication object to call the AuthenticationManager.
+
+```
+@Component
+public class InitialAuthenticationFilter extends OncePerRequestFilter {
+
+    private final AuthenticationManager authenticationManager;
+    private final String signingKey;
+
+    public InitialAuthenticationFilter(AuthenticationManager authenticationManager,
+                                       @Value("${jwt.signing.key}") String signingKey) {
+        this.authenticationManager = authenticationManager;
+        this.signingKey = signingKey;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        var username = request.getHeader("username");
+        var password = request.getHeader("password");
+        var code = request.getHeader("code");
+
+        if (code == null) {
+            var authentication = new UsernamePasswordAuthentication(username, password);
+            authenticationManager.authenticate(authentication);
+        } else {
+            var otpAuthentication = new OtpAuthentication(username, code);
+            var authentication = authenticationManager.authenticate(otpAuthentication);
+
+            var secretKey = Keys.hmacShaKeyFor(signingKey.getBytes(StandardCharsets.UTF_8));
+            var jwt = Jwts.builder()
+                          .setClaims(Map.of("username", username))
+                          .signWith(secretKey)
+                          .compact();
+
+            response.setHeader("Authorization", jwt);
+        }
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return !request.getServletPath().equals("/login");
+    }
+}
+```
+
+The following code snippet builds the JWT. I use the setClaims() method to add a value in the JWT body and the signWith() method to attach a signature to the token. For our example, I use a symmetric key to generate the signature:
+```
+SecretKey key = Keys.hmacShaKeyFor(signingKey.getBytes(StandardCharsets.UTF_8));
+
+String jwt = Jwts.builder()
+                 .setClaims(Map.of("username", username))
+                 .signWith(key)
+                 .compact();
+```
+
+This key is known only by the business logic server. The business logic server signs the token and can use the same key to validate the token when the client calls an endpoint. For simplicity of the example, I use here one key for all users. In a real-world scenario, however, I would have a different key for each user, but as an exercise, you can change this application to use different keys. **The advantage of using individual keys for users is that if you need to invalidate all the tokens for a user, you need only to change its key.**
+
+Because we inject the value of the key used to sign the JWT from the properties, we need to change the application.properties file to define this value.
+```
+jwt.signing.key=ymLTU8rq83…
+```
+
+We also need to add the filter that deals with the requests on all paths other than /login. I name this filter JwtAuthenticationFilter. This filter expects that a JWT exists in the authorization HTTP header of the request. This filter validates the JWT by checking the signature, creates an authenticated Authentication object, and adds it to the SecurityContext. The following listing presents the implementation of the JwtAuthenticationFilter.
+
+```
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final String signingKey;
+
+    public JwtAuthenticationFilter(@Value("${jwt.signing.key}") String signingKey) {
+        this.signingKey = signingKey;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        var jwt = request.getHeader("Authorization");
+
+        var key = Keys.hmacShaKeyFor(signingKey.getBytes(StandardCharsets.UTF_8));
+
+        var claims = Jwts.parserBuilder()
+                       .setSigningKey(key)
+                       .build()
+                       .parseClaimsJws(jwt)
+                       .getBody();
+
+        var username = String.valueOf(claims.get("username"));
+        var grantedAuthority = new SimpleGrantedAuthority("user");
+        var auth = new UsernamePasswordAuthentication(username, null, List.of(grantedAuthority));
+
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        
+        filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getServletPath().equals("/login");
+    }
+}
+```
+
+### Writing the security configurations
+
+We have to do a few configurations so that our entire puzzle is coherent:
+* Add the filters to the filter chain as you learned in chapter 9.
+* Disable CSRF protection because, as you learned in chapter 10, this doesn’t apply when using different origins. Here, using a JWT replaces the validation that would be done with a CSRF token.
+* Add the AuthenticationProvider objects so that the AuthenticationManager knows them.
+* Use matcher methods to configure all the requests that need to be authenticated, as you learned in chapter 8.
+* Add the AuthenticationManager bean in the Spring context so that we can inject it from the InitialAuthenticationFilter
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    private final InitialAuthenticationFilter initialAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final OtpAuthenticationProvider otpAuthenticationProvider;
+    private final UsernamePasswordAuthenticationProvider usernamePasswordAuthenticationProvider;
+
+    public ProjectConfig(InitialAuthenticationFilter initialAuthenticationFilter,
+                         JwtAuthenticationFilter jwtAuthenticationFilter,
+                         OtpAuthenticationProvider otpAuthenticationProvider,
+                         UsernamePasswordAuthenticationProvider usernamePasswordAuthenticationProvider) {
+        this.initialAuthenticationFilter = initialAuthenticationFilter;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.otpAuthenticationProvider = otpAuthenticationProvider;
+        this.usernamePasswordAuthenticationProvider = usernamePasswordAuthenticationProvider;
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.csrf().disable();
+
+        http.addFilterAt(initialAuthenticationFilter, BasicAuthenticationFilter.class)
+            .addFilterAt(jwtAuthenticationFilter, BasicAuthenticationFilter.class);
+
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.authenticationProvider(otpAuthenticationProvider)
+            .authenticationProvider(usernamePasswordAuthenticationProvider);
+    }
+}
+```
+
+### Testing the whole system
+
+Now that everything is in place, it’s time to run the two components of our system, the authentication server and the business logic server, and examine our custom authentication and authorization to see if this works as desired.
+```
+curl -H "username:danielle" -H "password:12345" http://localhost:9090/login
+```
+
+Once we call the /login endpoint, providing the correct username and password, we check the database for the generated OTP value. This should be a record in the otp table where the value of the username field is danielle. In my case, I have the following record:
+```
+Username: danielle 
+Code: 6271
+```
+
+We assume this OTP was sent in an SMS message, and the user received it. We use it for the second authentication step. The cURL command in the next code snippet shows you how to call the /login endpoint for the second authentication step. I also add the -v option to see the response headers where I expect to find the JWT:
+```
+curl -v -H "username:danielle" -H "code:6271" http:/./localhost:9090/login
+```
+
+The (truncated) response is
+```
+. . . 
+< HTTP/1.1 200 <Authorization: eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImRhbmllbGxlIn0.wg6LFProg7s_KvFxvnY GiZF-Mj4rr-0nJA1tVGZNn8U 
+. . .
+```
+
+The JWT is right there where we expected it to be: in the authorization response header. Next, we use the token we obtained to call the /test endpoint:
+```
+curl -H "Authorization:eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImRhbmllbGxlIn0 .wg6LFProg7s_KvFxvnYGiZF-Mj4rr-0nJA1tVGZNn8U" http://localhost:9090/test
+```
+The response body is
+```
+Test
+```
+
+# Chapter 12. How does OAuth 2 work?
 
 
 
