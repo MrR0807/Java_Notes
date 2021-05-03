@@ -4845,6 +4845,44 @@ Test
 
 # Chapter 12. How does OAuth 2 work?
 
+The OAuth 2 framework is a vast subject that could take an entire book to cover. And I can’t argue with that, but in four chapters, you’ll learn everything you need to know about applying OAuth 2 with Spring Security. We’ll start this chapter with an overview, where you’ll discover that the main actors in the OAuth 2 framework are the user, the client, the resource server, and the authorization server.
+
+## The OAuth 2 framework
+
+Today, OAuth 2 is commonly used in securing web applications, so you’ve probably already heard about it. The chances are that you’ll need to apply OAuth 2 in your applications. And this is why we need to discuss applying OAuth 2 in Spring applications with Spring Security. We start with a little bit of theory and then move on to apply it with an application using SSO.
+
+In most cases, OAuth 2 is referred to as an *authorization framework* (or a specification framework) whose primary purpose is to allow a third-party website or app access to a resource. Sometimes people refer to OAuth 2 as a *delegation protocol*. Whatever you choose to call it, it’s important to remember that OAuth 2 is not a specific implementation or a library.
+
+I think that a great way to understand what OAuth 2 is and its usefulness is to start the discussion with examples we’ve already analyzed in this book. The most trivial way to authenticate, which you saw in plenty of examples up to now, is the HTTP Basic authentication method. Isn’t this enough for our systems such that we don’t have to add more complexity? No. With HTTP Basic authentication, we have two issues we need to take into consideration: 
+* Sending credentials for each and every request
+* Having the credentials of the users managed by a separate system
+
+Sending credentials for each and every request might work with isolated cases, but that’s generally undesirable because it implies 
+* Sharing credentials often over the network
+* Having the client (browser, in case of a web application) store credentials somehowso that the client can send those to the server with the request to get authenticated and authorized
+
+We want to get rid of these two points from our applications’ architecture because they weaken security by making credentials vulnerable. Most often, we want to have a separate system manage user credentials. Imagine, that you have to configure and use separate credentials for all the applications you work with in your organization (figure 12.2).
+
+![chapter-11-figure-12-2.PNG](pictures/chapter-11-figure-12-2.PNG)
+
+It would be better if we isolated the responsibility for credential management in one component of our system. Let’s call it, for now, the authorization server (figure 12.3).
+
+![chapter-11-figure-12-3.PNG](pictures/chapter-11-figure-12-3.PNG)
+
+This approach eliminates the duplication of credentials representing the same individual. In this way, the architecture becomes simpler and easier to maintain.
+
+## The components of the OAuth 2 authentication architecture
+
+As mentioned, OAuth 2 components include 
+* The **resource server** — The application hosting resources owned by users.Resources can be users’ data or their authorized actions. 
+* The **user (also known as the resource owner)** — The individual who owns resourcesexposed by the resource server. A user generally has a username and a password that they use to identify themselves.
+* The **client** — The application that accesses the resources owned by the user ontheir behalf. The client uses a client ID and a client secret to identify itself. Be careful, these credentials are not the same as the user credentials. The client needs its own credentials to identify itself when making a request. 
+* The **authorization server** — The application that authorizes the client to access theuser’s resources exposed by the resource server. When the authorization server decides that a client is authorized to access a resource on behalf of the user, it issues a token. The client uses this token to prove to the resource server that it was authorized by the authorization server. The resource server allows the client to access the resource it requested if it has a valid token.
+
+![chapter-11-figure-12-4.PNG](pictures/chapter-11-figure-12-4.PNG)
+
+## Implementation choices with OAuth 2
+
 
 
 
