@@ -961,7 +961,7 @@ public class BulkHead {
     }
 }
 ```
-Reult:
+Result:
 ```
 13:00:43 Trying to acquire resource
 13:00:43 Trying to acquire resource
