@@ -4910,10 +4910,10 @@ The client redirects the user to an endpoint of the authorization server where t
 
 Technically, what happens here is that when the client redirects the user to the authorization server, the client calls the authorization endpoint with the following details in the request query: 
 * **response_type** with the value *code*, which tells the authorization server thatthe client expects a code. The client needs the code to obtain an access token, as you’ll see in the second step. 
-* **client_id** with the value of the client ID, which identifies the applicationitself. 
-* **redirect_uri**, which tells the authorization server where to redirect the userafter successful authentication. Sometimes the authorization server already knows a default redirect URI for each client. For this reason, the client doesn’t need to send the redirect URI.
+* **client_id** with the value of the client ID, which identifies the application itself. 
+* **redirect_uri**, which tells the authorization server where to redirect the user after successful authentication. Sometimes the authorization server already knows a default redirect URI for each client. For this reason, the client doesn’t need to send the redirect URI.
 * **scope**, which is similar to the granted authorities we discussed in chapter 5.
-* **state**, which defines a cross-site request forgery (CSRF) token used for theCSRF protection we discussed in chapter 10.
+* **state**, which defines a cross-site request forgery (CSRF) token used for the CSRF protection we discussed in chapter 10.
 
 After successful authentication, the authorization server calls back the client on the redirect URI and provides a code and the state value. The client checks that the state value is the same as the one it sent in the request to confirm that it was not someone else attempting to call the redirect URI. The client uses the code to obtain an access token as presented in step 2.
 
@@ -4921,8 +4921,8 @@ After successful authentication, the authorization server calls back the client 
 
 To allow the user to access resources, the code resulting from step 1 is the client’s proof that the user authenticated. You guessed correctly, this is why this is called the authorization code grant type. Now the client calls the authorization server with the code to get the token.
 
-In many cases, these first two steps create confusion. People are generally puzzled about why the flow needs two calls to the authorization server and two different tokens—the authorization code and an access token. Take a moment to understand this: 
-* The authorization server generates the first code as proof that the user directlyinteracted with it. The client receives this code and has to authenticate again using it and its credentials to obtain an access token. 
+In many cases, these first two steps create confusion. People are generally puzzled about why the flow needs two calls to the authorization server and two different tokens — the authorization code and an access token. Take a moment to understand this: 
+* The authorization server generates the first code as proof that the user directly interacted with it. The client receives this code and has to authenticate again using it and its credentials to obtain an access token. 
 * The client uses the second token to access resources on the resource server.
 
 So why didn’t the authorization server directly return the second token (access token)? Well, OAuth 2 defines a flow called the implicit grant type where the authorization server directly returns an access token. The **implicit grant type** is not enumerated in this section because it’s usage **is not recommended**, and most authorization servers today don’t allow it. The simple fact that the authorization server would call the redirect URI directly with an access token without making sure that it was indeed the right client receiving that token makes the flow less secure. By sending an authorization code first, the client has to prove again who they are by using their credentials to obtain an access token. The client makes a final call to get an access token and sends 
