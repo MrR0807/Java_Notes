@@ -1240,6 +1240,155 @@ Rejected
 
 ### Rate Limiter
 
+#### Why rate limiting is used
+
+Rate limiting is generally put in place as a defensive measure for services. Shared services need to protect themselves from excessive use—whether intended or unintended—to maintain service availability. Even highly scalable systems should have limits on consumption at some level. For the system to perform well, clients must also be designed with rate limiting in mind to reduce the chances of cascading failure. Rate limiting on both the client side and the server side is crucial for maximizing throughput and minimizing end-to-end latency across large distributed systems.
+
+#### Preventing resource starvation
+
+The most common reason for rate limiting is to improve the availability of API-based services by avoiding resource starvation. Many load-based denial-of-service incidents in large systems are unintentional—caused by errors in software or configurations in some other part of the system—not malicious attacks (such as network-based distributed denial of service attacks). Resource starvation that isn't caused by a malicious attack is sometimes referred to as friendly-fire denial of service (DoS).
+
+For example, a RESTful API might apply rate limiting to protect an underlying database; without rate limiting, a scalable API service could make large numbers of calls to the database concurrently, and the database might not be able to send clear rate-limiting signals.
+
+```
+public class RateLimiterTest {
+
+    public static void main(String[] args) {
+        var rateLimiter = buildRateLimiter();
+
+        rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now()));
+        rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now()));
+        rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now()));
+        rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now()));
+    }
+
+    //This configuration basically says allow 2 calls per 5 seconds.
+    private static RateLimiter buildRateLimiter() {
+        var rateLimiterConfig = RateLimiterConfig.custom()
+                                     .limitForPeriod(2)
+                                     .limitRefreshPeriod(Duration.ofSeconds(5))
+                                     .timeoutDuration(Duration.ofSeconds(10))
+                                     .build();
+
+        var rateLimiterRegistry = RateLimiterRegistry.of(rateLimiterConfig);
+        return rateLimiterRegistry.rateLimiter("test");
+    }
+}
+```
+
+Result:
+```
+08:56:02 Hello
+08:56:02 Hello
+08:56:07 Hello
+08:56:07 Hello
+```
+
+If I reduce the ``timeoutDuration`` to 3 seconds:
+```
+08:57:01 Hello
+08:57:01 Hello
+Exception in thread "main" io.github.resilience4j.ratelimiter.RequestNotPermitted: RateLimiter 'test' does not permit further calls
+	at io.github.resilience4j.ratelimiter.RequestNotPermitted.createRequestNotPermitted(RequestNotPermitted.java:43)
+```
+
+#### RateLimiter with Executors
+
+```
+public class RateLimiterTest {
+
+    public static void main(String[] args) {
+        var executorService = Executors.newFixedThreadPool(6);
+
+        var rateLimiter = buildRateLimiter();
+
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+
+        executorService.shutdown();
+    }
+
+    private static RateLimiter buildRateLimiter() {
+        var rateLimiterConfig = RateLimiterConfig.custom()
+                                     .limitForPeriod(2)
+                                     .limitRefreshPeriod(Duration.ofSeconds(5))
+                                     .timeoutDuration(Duration.ofSeconds(10))
+                                     .build();
+
+        var rateLimiterRegistry = RateLimiterRegistry.of(rateLimiterConfig);
+        return rateLimiterRegistry.rateLimiter("test");
+    }
+}
+```
+
+```
+08:59:34 Hello
+08:59:34 Hello
+08:59:39 Hello
+08:59:39 Hello
+```
+
+However, if exception is thrown, as previously, when timeoutDuration is 3 seconds, it's swollen:
+```
+public class RateLimiterTest {
+
+    public static void main(String[] args) {
+        var executorService = Executors.newFixedThreadPool(6);
+
+        var rateLimiter = buildRateLimiter();
+
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+        executorService.submit(() -> rateLimiter.executeRunnable(() -> System.out.printf("%tT Hello\n", LocalTime.now())));
+
+        executorService.shutdown();
+    }
+
+    private static RateLimiter buildRateLimiter() {
+        var rateLimiterConfig = RateLimiterConfig.custom()
+                                     .limitForPeriod(2)
+                                     .limitRefreshPeriod(Duration.ofSeconds(5))
+                                     .timeoutDuration(Duration.ofSeconds(3))
+                                     .build();
+
+        var rateLimiterRegistry = RateLimiterRegistry.of(rateLimiterConfig);
+        return rateLimiterRegistry.rateLimiter("test");
+    }
+}
+```
+
+```
+09:02:50 Hello
+09:02:50 Hello
+```
+
+But that's only due to how ``ExecutorService`` works. All tasks which are submited to the executor are wrapped into ``Future`` and they 
+> maintain computational exceptions, and so they do not cause abrupt termination, and the internal exceptions are not passed to this method.
+[Source](https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ### Time Limiter
