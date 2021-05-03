@@ -5014,6 +5014,16 @@ Finally, let’s look at how to use a refresh token. Where do you get a refresh 
 
 ## The sins of OAuth 2
 
+In this section, we discuss possible vulnerabilities of OAuth 2 authentication and authorization. It’s important to understand what can go wrong when using OAuth 2 so that you can avoid these scenarios. Of course, like anything else in software development, OAuth 2 isn’t bulletproof. It has its vulnerabilities of which we must be aware and which we must consider when building our applications. I enumerate here some of the most common: 
+* **Using cross-site request forgery (CSRF) on the client** — With a user logged in, CSRF is possible if the application doesn’t apply any CSRF protection mechanism. We had a great discussion on CSRF protection implemented by Spring Security in chapter 10. 
+* **Stealing client credentials** — Storing or transferring unprotected credentials can create breaches that allow attackers to steal and use them. 
+* **Replaying tokens** — As you’ll learn in chapters 13 and 14, tokens are the keys we use within an OAuth 2 authentication and authorization architecture to access resources. You send these over the network, but sometimes, they might be intercepted. If intercepted, they are stolen and can be reused.
+* **Token hijacking** — Implies someone interferes with the authentication processand steals tokens that they can use to access resources. This is also a potential vulnerability of using refresh tokens, as these as well can be intercepted and used to obtain new access tokens. I recommend this helpful article:
+
+Remember, OAuth 2 is a framework. The vulnerabilities are the result of wrongly implementing functionality over it.
+
+## Implementing a simple single sign-on application
+
 
 
 
