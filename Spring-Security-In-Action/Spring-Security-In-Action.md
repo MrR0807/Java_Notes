@@ -4883,6 +4883,137 @@ As mentioned, OAuth 2 components include
 
 ## Implementation choices with OAuth 2
 
+As you’ll learn, OAuth 2 implies multiple possible authentication flows, and you need to know which one applies to your case. In this section, I take the most common cases and evaluate these. It’s important to do this before starting with the first implementation so that you know what you’re implementing.
+
+So how does OAuth 2 work? What does it mean to implement OAuth 2 authentication and authorization? Mainly, OAuth 2 refers to using tokens for authorization. Remember from section 11.2 that tokens are like access cards. Once you obtain a token, you can access specific resources. But OAuth 2 offers multiple possibilities for obtaining a token, called grants. Here are the most common OAuth 2 grants you can choose from: 
+* Authorization code
+* Password
+* Refresh token
+* Client credentials
+
+### Implementing the authorization code grant type
+
+![chapter-11-figure-12-5.PNG](pictures/chapter-11-figure-12-5.PNG)
+
+This grant type is one of the most commonly used OAuth 2 flows, so it’s quite important to understand how it works and how to apply it.
+
+Here’s how the authorization code grant type works. Following this, we dive into the details about each step.
+* Make the authentication request
+* Obtain an access token
+* Call the protected resource
+
+#### STEP 1: MAKING THE AUTHENTICATION REQUEST WITH THE AUTHORIZATION CODE GRANT TYPE
+
+The client redirects the user to an endpoint of the authorization server where they need to authenticate. You can imagine you are using app X, and you need to access a protected resource. To access that resource for you, app X needs you to authenticate. It opens a page for you with a login form on the authorization server that you must fill in with your credentials.
+
+**NOTE** What’s really important to observe here is that the user interacts directly with the authorization server. The user doesn’t send the credentials to the client app.
+
+Technically, what happens here is that when the client redirects the user to the authorization server, the client calls the authorization endpoint with the following details in the request query: 
+* **response_type** with the value *code*, which tells the authorization server thatthe client expects a code. The client needs the code to obtain an access token, as you’ll see in the second step. 
+* **client_id** with the value of the client ID, which identifies the applicationitself. 
+* **redirect_uri**, which tells the authorization server where to redirect the userafter successful authentication. Sometimes the authorization server already knows a default redirect URI for each client. For this reason, the client doesn’t need to send the redirect URI.
+* **scope**, which is similar to the granted authorities we discussed in chapter 5.
+* **state**, which defines a cross-site request forgery (CSRF) token used for theCSRF protection we discussed in chapter 10.
+
+After successful authentication, the authorization server calls back the client on the redirect URI and provides a code and the state value. The client checks that the state value is the same as the one it sent in the request to confirm that it was not someone else attempting to call the redirect URI. The client uses the code to obtain an access token as presented in step 2.
+
+#### STEP 2: OBTAINING AN ACCESS TOKEN WITH THE AUTHORIZATION CODE GRANT TYPE
+
+To allow the user to access resources, the code resulting from step 1 is the client’s proof that the user authenticated. You guessed correctly, this is why this is called the authorization code grant type. Now the client calls the authorization server with the code to get the token.
+
+In many cases, these first two steps create confusion. People are generally puzzled about why the flow needs two calls to the authorization server and two different tokens—the authorization code and an access token. Take a moment to understand this: 
+* The authorization server generates the first code as proof that the user directlyinteracted with it. The client receives this code and has to authenticate again using it and its credentials to obtain an access token. 
+* The client uses the second token to access resources on the resource server.
+
+So why didn’t the authorization server directly return the second token (access token)? Well, OAuth 2 defines a flow called the implicit grant type where the authorization server directly returns an access token. The **implicit grant type** is not enumerated in this section because it’s usage **is not recommended**, and most authorization servers today don’t allow it. The simple fact that the authorization server would call the redirect URI directly with an access token without making sure that it was indeed the right client receiving that token makes the flow less secure. By sending an authorization code first, the client has to prove again who they are by using their credentials to obtain an access token. The client makes a final call to get an access token and sends 
+* The authorization code, which proves the user authorized them
+* Their credentials, which proves they really are the same client and not someoneelse who intercepted the authorization codes
+
+To return to step 2, technically, the client now makes a request to the authorization server. This request contains the following details: 
+* **code**, which is the authorization code received in step 1. This proves that theuser authenticated. 
+* **client_id** and client_secret, the client’s credentials.
+* **redirect_uri**, which is the same one used in step 1 for validation.
+* **grant_type** with the value authorization_code, which identifies the kindof flow used. A server might support multiple flows, so it’s essential always to specify which is the current executed authentication flow.
+
+As a response, the server sends back an access_token. This token is a value that the client can use to call resources exposed by the resource server.
+
+#### STEP 3: CALLING THE PROTECTED RESOURCE WITH THE AUTHORIZATION CODE GRANT TYPE
+
+After successfully obtaining the access token from the authorization server, the client can now call for the protected resource. The client uses an access token in the authorization request header when calling an endpoint of the resource server.
+
+**NOTE** The authorization code grant type has the great advantage of enabling the user to allow a client to execute specific actions without needing to share their credentials with the client. But this grant type has a weakness: what happens if someone intercepts the authorization code? Of course, the client needs to authenticate with its credentials, as we discussed previously. But what if the client credentials are also stolen somehow? Even if this scenario isn’t easy to achieve, we can consider it a vulnerability of this grant type. To mitigate this vulnerability, you need to rely on a more complex scenario as presented by the Proof Key for Code Exchange (PKCE) authorization code grant type.
+
+### Implementing the password grant type
+
+In this section, we discuss the **password grant type** (figure 12.7). This grant type is also known as the **resource owner credentials grant type**. Applications using this flow assume that the client collects the user credentials and uses these to authenticate and obtain an access token from the authorization server.
+
+![chapter-11-figure-12-7.PNG](pictures/chapter-11-figure-12-7.PNG)
+
+**You use this authentication flow only if the client and authorization server are built and maintained by the same organization.** Why? Let’s assume you build a microservices system, and you decide to separate the authentication responsibility as a different microservice to enhance scalability and keep responsibilities separated for each service. (This separation is used widely in many systems.)
+
+Let’s assume further that your system’s users use either a client web application developed with a frontend framework like Angular, ReactJS, or Vue.js, or they use a mobile app. In this case, users might consider it strange to be redirected from your system to the same system for authentication and then back again. This is what would happen with a flow like the authorization code grant type. With the password grant type, you would instead expect to have the application present a login form to the user, and let the client take care of sending the credentials to the server to authenticate. The user doesn’t need to know how you designed the authentication responsibility in your application. Let’s see what happens when using the password grant type. The two tasks are as follows:
+* Request an access token. 
+* Use the access token to call resources.
+
+#### STEP 1: REQUESTING AN ACCESS TOKEN WHEN USING THE PASSWORD GRANT TYPE
+
+The flow is much simpler with the password grant type. The client collects the user credentials and calls the authorization server to obtain an access token. When requesting the access token, the client also sends the following details in the request: 
+* **grant_type** with the value password.
+* **client_id** and **client_secret**, which are the credentials used by the client to authenticate itself. 
+* **scope**, which you can understand as the granted authorities.
+* **username** and **password**, which are the user credentials. These are sent in plain text as values of the request header.
+
+The client receives back an access token in the response. The client can now use the access token to call the endpoints of the resource server.
+
+#### STEP 2: USING AN ACCESS TOKEN TO CALL RESOURCES WHEN USING THE PASSWORD GRANT TYPE
+
+Once the client has an access token, it uses the token to call the endpoints on the resource server, which is exactly like the authorization code grant type. The client adds the access token to the requests in the authorization request header.
+
+**NOTE** **The password grant type is less secure than the authorization code grant type**, mainly because it assumes sharing the user credentials with the client app. While it’s true that it’s more straightforward than the authorization code grant type and this is the main reason you also find it used plenty in theoretical examples, try to avoid this grant type in real-world scenarios. Even if the authorization server and the client are both built by the same organization, **you should first think about using the authorization code grant type. Take the password grant type as your second option.**
+
+### Implementing the client credentials grant type
+
+In this section, we discuss the client credentials grant type (figure 12.8). **This is the simplest of the grant types described by OAuth 2.** You can **use it** when no user is involved; that is, **when implementing authentication between two applications.** I like to think about the client credentials grant type as being a combination of the password grant type and an API key authentication flow. We assume you have a system that implements authentication with OAuth 2. Now you need to allow an external server to authenticate and call a specific resource that your server exposes.
+
+![chapter-11-figure-12-8.PNG](pictures/chapter-11-figure-12-8.PNG)
+
+The steps for the client credentials grant type are similar to the password grant type. The only exception is that the request for an access token doesn’t need any user credentials. Here are the steps to implement this grant type:
+* Request an access token
+* Use the access token to call resources
+
+#### STEP 1: REQUESTING AN ACCESS TOKEN WITH THE CLIENT CREDENTIAL GRANT TYPE
+
+To obtain an access token, the client sends a request to the authorization server with the following details: 
+* **grant_type** with the value **client_credentials**
+* **client_id** and **client_secret**, which represent the client credentials
+* **scope**, which represents the granted authorities
+
+In response, the client receives an access token. The client can now use the access token to call the endpoints of the resource server.
+
+#### STEP 2: USING AN ACCESS TOKEN TO CALL RESOURCES WITH THE CLIENT CREDENTIAL GRANT TYPE
+
+Once the client has an access token, it uses that token to call the endpoints on the resource server, which is exactly like the authorization code grant type and the password grant type. The client adds the access token to the requests in the authorization request header.
+
+### Using refresh tokens to obtain new access tokens
+
+In this section, we discuss refresh tokens (figure 12.9). Up to now, you learned that the result of an OAuth 2 flow, which we also call grant, is an access token. But we didn’t say much about this token. In the end, OAuth 2 doesn’t assume a specific implementation for tokens. What you’ll learn now is that a token, no matter how it’s implemented, can expire. It’s not mandatory — you can create tokens with an infinite lifespan — but, in general, you should make these as **short lived as possible**. The refresh tokens that we discuss in this section represent an alternative to using credentials for obtaining a new access token.
+
+![chapter-11-figure-12-9.PNG](pictures/chapter-11-figure-12-9.PNG)
+
+Let’s assume in your app, you implement tokens that never expire. That means that the client can use the same token again and again to call resources on the resource server. What if the token is stolen? In the end, don’t forget that the token is attached as a simple HTTP header on each and every request. If the token doesn’t expire, someone who gets their hands on the token can use it to access resources. A token that doesn’t expire is too powerful. It becomes almost as powerful as user credentials. We prefer to avoid this and make the token short lived. This way, at some point, an expired token can’t be used anymore. The client has to obtain another access token.
+
+To obtain a new access token, the client can rerun the flow, depending on the grant type used. For example, if the grant type is authentication code, the client would redirect the user to the authorization server login endpoint, and the user must again fill in their username and password. Not really user friendly, is it? Imagine that the token has a 20-minute lifespan and you work for a couple of hours with the online app. During that time, the app would redirect you back about six times to log in again. (Oh no! That app logged me out again!) To avoid the need to reauthenticate, the authorization server can issue a refresh token, which has a different value and purpose than an access token. The app uses the refresh token to obtain a new access token instead of having to reauthenticate.
+
+Refresh tokens also have advantages over reauthentication in the password grant type. Even if with the password grant type, if we don’t use refresh tokens, we would either have to ask the user to authenticate again or store their credentials. Storing the user credentials when using the password grant type is one of the biggest mistakes you can make! And I’ve seen this approach used in real applications! Don’t do it! If you store the username and password (and assuming you save these as plaintext or something reversible because you have to be able to reuse them), you expose those credentials. Refresh tokens help you solve this problem easily and safely. Instead of unsafely storing credentials and without needing to redirect the user every time, you can store a refresh token and use it to obtain a new access token when needed. Storing the refresh token is safer because you can revoke it if you find that it was exposed. Moreover, don’t forget that people tend to have the same credentials for multiple apps. So losing credentials is worse than losing a token that one could use with a specific application.
+
+Finally, let’s look at how to use a refresh token. Where do you get a refresh token from? **The authorization server returns a refresh token together with an access token when using a flow like the authorization code or password grant types**. With the client credentials grant, there’s no refresh token because this flow doesn’t need user credentials. Once the client has a refresh token, the client should issue a request with the following details when the access token expires:
+* **grant_type** with value **refresh_token**.
+* **refresh_token** with the value of the refresh token.
+* **client_id** and **client_secret** with the client credentials.
+* **scope**, which defines the same granted authorities or less. **If more granted authorities need to be authorized, a reauthentication is needed.**
+
+## The sins of OAuth 2
+
 
 
 
