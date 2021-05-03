@@ -1367,28 +1367,48 @@ public class RateLimiterTest {
 
 But that's only due to how ``ExecutorService`` works. All tasks which are submited to the executor are wrapped into ``Future`` and they 
 > maintain computational exceptions, and so they do not cause abrupt termination, and the internal exceptions are not passed to this method.
+
 [Source](https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html)
 
+#### ``drainPermissionsOnResult``
 
+Allows you to check the result of a call decorated by this rate limiter and make a decision should we drain all the permissions left it the current period.
 
+```
+public class RateLimiterTest {
 
+    public static void main(String[] args) {
+        var rateLimiter = buildRateLimiter();
 
+        rateLimiter.executeSupplier(() -> result(1));
+        rateLimiter.executeSupplier(() -> result(1));
+        rateLimiter.executeSupplier(() -> result(2)); //Should drain all possible permissions for this time period.
+        rateLimiter.executeSupplier(() -> result(1));
+    }
 
+    private static int result(int number) {
+        System.out.printf("%tT Returning result %d\n", LocalTime.now(), number);
+        return number;
+    }
 
+    private static RateLimiter buildRateLimiter() {
+        var rateLimiterConfig = RateLimiterConfig.custom()
+                                     .limitForPeriod(4)
+                                     .limitRefreshPeriod(Duration.ofSeconds(5))
+                                     .timeoutDuration(Duration.ofSeconds(3))
+                                     .drainPermissionsOnResult(either -> either.get() instanceof Integer i && i == 2) //Checks if result is equal to 2, then draw all 
+                                     .build();
 
+        var rateLimiterRegistry = RateLimiterRegistry.of(rateLimiterConfig);
+        return rateLimiterRegistry.rateLimiter("test");
+    }
+}
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Time Limiter
+```
+10:02:37 Returning result 1
+10:02:37 Returning result 1
+10:02:37 Returning result 2
+Exception in thread "main" io.github.resilience4j.ratelimiter.RequestNotPermitted: RateLimiter 'test' does not permit further calls
+	at io.github.resilience4j.ratelimiter.RequestNotPermitted.createRequestNotPermitted(RequestNotPermitted.java:43)
+```
