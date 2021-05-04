@@ -5024,6 +5024,33 @@ Remember, OAuth 2 is a framework. The vulnerabilities are the result of wrongly 
 
 ## Implementing a simple single sign-on application
 
+In this section, we implement the first application of our book that uses the OAuth 2 framework with Spring Boot and Spring Security. A single sign-on (SSO) application is, as the name suggests, one in which you authenticate through an authorization server, and then the app keeps you logged in, using a refresh token. In our case, it represents only the client from the OAuth 2 architecture.
+
+In this application (figure 12.10), we use GitHub as the authorization and resource servers, and we focus on the communication between the components with the authorization code grant type. In chapters 13 and 14, we’ll implement both an authorization server and a resource server in an OAuth 2 architecture.
+
+![chapter-11-figure-12-10.PNG](pictures/chapter-11-figure-12-10.PNG)
+
+### Managing the authorization server
+
+In this section, we configure the authorization server. In this chapter, we won’t implement our own authorization server, but instead, we use an existing one: GitHub.
+
+So what should we do to use a third-party like GitHub as an authorization server? This means that, in the end, our application won’t manage its users, and that anyone can log in to our application using their GitHub account. Like any other authorization server, GitHub needs to know the client application to which it issues tokens. Remember in section 12.3, where we discussed the OAuth 2 grants, that requests used a client ID and a client secret. A client uses these credentials to authenticate itself at the authorization server, so the OAuth application must be registered with the GitHub authorization server. To do this, we complete a short form (figure 12.11) using the following link:
+```
+https://github.com/settings/applications/new
+```
+
+When you add a new OAuth application, you need to specify a name for the application, the homepage, and the link to which GitHub will make the call back to your application. The OAuth 2 grant type on which this works is the authorization code grant type. This grant type assumes that the client redirects the user to the authorization server (GitHub, in our case) for login, and then the authorization server calls the client back at a defined URL, as we discussed in section 12.3.1. This is why you need to identify the callback URL here. Because I run the example on my system, I use the localhost in both cases. And because I don’t change the port (which is 8080 by default, as you already know), this makes http://localhost:8080 my homepage URL. I use the same URL for the callback.
+
+![chapter-11-figure-12-11.PNG](pictures/chapter-11-figure-12-11.PNG)
+
+![chapter-11-figure-12-12.PNG](pictures/chapter-11-figure-12-12.PNG)
+
+Once you fill out the form and choose Register Application, GitHub provides you with a client ID and a client secret (figure 12.12).
+
+This configuration is everything we need to do for the authorization server. Now that we have the client credentials, we can start working on our application.
+
+### Starting the implementation
+
 
 
 
