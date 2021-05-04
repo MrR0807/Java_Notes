@@ -5051,10 +5051,195 @@ This configuration is everything we need to do for the authorization server. Now
 
 ### Starting the implementation
 
+```
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-oauth2-client</artifactId>
+    </dependency>
+</dependencies>
+```
 
+```
+@Controller
+public class MainController {
 
+    @GetMapping("/")
+    public String main() {
+        return "main.html";
+    }
+}
+```
 
+main.html
+```
+<h1>Hello there!</h1>
+```
 
+And now the real job! Let’s set the security configurations to allow our application to use the login with GitHub. A difference: instead of using httpBasic() or formLogin() as you learned in chapter 4, we call a different method named oauth2Login().
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.oauth2Login();
+
+        http.authorizeRequests().anyRequest().authenticated(); //Specifies that a user needs to be authenticated to make a request
+    }
+}
+```
+
+But you know what’s going on. As with httpBasic() or formLogin(), oauth2Login() simply adds a new authentication filter to the filter chain. In this case, the filter that the framework adds to the filter chain when you call the oauth2Login() method is the OAuth2LoginAuthenticationFilter (figure 12.13). This filter intercepts requests and applies the needed logic for OAuth 2 authentication.
+
+![chapter-11-figure-12-13.PNG](pictures/chapter-11-figure-12-13.PNG)
+
+### Implementing ClientRegistration
+
+If you start it as is right now, you won’t be able to access the main page. The reason why you can’t access the page is that you have specified that for any request, the user needs to authenticate, but you didn’t provide any way to authenticate. We need to establish that GitHub is our authorization server. For this purpose, Spring Security defines the ClientRegistration contract.
+
+The ClientRegistration interface represents the client in the OAuth 2 architecture. For the client, you need to define all its needed details, among which we have 
+* The client ID and secret 
+* The grant type used for authentication 
+* The redirect URI 
+* The scopes
+
+```
+ClientRegistration cr = ClientRegistration.withRegistrationId("github")
+                .clientId("a7553955a0c534ec5e6b")
+                .clientSecret("1795b30b425ebb79e424afa51913f1c724da0dbb")
+                .scope(new String[]{"read:user"})
+                .authorizationUri("https://github.com/login/oauth/authorize")
+                .tokenUri("https://github.com/login/oauth/access_token")
+                .userInfoUri("https://api.github.com/user")
+                .userNameAttributeName("id")
+                .clientName("GitHub")
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUriTemplate("{baseUrl}/{action}/oauth2/code/{registrationId}")
+                .build();
+```
+
+Oh! Where did all those details come from? I know it might look scary at first glance, but it’s nothing more than setting up the client ID and secret. Also, I define the scopes (granted authorities), a client name, and a registration ID of my choice. Besides these details, I had to provide the URLs of the authorization server: 
+* Authorization URI — The URI to which the client redirects the user for authentication 
+* Token URI — The URI that the client calls to obtain an access token and a refresh token 
+* User info URI — The URI that the client can call after obtaining an access token to get more details about the user
+
+Where did I get all those URIs? Well, if the authorization server is not developed by you, as in our case, you need to get them from the documentation. For GitHub, for example, you can find them here:
+```
+https://developer.github.com/apps/building-oauth-apps/authorizing-oauth-apps/
+```
+
+Wait! Spring Security is even smarter than this. The framework defines a class named CommonOAuth2Provider. This class partially defines the ClientRegistration instances for the most common providers you can use for authentication, which include: 
+* Google 
+* GitHub 
+* Facebook 
+* Okta
+
+If you use one of these providers, you can define your ClientRegistration as presented:
+
+```
+ClientRegistration cr = CommonOAuth2Provider.GITHUB
+        .getBuilder("github")
+        .clientId("a7553955a0c534ec5e6b")
+        .clientSecret("1795b30b42. . .")
+        .build();
+```
+
+As you can see, this is much cleaner, and you don’t have to find and set the URLs for the authorization server manually. Of course, this applies only to common providers.
+
+### Implementing ClientRegistrationRepository
+
+In this section, you learn how to register the ClientRegistration instances for Spring Security to use for authentication.
+
+![chapter-11-figure-12-14.PNG](pictures/chapter-11-figure-12-14.PNG)
+
+The ClientRegistrationRepository interface is similar to the UserDetailsService interface, which you learned about in chapter 2. In the same way that a UserDetailsService object finds UserDetails by its username, a ClientRegistrationRepository object finds ClientRegistration by its registration ID.
+
+You can implement the ClientRegistrationRepository interface to tell the framework where to find the ClientRegistration instances. Spring Security offers us an implementation for ClientRegistrationRepository, which stores in memory the instances of ClientRegistration: InMemoryClientRegistrationRepository. As you guessed, this works similarly to how InMemoryUserDetailsManager works for the UserDetails instances.
+
+```
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Bean
+    public ClientRegistrationRepository clientRegistrationRepository() {
+        return new InMemoryClientRegistrationRepository(buildClient());
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.oauth2Login();
+
+        http.authorizeRequests().anyRequest().authenticated(); //Specifies that a user needs to be authenticated to make a request
+    }
+
+    private static ClientRegistration buildClient() {
+        return CommonOAuth2Provider.GITHUB
+                .getBuilder("testing-my-application-oauth-please-delete")
+                .clientId("8b40d47a32792ca6e46d")
+                .clientSecret("aec3e54b83c5deb5138ad01f12cd0b797bb18098")
+                .build();
+    }
+}
+```
+
+As an alternative to this way of registering ClientRegistrationRepository, you can use a Customizer object as a parameter of the oauth2Login() method of the HttpSecurity object.
+
+```
+http.oauth2Login(c -> {
+    c.clientRegistrationRepository(clientRepository());
+});
+```
+
+### The pure magic of Spring Boot configuration
+
+In this section, I show you a third approach to configuring the application we built earlier in this chapter. Spring Boot is designed to use its magic and build the ClientRegistration and ClientRegistrationRepository objects directly from the properties file. This approach isn’t unusual in a Spring Boot project. The following code snippet shows how to set the client registration for our example in the application.properties file:
+
+```
+spring.security.oauth2.client.registration.github.client-id=a7553955a0c534ec5e6b
+spring.security.oauth2.client.registration.github.client-secret=1795b30b425ebb79e424afa51913f1c724da0dbb
+```
+
+In this snippet, I only need to specify the client ID and client secret. Because the name for the provider is github, Spring Boot knows to take all the details regarding the URIs from the CommonOAuth2Provider class.
+
+### Obtaining details about an authenticated user
+
+In this section, we discuss getting and using details of an authenticated user. You’re already aware that in the Spring Security architecture, it’s the SecurityContext that stores the details of an authenticated user. Once the authentication process ends, the responsible filter stores the Authentication object in the SecurityContext. The application can take user details from there and use them when needed. The same happens with an OAuth 2 authentication as well.
+
+The implementation of the Authentication object used by the framework is named OAuth2AuthenticationToken in this case. You can take it directly from the SecurityContext or let Spring Boot inject it for you in a parameter of the endpoint
+
+```java
+@Controller
+public class MainController {
+    
+    @GetMapping("/")
+    public String main(OAuth2AuthenticationToken token) {
+        System.out.println(token.getPrincipal());
+        System.out.println(token.getCredentials());
+        System.out.println(token.getAuthorities());
+        System.out.println(token);
+        
+        return "main.html";
+    }
+}
+```
+
+### Testing the application
+
+I first make sure I’m not logged in to GitHub. I also make sure I open a browser console to check the history of request navigation. This history gives me an overview of the steps that happen in the OAuth 2 flow. If I am authenticated, then the application directly logs me. Then I start the app and access the main page of our application in the browser:
+
+```shell
+http://localhost:8080/
+```
 
 
 
