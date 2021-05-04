@@ -5241,7 +5241,35 @@ I first make sure I’m not logged in to GitHub. I also make sure I open a brows
 http://localhost:8080/
 ```
 
+The application redirects me to the URL in the following code snippet (and presented in figure 12.16). This URL is configured in the CommonOauth2Provider class for GitHub as the authorization URL.
+```shell
+https://github.com/login/oauth/ authorize?response_type=code&client_id=a7553955a0c534ec5e6b&scope=read:user&state=fWwg5r9sKal4BMubg1oXBRrNn5y7VDW1A_rQ4UITbJk%3D&redirect_uri=http://localhost:8080/login/oauth2/code/github
+```
 
+![chapter-11-figure-12-16.PNG](pictures/chapter-11-figure-12-16.PNG)
+
+Our application attaches the needed query parameters to the URL, as we discussed in section 12.3.1. These are 
+* response_type with the value code 
+* client_id 
+* scope (the value read:user is also defined in the CommonOauth2Provider class) 
+* state with the CSRF token
+
+We use our GitHub credentials and log in to our application with GitHub. We are authenticated and redirected back, as you can see in figure 12.17.
+
+![chapter-11-figure-12-17.PNG](pictures/chapter-11-figure-12-17.PNG)
+
+The following code snippet shows the URL on which GitHub calls us back. You can observe that GitHub provides the authorization code that our application uses to request an access token:
+
+```shell
+http://localhost:8080/login/oauth2/code/ github?code=a3f20502c182164a4086&state=fWwg5r9sKal4BMubg1oXBRrNn5y7VDW1A _rQ4UITbJk%3D
+```
+
+We won’t see the calls to the token endpoint from the browser as this happens directly from our application. But we can trust that the application managed to get a token because we can see the user details printed in the console.
+```shell
+Name: [43921235], Granted Authorities: [[ROLE_USER, SCOPE_read:user]], User Attributes: [{login=lspil, id=43921235, node_id=MDQ6VXNlcjQzOTIxMjM1, avatar_url=https://avatars3.githubusercontent.com/u/43921235?v=4, gravatar_id=, url=https://api.github.com/users/lspil, html_url=https:// github.com/lspil, followers_url=https://api.github.com/users/lspil/ followers, following_url=https://api.github.com/users/lspil/following{/ other_user}, …
+```
+
+# Chapter 13. OAuth 2: Implementing the authorization server
 
 
 
