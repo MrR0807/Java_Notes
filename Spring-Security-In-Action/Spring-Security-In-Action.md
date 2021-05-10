@@ -5283,6 +5283,8 @@ Instead of implementing a custom authorization server, you could go with a third
 
 There’s no OAuth 2 flow without an authorization server. As I said earlier, OAuth 2 is mainly about obtaining an access token. And the authorization server is the component of the OAuth 2 architecture that issues access tokens.
 
+**Note**. Spring Boot version has to be 2.2.5.RELEASE as well. And Java 16 is not supported. Hence, use Java 11. Another note is that 2.2.5.RELEASE is not working.
+
 ```
 <dependency>
     <groupId>org.springframework.boot</groupId>
@@ -5434,7 +5436,13 @@ Or same can be written in:
 
 ## Using the password grant type
 
+You used this grant type with the client application we developed in chapter 12, and you know it’s one of the most commonly used OAuth 2 grant types.
 
+![chapter-13-figure-13-6.PNG](pictures/chapter-13-figure-13-6.PNG)
+
+As you learned in section 13.3, it’s all about how you register the client. So, all you need to do to use another grant type is set it up in the client registration.
+
+For the authorization code grant type, you also need to provide the redirect URI. This is the URI to which the authorization server redirects the user once it completes authentication. When calling the redirect URI, the authorization server also provides the access code.
 
 
 
