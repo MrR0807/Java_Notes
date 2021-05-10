@@ -5271,6 +5271,169 @@ Name: [43921235], Granted Authorities: [[ROLE_USER, SCOPE_read:user]], User Attr
 
 # Chapter 13. OAuth 2: Implementing the authorization server
 
+In this chapter, we’ll discuss implementing an authorization server with Spring Security. As you learned in chapter 12, the authorization server is one of the components acting in the OAuth 2 architecture (figure 13.1). The role of the authorization server is to authenticate the user and provide a token to the client. The client uses this token to access resources exposed by the resource server on behalf of the user.
+
+![chapter-13-figure-13-1.PNG](pictures/chapter-13-figure-13-1.PNG)
+
+The Spring Security team announced a new authorization server is being developed. Naturally, it takes time for the new Spring Security authorization server to mature. Until then, the only choice we have for developing a custom authorization server with Spring Security is the way we’ll implement the server in this chapter.
+
+Instead of implementing a custom authorization server, you could go with a thirdparty tool like Keycloak or Okta. In chapter 18, we’ll use Keycloak in our hands-on example. But in my experience, sometimes stakeholders won’t accept using such a solution, and you need to go with implementing custom code. Let’s learn how to do this and better understand the authorization server in the following sections of this chapter.
+
+## Writing your own authorization server implementation
+
+There’s no OAuth 2 flow without an authorization server. As I said earlier, OAuth 2 is mainly about obtaining an access token. And the authorization server is the component of the OAuth 2 architecture that issues access tokens.
+
+```
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-oauth2</artifactId>
+    <version>2.2.5.RELEASE</version>
+</dependency>
+```
+
+We can now define a configuration class, which I call AuthServerConfig. Besides the classic @Configuration annotation, we also need to annotate this class with @EnableAuthorizationServer. This way, we instruct Spring Boot to enable the configuration specific to the OAuth 2 authorization server. We can customize this configuration by extending the AuthorizationServerConfigurerAdapter class and overriding specific methods
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+}
+```
+
+## Defining user management
+
+In this section, we discuss user management. The authorization server is the component that deals with authenticating a user in the OAuth 2 framework. So, naturally, it needs to manage users. Fortunately, the user management implementation hasn’t changed from what you learned in chapters 3 and 4. We continue to use the UserDetails, UserDetailsService, and UserDetailsManager contracts to manage credentials. And to manage passwords, we continue to use the PasswordEncoder contract.
+
+Figure 13.2 reminds you of the main components acting in the authentication process in Spring Security. What you should observe differently from the way we described the authentication architecture until now is that we don’t have a SecurityContext in this diagram anymore. This change happened because the result of authentication is not stored in the SecurityContext. The authentication is instead managed with a token from a TokenStore. You’ll learn more about the TokenStore in chapter 14, where we discuss the resource server.
+
+![chapter-13-figure-13-2.PNG](pictures/chapter-13-figure-13-2.PNG)
+
+Let’s find out how to implement user management in our authorization server. I always prefer to separate the responsibilities of the configuration classes. For this reason, I chose to define a second configuration class in our application, where I only write the configurations needed for user management. I named this class WebSecurityConfig, and you can see its implementation in the following listing.
+
+```java
+@Configuration
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var uds = new InMemoryUserDetailsManager();
+
+        var user = User.withUsername("john")
+                .password("12345")
+                .authorities("read")
+                .build();
+
+        uds.createUser(user);
+
+        return uds;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+}
+```
+
+Now that we have users, we only need to link user management to the authorization server configuration. To do this, I expose the AuthenticationManager as a bean in the Spring context, and then I use it in the AuthServerConfig class.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    
+    private final AuthenticationManager authenticationManager;
+
+    public AuthServerConfig(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManager);
+    }
+}
+```
+
+With these configurations in place, we now have users who can authenticate at our authentication server. But the OAuth 2 architecture implies that users grant privileges to a client. It is the client that uses resources on behalf of a user. In section 13.3, you’ll learn how to configure the clients for the authorization server.
+
+## Registering clients with the authorization server
+
+To call the authorization server, an app acting as a client in the OAuth 2 architecture needs its own credentials. The authorization server also manages these credentials and only allows requests from known clients (figure 13.3).
+
+![chapter-13-figure-13-3.PNG](pictures/chapter-13-figure-13-3.PNG)
+
+Do you remember the client application we developed in chapter 12? We used GitHub as our authentication server. GitHub needed to know about the client app, so the first thing we did was register the application at GitHub. We then received a client ID and a client secret: the client credentials. We configured these credentials, and our app used them to authenticate with the authorization server (GitHub). The same applies in this case. Our authorization server needs to know its clients because it accepts requests from them. Here the process should become familiar. The contract that defines the client for the authorization server is ClientDetails. The contract defining the object to retrieve ClientDetails by their IDs is ClientDetailsService.
+
+Do these names sound familiar? These interfaces work like the UserDetails and the UserDetailsService interfaces, but these represent the clients. You’ll find that many of the things we discussed in chapter 3 work similarly for ClientDetails and ClientDetailsService. For example, our InMemoryClientDetailsService is an implementation of the ClientDetailsService interface, which manages ClientDetails in memory. It works similarly to the InMemoryUserDetailsManager class for UserDetails. Likewise, JdbcClientDetailsService is similar to JdbcUserDetailsManager.
+
+![chapter-13-figure-13-4.PNG](pictures/chapter-13-figure-13-4.PNG)
+
+We can sum up these similarities in a few points that you can easily remember: 
+* ClientDetails is for the client what UserDetails is for the user. 
+* ClientDetailsService is for the client what UserDetailsService is for the user. 
+* InMemoryClientDetailsService is for the client what InMemoryUserDetailsManager is for the user. 
+* JdbcClientDetailsService is for the client what JdbcUserDetailsManager is for the user.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+
+    private final AuthenticationManager authenticationManager;
+
+    public AuthServerConfig(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManager);
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        var service = new InMemoryClientDetailsService();
+
+        var cd = new BaseClientDetails();
+        cd.setClientId("client");
+        cd.setClientSecret("secret");
+        cd.setScope(List.of("read"));
+        cd.setAuthorizedGrantTypes(List.of("password"));
+
+        service.setClientDetailsStore(Map.of("client", cd));
+        clients.withClientDetails(service);
+    }
+}
+```
+
+Or same can be written in:
+```java
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password")
+                .scopes("read");
+    }
+```
+
+## Using the password grant type
+
 
 
 
