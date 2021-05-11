@@ -5436,6 +5436,10 @@ Or same can be written in:
 
 ## Using the password grant type
 
+
+
+## Using the authorization code grant type
+
 You used this grant type with the client application we developed in chapter 12, and you know it’s one of the most commonly used OAuth 2 grant types.
 
 ![chapter-13-figure-13-6.PNG](pictures/chapter-13-figure-13-6.PNG)
@@ -5443,6 +5447,159 @@ You used this grant type with the client application we developed in chapter 12,
 As you learned in section 13.3, it’s all about how you register the client. So, all you need to do to use another grant type is set it up in the client registration.
 
 For the authorization code grant type, you also need to provide the redirect URI. This is the URI to which the authorization server redirects the user once it completes authentication. When calling the redirect URI, the authorization server also provides the access code.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    // Omitted code
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("authorization_code")
+                .scopes("read")
+                .redirectUris("http://localhost:9090/home");
+    }
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+        endpoints.authenticationManager(authenticationManager);
+    }
+}
+```
+
+You can have multiple clients, and each might use different grants. But it’s also possible  to set up multiple grants for one client. The authorization server acts according to  the client’s request.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    // Omitted code
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client1")
+                .secret("secret1")
+                .authorizedGrantTypes("authorization_code")
+                .scopes("read")
+                .redirectUris("http://localhost:9090/home")
+                .and()
+                .withClient("client2")
+                .secret("secret2")
+                .authorizedGrantTypes("authorization_code", "password", "refresh_token")
+                .scopes("read")
+                .redirectUris("http://localhost:9090/home");
+    }
+    @Override
+    public void configure(
+            AuthorizationServerEndpointsConfigurer endpoints) {
+        endpoints.authenticationManager(authenticationManager);
+    }
+}
+```
+
+When we want to accept the authorization code grant type, the server also needs to provide a page where the client redirects the user for login. We implement this page using the form-login configuration you learned in chapter 5. You need to override the configure() method as presented:
+
+```java
+@Configuration
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+    // Omitted code
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin();
+    }
+}
+```
+
+You can now start the application and access the link in your browser as presented by the following code snippet. Then you are redirected to the login page as presented in figure 13.7.
+
+```shell
+http://localhost:8080/oauth/ authorize?response_type=code&client_id=client&scope=read
+```
+
+![chapter-13-fiture-13-7.PNG](pictures/chapter-13-fiture-13-7.PNG)
+
+After logging in, the authorization server explicitly asks you to grant or reject the requested scopes. Figure 13.8 shows this form.
+
+![chapter-13-fiture-13-8.PNG](pictures/chapter-13-fiture-13-8.PNG)
+
+Once you grant the scopes, the authorization server redirects you to the redirect URI and provides an access token. In the next code snippet, you find the URL to which the authorization server redirected me.
+
+```shell
+http://localhost:9090/home?code=qeSLSt //This is authorization code
+```
+
+Your application can use the authorization code now to obtain a token calling the /oauth/token endpoint:
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=authorization_code&scope=read&code=qeSLSt"
+```
+
+The response body is
+
+```json
+{
+    "access_token":"0fa3b7d3-e2d7-4c53-8121-bd531a870635",
+    "token_type":"bearer",
+    "expires_in":43052,
+    "scope":"read"
+}
+```
+
+Mind that an authorization code can only be used once. If you try to call the /oauth/ token endpoint using the same code again, you receive an error like the one displayed in the next code snippet. You can only obtain another valid authorization code by asking the user to log in again.
+
+```json
+{
+    "error":"invalid_grant",
+    "error_description":"Invalid authorization code: qeSLSt"
+}
+```
+
+## Using the client credentials grant type
+
+You may remember from chapter 12 that we use this grant type for backend-to-backend authentications. It’s not mandatory in this case, but sometimes we see this grant type as an alternative to the API key authentication method we discussed in chapter 8. We might use the client credentials grant type also when we secure an endpoint that’s unrelated to a specific user and for which the client needs access. Let’s say you want to implement an endpoint that returns the status of the server. The client calls this endpoint to check the connectivity and eventually displays a connection status to the user or an error message. Because this endpoint only represents a deal between the client and the resource server, and is not involved with any user-specific resource, the client should be able to call it without needing the user to authenticate. For such a scenario, we use the client credentials grant type.
+
+As you’d expect, to use the client credentials grant type, a client must be registered with this grant.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig
+extends AuthorizationServerConfigurerAdapter {
+    // Omitted code
+    @Override
+    public void configure(
+    ClientDetailsServiceConfigurer clients) throws Exception {
+    clients.inMemory()
+        .withClient("client")
+        .secret("secret")
+        .authorizedGrantTypes("client_credentials")
+        .scopes("info");
+    }
+}
+```
+
+You can start the application now and call the /oauth/token endpoint to get an access token. The next code snippet shows you how to obtain this:
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=client_credentials&scope=info"
+```
+
+The response body is
+```json
+{ 
+  "access_token":"431eb294-bca4-4164-a82c-e08f56055f3f", 
+  "token_type":"bearer", 
+  "expires_in":4300, 
+  "scope":"info"
+}
+```
+
+Be careful with the client credentials grant type. This grant type only requires the client to use its credentials. **Make sure that you don’t offer it access to the same scopes as flows that require user credentials. Otherwise, you might allow the client access to the users’ resources without needing the permission of the user.**
+
+Figure 13.10 presents such a design in which the developer created a security breach by allowing the client to call a user’s resource endpoint without needing the user to authenticate first.
+
+![chapter-13-fiture-13-10.PNG](pictures/chapter-13-fiture-13-10.PNG)
 
 
 
