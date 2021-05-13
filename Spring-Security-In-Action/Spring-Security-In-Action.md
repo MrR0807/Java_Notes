@@ -5667,6 +5667,43 @@ Figure 13.10 presents such a design in which the developer created a security br
 
 ![chapter-13-fiture-13-10.PNG](pictures/chapter-13-fiture-13-10.PNG)
 
+## Using the refresh token grant type
+
+In this section, we discuss using refresh tokens with the authorization server developed with Spring Security. As you may recall from chapter 12, refresh tokens offer several advantages when used together with another grant type. You can use refresh tokens with the authorization code grant type and with the password grant type (figure 13.11).
+
+![chapter-13-figure-13-11.PNG](pictures/chapter-13-figure-13-11.PNG)
+
+If you want your authorization server to support refresh tokens, you need to add the refresh token grant to the grant list of the client.
+
+```java
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token") //Adds refresh token
+                .scopes("read");
+    }
+```
+Now try the same cURL command you used in section 13.4. You’ll see the response is similar but now includes a refresh token:
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+```json
+{
+  "access_token":"f430bfa1-b409-4636-8ffd-2e59278811cc",
+  "token_type":"bearer",
+  "refresh_token":"30cf1bd7-9fac-4ed6-a633-370ae167885d",
+  "expires_in":43199,
+  "scope":"read"
+}
+```
+
+
+# Chapter 14. OAuth 2: Implementing the resource server
+
 
 
 
