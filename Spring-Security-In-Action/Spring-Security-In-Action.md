@@ -5286,19 +5286,72 @@ There’s no OAuth 2 flow without an authorization server. As I said earlier, OA
 **Note**. Spring Boot version has to be 2.2.5.RELEASE as well. And Java 16 is not supported. Hence, use Java 11. Another note is that 2.2.5.RELEASE is not working.
 
 ```
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-security</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-web</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.springframework.cloud</groupId>
-    <artifactId>spring-cloud-starter-oauth2</artifactId>
-    <version>2.2.5.RELEASE</version>
-</dependency>
+<parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.3.10.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>spring-security</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>spring-security</name>
+    <description>Demo project for Spring Boot</description>
+    <properties>
+        <java.version>11</java.version>
+        <spring-cloud.version>Hoxton.SR11</spring-cloud.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-oauth2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 ```
 
 We can now define a configuration class, which I call AuthServerConfig. Besides the classic @Configuration annotation, we also need to annotate this class with @EnableAuthorizationServer. This way, we instruct Spring Boot to enable the configuration specific to the OAuth 2 authorization server. We can customize this configuration by extending the AuthorizationServerConfigurerAdapter class and overriding specific methods
@@ -5436,7 +5489,20 @@ Or same can be written in:
 
 ## Using the password grant type
 
+Let’s start the application and test it. We can request a token at the /oauth/token endpoint. Spring Security automatically configures this endpoint for us. We use the client credentials with HTTP Basic to access the endpoint and send the needed details as query parameters. As you know from chapter 12, the parameters we need to send in this request are
+* **grant_type** with the value password
+* **username** and **password**, which are the user credentials
+* **scope**, which is the granted authority
 
+```
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+```
+{"access_token":"1c4030f8-3206-4f1e-bb59-dbb68a9f5297","token_type":"bearer","expires_in":43199,"scope":"read"}
+```
+
+Observe the access token in the response. With the default configuration in Spring Security, a token is a simple UUID. The client can now use this token to call the resources exposed by the resource server.
 
 ## Using the authorization code grant type
 
