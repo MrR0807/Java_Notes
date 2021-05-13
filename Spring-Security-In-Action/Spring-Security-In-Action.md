@@ -5581,7 +5581,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 You can now start the application and access the link in your browser as presented by the following code snippet. Then you are redirected to the login page as presented in figure 13.7.
 
 ```shell
-http://localhost:8080/oauth/ authorize?response_type=code&client_id=client&scope=read
+http://localhost:8080/oauth/authorize?response_type=code&client_id=client&scope=read
 ```
 
 ![chapter-13-fiture-13-7.PNG](pictures/chapter-13-fiture-13-7.PNG)
