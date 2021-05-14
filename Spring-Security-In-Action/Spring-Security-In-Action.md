@@ -5704,6 +5704,14 @@ curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=pa
 
 # Chapter 14. OAuth 2: Implementing the resource server
 
+In this chapter, we’ll discuss implementing a resource server with Spring Security.
+
+The name resource server might not be suggestive to begin with, but in terms of OAuth 2, it **represents the backend you secure** just like any other app we secured in the previous chapters.
+
+There are three options how the resource server validates tokens. **The first option allows the resource server to directly call the authorization server to verify an issued token.**
+
+![chapter-14-figure-14-2.PNG](pictures/chapter-14-figure-14-2.PNG)
+
 
 
 
