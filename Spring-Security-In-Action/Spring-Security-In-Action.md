@@ -6566,7 +6566,462 @@ The response body:
 Hello
 ```
 
+### Using symmetric keys without the Spring Security OAuth project
 
+You, therefore, need to know this approach for future implementations and, of course, if you want to migrate an existing project to it. The next code snippet shows you how to configure JWT authentication using symmetric keys without the classes of the Spring Security OAuth project:
+
+```java
+@Configuration
+public class ResourceServerConfig extends WebSecurityConfigurerAdapter {
+    @Value("${jwt.key}")
+    private String jwtKey;
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+    http.authorizeRequests().anyRequest().authenticated()
+    .and()
+    .oauth2ResourceServer(c -> c.jwt(j -> j.decoder(jwtDecoder())));
+    }
+    // Omitted code
+}
+```
+
+As you can see, this time I use the jwt() method of the Customizer object sent as a parameter to oauth2ResourceServer(). Using the jwt() method, we configure the details needed by our app to validate tokens. In this case, because we are discussing validation using symmetric keys, I create a JwtDecoder in the same class to provide the value of the symmetric key. The next code snippet shows how I set this decoder using the decoder() method:
+
+```java
+@Bean
+public JwtDecoder jwtDecoder() {
+    byte [] key = jwtKey.getBytes();
+    SecretKey originalKey = new SecretKeySpec(key, 0, key.length, "AES");
+    NimbusJwtDecoder jwtDecoder =NimbusJwtDecoder.withSecretKey(originalKey).build();
+    return jwtDecoder;
+}
+```
+
+## Using tokens signed with asymmetric keys with JWT
+
+In this section, we implement an example of OAuth 2 authentication where the authorization server and the resource server use an asymmetric key pair to sign and validate tokens. Sometimes having only a key shared by the authorization server and the resource server, as we implemented in section 15.1, is not doable. Often, this scenario happens if the authorization server and the resource server aren’t developed by the same organization. In this case, we say that the authorization server doesn’t “trust” the resource server, so you don’t want the authorization server to share a key with the resource server.
+
+What is an asymmetric key pair and how does it work? The concept is quite simple. An asymmetric key pair has two keys: one called the private key and another called the public key. The authorization server uses the private key to sign tokens.
+
+![chapter-15-figure-15-6.PNG](pictures/chapter-15-figure-15-6.PNG)
+
+### Generating the key pair
+
+#### GENERATING A PRIVATE KEY
+
+To generate a private key, run the keytool command in the next code snippet. It generates a private key in a file named ssia.jks. I also use the password “ssia123” to protect the private key and the alias “ssia” to give the key a name. In the following command, you can see the algorithm used to generate the key, RSA:
+```shell
+keytool -genkeypair -alias ssia -keyalg RSA -keypass ssia123 -keystore ssia.jks -storepass ssia123
+```
+
+#### OBTAINING THE PUBLIC KEY
+
+To get the public key for the previously generated private key, you can run the keytool command:
+
+```shell
+keytool -list -rfc --keystore ssia.jks | openssl x509 -inform pem -pubkey
+```
+
+You are prompted to enter the password used when generating the public key; in my case, ssia123. Then you should find the public key and a certificate in the output.
+
+```
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAijLqDcBHwtnsBw+WFSzG
+VkjtCbO6NwKlYjS2PxE114XWf9H2j0dWmBu7NK+lV/JqpiOi0GzaLYYf4XtCJxTQ
+DD2CeDUKczcd+fpnppripN5jRzhASJpr+ndj8431iAG/rvXrmZt3jLD3v6nwLDxz
+pJGmVWzcV/OBXQZkd1LHOK5LEG0YCQ0jAU3ON7OZAnFn/DMJyDCky994UtaAYyAJ
+7mr7IO1uHQxsBg7SiQGpApgDEK3Ty8gaFuafnExsYD+aqua1Ese+pluYnQxuxkk2
+Ycsp48qtUv1TWp+TH3kooTM6eKcnpSweaYDvHd/ucNg8UDNpIqynM1eS7KpffKQm
+DwIDAQAB
+-----END PUBLIC KEY-----
+```
+
+That’s it! We have a private key we can use to sign JWTs and a public key we can use to validate the signature.
+
+### Implementing an authorization server that uses private keys
+
+In this section, we configure the authorization server to use a private key for signing JWTs.
+
+I copy the private key file, ssia.jks, in the resources folder of my application. I add the key in the resources folder because it’s easier for me to read it directly from the classpath. However, it’s not mandatory to be in the classpath. In the application.properties file, I store the filename, the alias of the key, and the password I used to protect the private key when I generated the password.
+
+```properties
+password=ssia123
+privateKey=ssia.jks
+alias=ssia
+```
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+
+    private final String keyPassword;
+    private final String privateKeyPath;
+    private final String keyAlias;
+    private final AuthenticationManager authenticationManager;
+
+    public AuthServerConfig(@Value("${password}") String keyPassword, @Value("${privateKey}") String privateKeyPath,
+                            @Value("${alias}") String keyAlias, AuthenticationManager authenticationManager) {
+        this.keyPassword = keyPassword;
+        this.privateKeyPath = privateKeyPath;
+        this.keyAlias = keyAlias;
+        this.authenticationManager = authenticationManager;
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token")
+                .scopes("read");
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManager)
+                .tokenStore(tokenStore())
+                .accessTokenConverter(jwtAccessTokenConverter());
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwtTokenStore(jwtAccessTokenConverter());
+    }
+
+    @Bean
+    public JwtAccessTokenConverter jwtAccessTokenConverter() {
+        var keyStoreKeyFactory = new KeyStoreKeyFactory(new ClassPathResource(privateKeyPath), keyPassword.toCharArray());
+        var converter = new JwtAccessTokenConverter();
+        converter.setKeyPair(keyStoreKeyFactory.getKeyPair(keyAlias));
+        return converter;
+    }
+}
+```
+
+You can now start the authorization server and call the /oauth/token endpoint to generate a new access token. Of course, you only see a normal JWT created, but the difference is now that to validate its signature, you need to use the public key in the pair.
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+The response body is:
+```json
+{
+    "access_token":"eyJhbGciOiJSUzI1NiIsInR5…",
+    "token_type":"bearer",
+    "refresh_token":"eyJhbGciOiJSUzI1NiIsInR…",
+    "expires_in":43199,
+    "scope":"read",
+    "jti":"8e74dd92-07e3-438a-881a-da06d6cbbe06"
+}
+```
+
+### Implementing a resource server that uses public keys
+
+In this section, we implement a resource server that uses the public key to verify the token’s signature. When we finish this section, you’ll have a full system that implements authentication over OAuth 2 and uses a public-private key pair to secure the tokens. The authorization server uses the private key to sign the tokens, and the resource server uses the public one to validate the signature.
+
+The resource server needs to have the public key of the pair to validate the token’s signature, so let’s add this key to the application.properties file.
+
+```properties
+server.port=9090
+publicKey=-----BEGIN PUBLIC KEY-----MIIBIjANBghk…-----END PUBLIC KEY----
+```
+
+```java
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+
+    private final String publicKey;
+
+    public ResourceServerConfig(@Value("${publicKey}") String publicKey) {
+        this.publicKey = publicKey;
+    }
+
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) {
+        resources.tokenStore(tokenStore());
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwtTokenStore(jwtAccessTokenConverter());
+    }
+    @Bean
+    public JwtAccessTokenConverter jwtAccessTokenConverter() {
+        var converter = new JwtAccessTokenConverter();
+        converter.setVerifierKey(publicKey);
+        return converter;
+    }
+}
+```
+
+```java
+@RestController
+public class HelloController {
+
+    @GetMapping("hello")
+    public String hello() {
+        return "Hello";
+    }
+}
+```
+
+```shell
+curl -H "Authorization:Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6I…" http://localhost:9090/hello
+```
+
+### Using asymmetric keys without the Spring Security OAuth project
+
+Actually, using asymmetric keys doesn’t differ too much from using a project with symmetric keys. The only change is the JwtDecoder you need to use.
+
+```java
+public JwtDecoder jwtDecoder() {
+    try {
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        var key = Base64.getDecoder().decode(publicKey);
+        var x509 = new X509EncodedKeySpec(key);
+        var rsaKey = (RSAPublicKey) keyFactory.generatePublic(x509);
+        return NimbusJwtDecoder.withPublicKey(rsaKey).build();
+    } catch (Exception e) {
+        throw new RuntimeException("Wrong public key");
+    }
+}
+```
+
+```java
+@Configuration public class ResourceServerConfig extends WebSecurityConfigurerAdapter {
+    @Value("${publicKey}")
+    private String publicKey;
+    
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.oauth2ResourceServer(c -> c.jwt(j -> j.decoder(jwtDecoder())));
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+// Omitted code
+}
+```
+
+### Using an endpoint to expose the public key
+
+In this section, we discuss a way of making the public key known to the resource server—the authorization server exposes the public key. In the system we implemented in section 15.2, we use private-public key pairs to sign and validate tokens. We configured the public key at the resource server side. The resource server uses the public key to validate JWTs. But what happens if you want to change the key pair? It is a good practice not to keep the same key pair forever, and this is what you learn to implement in this section.
+
+Being set in two places makes the keys more difficult to manage. But if we configure them on one side only, you could manage the keys easier. The solution is moving the whole key pair to the authorization server side and allowing the authorization server to expose the public keys with an endpoint.
+
+For the authorization server, we keep the same setup as for the project we developed. We only need to make sure we make accessible the endpoint, which exposes the public key. Yes, Spring Boot already configures such an endpoint, but it’s just that. By default, all requests for it are denied. We need to override the endpoint’s configuration and allow anyone with client credentials to access it.
+
+```java
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token")
+                .scopes("read")
+                    .and()
+                .withClient("resourceserver")
+                .secret("resourceserversecret");
+    }
+
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        security.tokenKeyAccess("isAuthenticated()");
+    }
+```
+
+```shell
+curl -u resourceserver:resourceserversecret http://localhost:8080/oauth/token_key
+```
+
+The response body is:
+```json
+{
+    "alg":"SHA256withRSA",
+    "value":"-----BEGIN PUBLIC KEY----- nMIIBIjANBgkq... -----END PUBLIC KEY-----"
+}
+```
+
+For the resource server to use this endpoint and obtain the public key, you only need to configure the endpoint and the credentials in its properties file.
+
+```properties
+server.port=9090
+security.oauth2.resource.jwt.key-uri=http://localhost:8080/oauth/token_key
+security.oauth2.client.client-id=resourceserver
+security.oauth2.client.client-secret=resourceserversecret
+```
+
+Because the resource server now takes the public key from the /oauth/token_key endpoint of the authorization server, you don’t need to configure it in the resource server configuration class. The configuration class of the resource server can remain empty.
+
+```java
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+}
+```
+
+You can start the resource server as well now and call the /hello endpoint it exposes to see that the entire setup works as expected.
+
+```shell
+curl -H "Authorization:Bearer eyJhbGciOiJSUzI1NiIsInR5cCI…" http://localhost:9090/hello
+```
+
+## Adding custom details to the JWT
+
+In this section, we discuss adding custom details to the JWT token. In most cases, you need no more than what Spring Security already adds to the token. However, in realworld scenarios, you’ll sometimes find requirements for which you need to add custom details in the token. In this section, we implement an example in which you learn how to change the authorization server to add custom details on the JWT and how to change the resource server to read these details. If you take one of the tokens we generated in previous examples and decode it, you see the defaults that Spring Security adds to the token.
+
+![chapter-15-figure-15-8.PNG](pictures/chapter-15-figure-15-8.PNG)
+
+As you can see in listing 15.8, by default, a token generally stores all the details needed for Basic authorization. But what if the requirements of your real-world scenarios ask for something more? Some examples might be 
+* You use an authorization server in an application where your readers review books. Some endpoints should only be accessible for users who have given more than a specific number of reviews. 
+* You need to allow calls only if the user authenticated from a specific time zone. 
+* Your authorization server is a social network, and some of your endpoints should be accessible only by users having a minimum number of connections.
+
+### Configuring the authorization server to add custom details to tokens
+
+In this section, we discuss the changes we need to make to the authorization server for adding custom details to tokens. To make the example simple, I suppose that the requirement is to add the time zone of the authorization server itself.
+
+To add additional details to your token, you need to create an object of type TokenEnhancer.
+
+```java
+public class CustomTokenEnhancer implements TokenEnhancer {
+    
+    @Override
+    public OAuth2AccessToken enhance(OAuth2AccessToken oAuth2AccessToken, OAuth2Authentication oAuth2Authentication) {
+        var token = new DefaultOAuth2AccessToken(oAuth2AccessToken);
+        Map<String, Object> info = Map.of("generatedInZone", ZoneId.systemDefault().toString());
+        token.setAdditionalInformation(info);
+        return token;
+    }
+}
+```
+
+The enhance() method of a TokenEnhancer object receives as a parameter the token we enhance and returns the “enhanced” token, containing the additional details.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    ...
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        var tokenEnhancerChain = new TokenEnhancerChain();
+        var tokenEnhancers = List.of(new CustomTokenEnhancer(), jwtAccessTokenConverter());
+        tokenEnhancerChain.setTokenEnhancers(tokenEnhancers);
+
+        endpoints.authenticationManager(authenticationManager)
+                .tokenStore(tokenStore())
+                .tokenEnhancer(tokenEnhancerChain);
+    }
+    ...
+}
+```
+
+As you can observe, configuring our custom token enhancer is a bit more complicated. We have to create a chain of token enhancers and set the entire chain instead of only one object, because the access token converter object is also a token enhancer.
+
+Let’s start the authorization server, generate a new access token, and inspect it to see how it looks.
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+```json
+{
+    "access_token":"eyJhbGciOiJSUzI…",
+    "token_type":"bearer",
+    "refresh_token":"eyJhbGciOiJSUzI1…",
+    "expires_in":43199,
+    "scope":"read",
+    "generatedInZone":"Europe/Bucharest",
+    "jti":"0c39ace4-4991-40a2-80ad-e9fdeb14f9ec"
+}
+```
+
+If you decode the token:
+```json
+{
+    "user_name": "john",
+    "scope": ["read"],
+    "generatedInZone": "Europe/Bucharest",
+    "exp": 1582591525,
+    "authorities": ["read"],
+    "jti": "0c39ace4-4991-40a2-80ad-e9fdeb14f9ec",
+    "client_id": "client"
+}
+```
+
+### Configuring the resource server to read the custom details of a JWT
+
+Once you change your authorization server to add custom details to a JWT, you’d like the resource server to be able to read these details. The changes you need to do in your resource server to access the custom details are straightforward.
+
+We discussed in section 15.1 that AccessTokenConverter is the object that converts the token to an Authentication. This is the object we need to change so that it also takes into consideration the custom details in the token. Previously, you created a bean of type JwtAccessTokenConverter, as shown
+
+```java
+@Bean
+public JwtAccessTokenConverter jwtAccessTokenConverter() {
+    var converter = new JwtAccessTokenConverter();
+    converter.setSigningKey(jwtKey);
+    return converter;
+}
+```
+
+We used this token to set the key used by the resource server for token validation. We create a custom implementation of JwtAccessTokenConverter, which also takes into consideration our new details on the token. The simplest way is to extend this class and override the extractAuthentication() method. This method converts the token in an Authentication object.
+
+```java
+public class AdditionalClaimsAccessTokenConverter extends JwtAccessTokenConverter {
+
+    @Override
+    public OAuth2Authentication extractAuthentication(Map<String, ?> map) {
+        var oAuth2Authentication = super.extractAuthentication(map);
+        oAuth2Authentication.setDetails(map);
+        return oAuth2Authentication;
+    }
+}
+```
+
+In the configuration class of the resource server, you can now use the custom access token converter.
+
+```java
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+    
+    // Omitted code
+    @Bean
+    public JwtAccessTokenConverter jwtAccessTokenConverter() {
+        var converter = new AdditionalClaimsAccessTokenConverter();
+        converter.setVerifierKey(publicKey);
+        return converter;
+    }
+}
+```
+
+An easy way to test the changes is to inject them into the controller class and return them in the HTTP response.
+
+```java
+@RestController
+public class HelloController {
+    @GetMapping("/hello")
+    public String hello(OAuth2Authentication authentication) {
+        OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) authentication.getDetails();
+        return "Hello! " + details.getDecodedDetails();
+    }
+}
+```
+
+```shell
+curl -H "Authorization:Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6Ikp… " http://localhost:9090/hello
+```
+
+Response:
+
+```shell
+Hello! {user_name=john, scope=[read], generatedInZone=Europe/Bucharest, exp=1582595692, authorities=[read], 
+jti=982b02be-d185-48de-a4d3-9b27337d1a46, client_id=client}
+```
+
+# Chapter 16. Global method security: Pre- and postauthorizations
 
 
 
