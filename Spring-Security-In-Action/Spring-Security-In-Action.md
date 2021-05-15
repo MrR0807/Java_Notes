@@ -5712,6 +5712,22 @@ There are three options how the resource server validates tokens. **The first op
 
 ![chapter-14-figure-14-2.PNG](pictures/chapter-14-figure-14-2.PNG)
 
+The second option **uses a common database where the authorization server stores tokens, and then the resource server can access and validate the tokens** (figure 14.3). This approach is also called **blackboarding.**
+
+![chapter-14-figure-14-3.PNG](pictures/chapter-14-figure-14-3.PNG)
+
+Finally, **the third option uses cryptographic signatures** (figure 14.4). The authorization server signs the token when issuing it, and the resource server validates the signature. Here’s where we generally use **JSON Web Tokens (JWTs)**. We discuss this approach in chapter 15.
+
+## Implementing a resource server
+
+![chapter-14-figure-14-4.PNG](pictures/chapter-14-figure-14-4.PNG)
+
+We start with the implementation of our first resource server application, the last piece of the OAuth 2 puzzle. The reason why we have an authorization server that issues tokens is to allow clients to access a user’s resources. The resource server manages and protects the user’s resources.
+
+**NOTE.** As in the case of the authorization server, the implementation of the resource server suffered changes in the Spring community. These changes affect us because now, in practice, you find different ways in which developers implement the resource server. I provide examples in which you can configure the resource server in two ways, such that when you encounter these in real-world scenarios, you will understand and be able to use both.
+
+![chapter-14-figure-14-5.PNG](pictures/chapter-14-figure-14-5.PNG)
+
 
 
 
