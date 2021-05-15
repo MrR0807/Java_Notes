@@ -6024,6 +6024,198 @@ To make the code snippet easier to be read, I omitted the parameter value of the
 
 ## Implementing blackboarding with a JdbcTokenStore
 
+In this section, we implement an application where the authorization server and the resource server use a shared database. We call this architectural style blackboarding. Why blackboarding? You can think of this as the authorization server and the resource server using a blackboard to manage tokens. This approach for issuing and validating tokens has the advantage of eliminating direct communication between the resource server and the authorization server.
+
+![chapter-14-figure-14-8.PNG](pictures/chapter-14-figure-14-8.PNG)
+
+The contract representing the object that manages tokens in Spring Security, both on the authorization server as well as for the resource server, is the TokenStore.
+
+![chapter-14-figure-14-9.PNG](pictures/chapter-14-figure-14-9.PNG)
+
+For the authorization server, you can visualize its place in the authentication architecture where we previously used SecurityContext. Once authentication finishes, the authorization server uses the TokenStore to generate a token
+
+![chapter-14-figure-14-10.PNG](pictures/chapter-14-figure-14-10.PNG)
+
+For the resource server, the authentication filter uses TokenStore to validate the token and find the user details that it later uses for authorization. The resource server then stores the user’s details in the security context.
+
+![chapter-14-figure-14-11.PNG](pictures/chapter-14-figure-14-11.PNG)
+
+Spring Security offers various implementations for the TokenStore contract, and in most cases, you won’t need to write your own implementation. For example, for all the previous authorization server implementations, we did not specify a TokenStore implementation. Spring Security provided a default token store of type InMemoryTokenStore. As you can imagine, in all these cases, the tokens were stored in the application’s memory. They did not persist! If you restart the authorization server, the tokens issued before the restart won’t be valid anymore.
+
+To implement token management with blackboarding, Spring Security offers the JdbcTokenStore implementation. As the name suggests, this token store works with a database directly via JDBC. It works similarly to the JdbcUserDetailsManager we discussed in chapter 3, but instead of managing users, the JdbcTokenStore manages tokens.
+
+JdbcTokenStore expects you to have two tables in the database. It uses one table to store access tokens (the name for this table should be oauth_access _token) and one table to store refresh tokens (the name for this table should be oauth_refresh_token). The table used to store tokens persists the refresh tokens.
+
+We need to change our pom.xml file to declare the necessary dependencies to connect to our database. The next code snippet presents the dependencies I use in my pom.xml file:
+
+```java
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-oauth2</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+</dependency>
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+</dependency>
+```
+
+schema.sql file
+```sql
+CREATE TABLE IF NOT EXISTS `oauth_access_token` (
+    `token_id` varchar(255) NOT NULL,
+    `token` blob,
+    `authentication_id` varchar(255) DEFAULT NULL,
+    `user_name` varchar(255) DEFAULT NULL,
+    `client_id` varchar(255) DEFAULT NULL,
+    `authentication` blob,
+    `refresh_token` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`token_id`));
+
+CREATE TABLE IF NOT EXISTS `oauth_refresh_token` (
+    `token_id` varchar(255) NOT NULL,
+    `token` blob,
+    `authentication` blob,
+PRIMARY KEY (`token_id`));
+```
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private DataSource dataSource;
+    
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token")
+                .scopes("read");
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+        endpoints
+                .authenticationManager(authenticationManager)
+                .tokenStore(tokenStore()); //Configure token store
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JdbcTokenStore(dataSource);
+    }
+}
+```
+
+We can now start our authorization server and issue tokens. We issue tokens in the same way we did in chapter 13 and earlier in this chapter. From this perspective, nothing’s changed. But now, we can see our tokens stored in the database as well.
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+The response body is
+
+```json
+{
+    "access_token":"009549ee-fd3e-40b0-a56c-6d28836c4384",
+    "token_type":"bearer",
+    "refresh_token":"fd44d772-18b3-4668-9981-86373017e12d",
+    "expires_in":43199,
+    "scope":"read"
+}
+```
+
+The access token returned in the response can also be found as a record in the oauth_access_token table. Because I configure the refresh token grant type, I receive a refresh token. For this reason, I also find a record for the refresh token in the oauth_refresh_token table.
+
+It’s time now to configure the resource server so that it also uses the same database.
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-oauth2</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+</dependency>
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+</dependency>
+```
+
+In the application.properties file, I configure the data source so the resource server can connect to the same database as the authorization server.
+
+In the configuration class of the resource server, we inject the data source and configure JdbcTokenStore.
+
+```java
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+    
+    @Autowired
+    private DataSource dataSource;
+    
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) {
+        resources.tokenStore(tokenStore());
+    }
+    
+    @Bean
+    public TokenStore tokenStore() {
+        return new JdbcTokenStore(dataSource);
+    }
+}
+```
+
+You can now start your resource server as well and call the /hello endpoint with the access token you previously issued.
+
+```shell
+curl -H "Authorization:Bearer 009549ee-fd3e-40b0-a56c-6d28836c4384" "http:// localhost:9090/hello"
+```
+
+The response body is
+```shell
+Hello
+```
+
+But having both the authorization server and the resource server depend on the same database presents a disadvantage. In the case of a large number of requests, this dependency might become a bottleneck and slow down the system.
+
+## A short comparison of approaches
+
+In this chapter, you learned to implement two approaches for allowing the resource server to validate tokens it receives from the client: 
+* **Directly calling the authorization server.** When the resource server needs to validate a token, it directly calls the authorization server that issues that token. 
+* **Using a shared database (blackboarding).** Both the authorization server and the resource server work with the same database. The authorization server stores the issued tokens in the database, and the resource server reads those for validation.
+
+![chapter-14-figure-14-table-1.PNG](pictures/chapter-14-figure-14-table-1.PNG)
+
+# OAuth 2: Using JWT and cryptographic signatures
+
 
 
 
