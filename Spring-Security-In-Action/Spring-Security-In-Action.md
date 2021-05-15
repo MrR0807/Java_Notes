@@ -5728,6 +5728,302 @@ We start with the implementation of our first resource server application, the l
 
 ![chapter-14-figure-14-5.PNG](pictures/chapter-14-figure-14-5.PNG)
 
+```java
+<parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.3.10.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>spring-security</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>spring-security</name>
+    <description>Demo project for Spring Boot</description>
+    <properties>
+        <java.version>11</java.version>
+        <spring-cloud.version>Hoxton.SR11</spring-cloud.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-oauth2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+To prove how it works, we need a resource that we want to access. We create a /hello endpoint for our tests by defining the usual controller.
+
+```java
+@RestController
+public class HelloController {
+    
+    @GetMapping("hello")
+    public String hello() {
+        return "Hello";
+    }
+}
+```
+
+The other thing we need is a configuration class in which we use the @EnableResourceServer annotation to allow Spring Boot to configure what’s needed for our app to become a resource server.
+
+```java
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig {
+}
+```
+
+We have a resource server now. But it’s not useful if you can’t access the endpoint, as is our case because we didn’t configure any way in which the resource server can check tokens. You know that requests made for resources need to also provide a valid access token. Even if it does provide a valid access token, a request still won’t work. Our resource server cannot verify that these are valid tokens, that the authorization server indeed issued them.
+
+**NOTE.** As I mentioned in an earlier note, the resource server implementation changed as well. The @EnableResourceServer annotation, which is part of the Spring Security OAuth project, was recently marked as deprecated.
+
+## Checking the token remotely
+
+In this section, we implement token validation by allowing the resource server to call the authorization server directly. This approach is the simplest you can implement to enable access to the resource server with a valid access token. You choose this approach if the tokens in your system are plain (for example, simple UUIDs as in the default implementation of the authorization server with Spring Security).
+
+![chapter-14-figure-14-6.PNG](pictures/chapter-14-figure-14-6.PNG)
+
+The advantage of this approach is its simplicity. You can apply it to any kind of token implementation. The disadvantage of this approach is that for each request on the resource server having a new, as yet unknown token, the resource server calls the authorization server to validate the token. These calls can put an unnecessary load on the authorization server. Also, remember the rule of thumb: the network is not 100% reliable. You need to keep this in mind every time you design a new remote call in your architecture. You might also need to apply some alternative solutions for what happens if the call fails because of some network instability.
+
+We want to allow a client to access the /hello endpoint if it provides an access token issued by an authorization server.
+
+By default, the authorization server implements the endpoint /oauth/check_token that the resource server can use to validate a token. However, at present the authorization server implicitly denies all requests to that endpoint. Before using the /oauth/ check_token endpoint, you need to make sure the resource server can call it.
+
+To allow authenticated requests to call the /oauth/check_token endpoint, we override the configure(AuthorizationServerSecurityConfigurer c) method in the AuthServerConfig class of the authorization server. Overriding the configure() method allows us to set the condition in which we can call the /oauth/ check_token endpoint.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    
+    private final AuthenticationManager authenticationManager;
+
+    public AuthServerConfig(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token")
+                .scopes("read");
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManager);
+    }
+
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        security.checkTokenAccess("isAuthenticated()"); //Specifies the condition for which we can call the check_token enpoint
+    }
+}
+```
+
+**NOTE.** You can even make this endpoint accessible without authentication by using permitAll() instead of isAuthenticated(). But it’s not recommended to leave endpoints unprotected. Preferably, in a real-world scenario, you would use authentication for this endpoint.
+
+Besides making this endpoint accessible, if we decide to allow only authenticated access, then we need a client registration for the resource server itself. For the authorization server, the resource server is also a client and requires its own credentials. We add these as for any other client. For the resource server, you don’t need any grant type or scope, but only a set of credentials that the resource server uses to call the check_token endpoint.
+
+```java
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token")
+                .scopes("read")
+                  .and()
+                .withClient("resourceserver")
+                .secret("resourceserversecret");
+    }
+```
+
+```java
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var uds = new InMemoryUserDetailsManager();
+
+        var user = User.withUsername("john")
+                .password("12345")
+                .authorities("read")
+                .build();
+
+        uds.createUser(user);
+
+        return uds;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Override
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+}
+```
+
+You can now start the authorization server and obtain a token like you learned in chapter 13.
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+```json
+{
+    "access_token":"4f2b7a6d-ced2-43dc-86d7-cbe844d3e16b",
+    "token_type":"bearer",
+    "refresh_token":"a4bd4660-9bb3-450e-aa28-2e031877cb36",
+    "expires_in":43199,"scope":"read"
+}
+```
+
+Next, we call the check_token endpoint to find the details about the access token we obtained in the previous code snippet.
+
+```shell
+curl -XPOST -u resourceserver:resourceserversecret "http://localhost:8080/oauth/check_token?token=4f2b7a6d-ced2-43dc-86d7-cbe844d3e16b"
+```
+
+```json
+{
+    "active":true,
+    "exp":1581307166,
+    "user_name":"john",
+    "authorities":["read"],
+    "client_id":"client",
+    "scope":["read"]
+}
+```
+
+Observe the response we get back from the check_token endpoint. It tells us all the details needed about the access token: 
+* Whether the token is still active and when it expires 
+* The user the token was issued for 
+* The authorities that represent the privileges 
+* The client the token was issued for
+
+Now, if we call the endpoint using cURL, the resource server should be able to use it to validate tokens. We need to configure the endpoint of the authorization server and the credentials the resource server uses to access endpoint. We can do all this in the application.properties file.
+
+```properties
+server.port=9090
+security.oauth2.resource.token-info-uri=http://localhost:8080/oauth/check_token
+security.oauth2.client.client-id=resourceserver
+security.oauth2.client.client-secret=resourceserversecret
+```
+
+```shell
+curl -H "Authorization: bearer 4f2b7a6d-ced2-43dc-86d7-cbe844d3e16b" "http://localhost:9090/hello"
+```
+
+If you had called the endpoint without a token or with the wrong one, the result would have been a 401 Unauthorized status on the HTTP response.
+
+```shell
+curl -v "http://localhost:9090/hello"
+```
+
+The (truncated) response is:
+
+```
+...
+< HTTP/1.1 401
+...
+{
+    "error":"unauthorized",
+    "error_description":"Full authentication is required to access this resource"
+}
+```
+
+#### Using token introspection without Spring Security OAuth
+
+A common concern nowadays is how to implement a resource server as in the previous example without Spring Security OAuth. If you remember, we discussed httpBasic(), formLogin(), and other authentication methods in the previous chapters. You learned that when calling such a method, you simply add a new filter to the filter chain, which enables a different authentication mechanism in your app. Guess what? In its latest versions, Spring Security also offers an oauth2ResourceServer() method that enables a resource server authentication method. However, mind that this functionality isn’t mature yet, and to use it, you need to add other dependencies that are not automatically figured out by Spring Boot. The following code snippet presents the required dependencies for implementing a resource server using token introspection:
+
+```java
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-oauth2-resource-server</artifactId>
+    <version>5.2.1.RELEASE</version>
+</dependency>
+
+<dependency>
+    <groupId>com.nimbusds</groupId>
+    <artifactId>oauth2-oidc-sdk</artifactId>
+    <version>8.4</version>
+    <scope>runtime</scope>
+</dependency>
+```
+
+```java
+@Configuration
+public class ResourceServerConfig
+extends WebSecurityConfigurerAdapter {
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+    http.authorizeRequests()
+        .anyRequest().authenticated()
+        .and()
+        .oauth2ResourceServer(c -> c.opaqueToken(o -> {
+                o.introspectionUri("…");
+                o.introspectionClientCredentials("client", "secret");
+            })
+        );
+    }
+}
+```
+
+To make the code snippet easier to be read, I omitted the parameter value of the introspectionUri() method, which is the check_token URI, also known as the introspection token URI. As a parameter to the oauth2ResourceServer() method, I added a Customizer instance. Using the Customizer instance, you specify the parameters needed for the resource server depending on the approach you choose. For direct token introspection, you need to specify the URI the resource server calls to validate the token, and the credentials the resource server needs to authenticate when calling this URI.
+
+## Implementing blackboarding with a JdbcTokenStore
+
 
 
 
