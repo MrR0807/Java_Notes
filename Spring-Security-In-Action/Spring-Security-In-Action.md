@@ -6214,7 +6214,357 @@ In this chapter, you learned to implement two approaches for allowing the resour
 
 ![chapter-14-figure-14-table-1.PNG](pictures/chapter-14-figure-14-table-1.PNG)
 
-# OAuth 2: Using JWT and cryptographic signatures
+# Chapter 15. OAuth 2: Using JWT and cryptographic signatures
+
+In this chapter, we’ll discuss using JSON Web Tokens (JWTs) for token implementation. You learned in chapter 14 that the resource server needs to validate tokens issued by the authorization server. And I told you three ways to do this: 
+* Using direct calls between the resource server and the authorization server, which we implemented in section 14.2 
+* Using a shared database for storing the tokens, which we implemented in section 14.3 
+* Using cryptographic signatures, which we’ll discuss in this chapter
+
+Using cryptographic signatures to validate tokens has the advantage of allowing the resource server to validate them without needing to call the authorization server directly and without needing a shared database. This approach to implementing token validation is commonly used in systems implementing authentication and authorization with OAuth 2.
+
+## Using tokens signed with symmetric keys with JWT
+
+The most straightforward approach to signing tokens is using symmetric keys. With this approach, using the same key, you can both sign a token and validate its signature. Using symmetric keys for signing tokens has the advantage of being simpler than other approaches we’ll discuss later in this chapter and is also faster. As you’ll see, however, it has disadvantages too. You can’t always share the key used to sign tokens with all the applications involved in the authentication process.
+
+### Using JWTs
+
+A JWT is a token implementation. A token consists of three parts: the header, the body, and the signature. The details in the header and the body are represented with JSON, and they are Base64 encoded. The third part is the signature, generated using a cryptographic algorithm that uses as input the header and the body (figure 15.1). The cryptographic algorithm also implies the need for a key. The key is like a password. Someone having a proper key can sign a token or validate that a signature is authentic. If the signature on a token is authentic, that guarantees that nobody altered the token after it was signed.
+
+![chapter-15-figure-15-1.PNG](pictures/chapter-15-figure-15-1.PNG)
+
+When a JWT is signed, we also call it a JWS (JSON Web Token Signed). Usually, applying a cryptographic algorithm for signing a token is enough, but sometimes you can choose to encrypt it. If a token is signed, you can see its contents without having any key or password. But even if a hacker sees the contents in the token, they can’t change a token’s contents because if they do so, the signature becomes invalid. To be valid, a signature has to 
+* Be generated with the correct key 
+* Match the content that was signed
+
+If a token is encrypted, we also call it a JWE (JSON Web Token Encrypted). You can’t see the contents of an encrypted token without a valid key.
+
+### Implementing an authorization server to issue JWTs
+
+In this section, we implement an authorization server that issues JWTs to a client for authorization. You learned in chapter 14 that the component managing the tokens is the TokenStore. What we do in this section is use a different implementation of the TokenStore provided by Spring Security. The name of the implementation we use is JwtTokenStore, and it manages JWTs. We also test the authorization server in this section. Later, in section 15.1.3, we’ll implement a resource server and have a complete system that uses JWTs. You can implement token validation with JWT in two ways: 
+* If we use the same key for signing the token as well as for verifying the signature, we say that the key is **symmetric**. 
+* If we use one key to sign the token but a different one to verify the signature, we say that we use an **asymmetric** key pair.
+
+In this example, we implement signing with a symmetric key. This approach implies that both the authorization server and the resource server know and use the same key. The authorization server signs the token with the key, and the resource server validates the signature using the same key.
+
+```xml
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.3.10.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>spring-auth-server</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>spring-auth-server</name>
+    <description>Demo project for Spring Boot</description>
+    
+    <properties>
+        <java.version>11</java.version>
+        <spring-cloud.version>Hoxton.SR11</spring-cloud.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-oauth2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+```
+
+We configure a JwtTokenStore in the same way we did in chapter 14 for the JdbcTokenStore. Additionally, we need to define an object of type JwtAccessTokenConverter. With the JwtAccessTokenConverter, we configure how the authorization server validates tokens; in our case, using a symmetric key.
+
+```java
+@Configuration
+@EnableAuthorizationServer
+public class AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+
+    private final String jwtKey;
+    private final AuthenticationManager authenticationManager;
+
+    public AuthServerConfig(@Value("${jwt.key}") String jwtKey, AuthenticationManager authenticationManager) {
+        this.jwtKey = jwtKey;
+        this.authenticationManager = authenticationManager;
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("client")
+                .secret("secret")
+                .authorizedGrantTypes("password", "refresh_token")
+                .scopes("read");
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authenticationManager(authenticationManager)
+                .tokenStore(tokenStore())
+                .accessTokenConverter(jwtAccessTokenConverter());
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwtTokenStore(jwtAccessTokenConverter());
+    }
+
+    @Bean
+    public JwtAccessTokenConverter jwtAccessTokenConverter() {
+        var converter = new JwtAccessTokenConverter();
+        converter.setSigningKey(jwtKey);
+        return converter;
+    }
+}
+```
+
+I stored the value of the symmetric key for this example in the application.properties file, as the next code snippet shows. However, don’t forget that the signing key is sensitive data, and you should store it in a secrets vault in a real-world scenario.
+
+```properties
+jwt.key=MjWP5L7CiD
+```
+
+Remember from our previous examples with the authorization server in chapters 13 and 14 that for every authorization server, we also define a UserDetailsServer and PasswordEncoder.
+
+```java
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var uds = new InMemoryUserDetailsManager();
+
+        var user = User.withUsername("john")
+                .password("12345")
+                .authorities("read")
+                .build();
+
+        uds.createUser(user);
+
+        return uds;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Override
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+}
+```
+
+We can now start the authorization server and call the /oauth/token endpoint to obtain an access token.
+
+```shell
+curl -v -XPOST -u client:secret "http://localhost:8080/oauth/token?grant_type=password&username=john&password=12345&scope=read"
+```
+
+The response body is
+
+```json
+{
+    "access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXV…",
+    "token_type":"bearer",
+    "refresh_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp…",
+    "expires_in":43199,
+    "scope":"read",
+    "jti":"7774532f-b74b-4e6b-ab16-208c46a19560"
+}
+```
+
+You can observe in the response that both the access and the refresh tokens are now JWTs. In the code snippet, I have shortened the tokens to make the code snippet more readable.
+
+```json
+{
+    "user_name": "john",
+    "scope": ["read"],
+    "generatedInZone": "Europe/Bucharest",
+    "exp": 1583874061,
+    "authorities": ["read"],
+    "jti": "38d03577-b6c8-47f5-8c06-d2e3a713d986",
+    "client_id": "client"
+}
+```
+
+### Implementing a resource server that uses JWT
+
+In this section, we implement the resource server, which uses the symmetric key to validate tokens issued by the authorization server.
+
+```xml
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.3.10.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>spring-security</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>spring-security</name>
+    <description>Demo project for Spring Boot</description>
+    <properties>
+        <java.version>11</java.version>
+        <spring-cloud.version>Hoxton.SR11</spring-cloud.version>
+    </properties>
+    <dependencies>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-oauth2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+```
+
+I didn’t add any new dependencies to what we already used in chapters 13 and 14. Because we need one endpoint to secure, I define a controller and a method to expose a simple endpoint that we use to test the resource server.
+
+```java
+@RestController
+public class HelloController {
+
+    @GetMapping("hello")
+    public String hello() {
+        return "Hello";
+    }
+}
+```
+
+Now that we have an endpoint to secure, we can declare the configuration class where we configure the TokenStore. We’ll configure the TokenStore for the resource server as we do for the authorization server. The most important aspect is to be sure we use the same value for the key. The resource server needs the key to validate a token’s signature.
+
+```java
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+
+    private final String jwtKey;
+
+    public ResourceServerConfig(@Value("${jwt.key}")String jwtKey) {
+        this.jwtKey = jwtKey;
+    }
+
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) {
+        resources.tokenStore(tokenStore());
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwtTokenStore(jwtAccessTokenConverter());
+    }
+    @Bean
+    public JwtAccessTokenConverter jwtAccessTokenConverter() {
+        var converter = new JwtAccessTokenConverter();
+        converter.setSigningKey(jwtKey);
+        return converter;
+    }
+}
+```
+
+```properties
+server.port=9090
+jwt.key=MjWP5L7CiD
+```
+
+A key used for symmetric encryption or signing is just a random string of bytes. You generate it using an algorithm for randomness. In our example, you can use any string value, say “abcde.” In a real-world scenario, it’s a good idea to use a randomly generated value with a length, preferably, longer than 258 bytes.
+
+We can now start our resource server and call the /hello endpoint using a valid JWT that you obtained earlier from the authorization server. You have to add the token to the Authorization HTTP header on the request prefixed with the word “Bearer” in our example.
+
+```shell
+curl -H "Authorization:Bearer eyJhbGciOiJIUzI1NiIs…" http://localhost:9090/hello
+```
+
+The response body:
+```shell
+Hello
+```
 
 
 
