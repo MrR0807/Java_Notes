@@ -7023,6 +7023,157 @@ jti=982b02be-d185-48de-a4d3-9b27337d1a46, client_id=client}
 
 # Chapter 16. Global method security: Pre- and postauthorizations
 
+Up to now, we discussed various ways of configuring authentication. We started with the most straightforward approach, HTTP Basic, in chapter 2, and then I showed you how to set form login in chapter 5. We covered OAuth 2 in chapters 12 through 15. But in terms of authorization, we only discussed configuration at the endpoint level.
+
+For non-web applications, global method security offers the opportunity to implement authorization rules even if we don’t have endpoints. In web applications, this approach gives us the flexibility to apply authorization rules on different layers of our app, not only at the endpoint level.
+
+## Enabling global method security
+
+By default, global method security is disabled, so if you want to use this functionality, you first need to enable it. Also, global method security offers multiple approaches for applying authorization.
+
+Briefly, you can do two main things with global method security: 
+* **Call authorization** — Decides whether someone can call a method according to some implemented privilege rules (preauthorization) or if someone can access what the method returns after the method executes (postauthorization).
+* **Filtering** — Decides what a method can receive through its parameters (prefiltering) and what the caller can receive back from the method after the method executes (postfiltering). We’ll discuss and implement filtering in chapter 17.
+
+### Understanding call authorization
+
+One of the approaches for configuring authorization rules you use with global method security is call authorization. The call authorization approach refers to applying authorization rules that decide if a method can be called, or that allow the method to be called and then decide if the caller can access the value returned by the method. Often we need to decide if someone can access a piece of logic depending on either the provided parameters or its result.
+
+How does global method security work? What’s the mechanism behind applying the authorization rules? When we enable global method security in our application, we actually enable a Spring aspect. This aspect intercepts the calls to the method for which we apply authorization rules and, based on these authorization rules, decides whether to forward the call to the intercepted method.
+
+Briefly, we classify the call authorization as 
+* **Preauthorization** — The framework checks the authorization rules before the method call. 
+* **Postauthorization** — The framework checks the authorization rules after the method executes.
+
+#### USING PREAUTHORIZATION TO SECURE ACCESS TO METHODS
+
+Usually, we don’t want a functionality to be executed at all if some conditions aren’t met. You can apply conditions based on the authenticated user, and you can also refer to the values the method received through its parameters.
+
+#### USING POSTAUTHORIZATION TO SECURE A METHOD CALL
+
+With postauthorization, Spring Security checks the authorization rules after the method executes. You can use this kind of authorization to restrict access to the method return in certain conditions. Because postauthorization happens after method execution, you can apply the authorization rules on the result returned by the method.
+
+**But be careful with postauthorization!** If the method mutates something during its execution, the change happens whether or not authorization succeeds in the end. **Even with the @Transactional annotation, a change isn’t rolled back if postauthorization fails.** The exception thrown by the postauthorization functionality happens after the transaction manager commits the transaction.
+
+### Enabling global method security in your project
+
+Global method security is enabled with @EnableGlobalMethodSecurity annotation. Global method security offers us three approaches to define the authorization rules that we discuss in this chapter: 
+* The pre-/postauthorization annotations 
+* The JSR 250 annotation, @RolesAllowed 
+* The @Secured annotation
+
+Because in almost all cases, pre-/postauthorization annotations are the only approach used, we discuss this approach in this chapter. To enable this approach, we use the prePostEnabled attribute of the @EnableGlobalMethodSecurity annotation.
+
+```java
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ProjectConfig {}
+```
+
+You can use global method security with any authentication approach, from HTTP Basic authentication to OAuth 2. To keep it simple and allow you to focus on new details, we provide global method security with HTTP Basic authentication.
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+```
+
+## Applying preauthorization for authorities and roles
+
+The application we implement in this section has a simple scenario. It exposes an endpoint, /hello, which returns the string "Hello, " followed by a name. To obtain the name, the controller calls a service method. This method applies a preauthorization rule to verify the user has write authority.
+
+I added a UserDetailsService and a PasswordEncoder to make sure I have some users to authenticate. To validate our solution, we need two users: one user with write authority and another that doesn’t have write authority. We prove that the first user can successfully call the endpoint, while for the second user, the app throws an authorization exception when trying to call the method.
+
+```java
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ProjectConfig {
+
+    @Bean
+    public UserDetailsManager userDetailsManager() {
+        var natalie = User.withUsername("natalie")
+                .password("12345")
+                .authorities("read")
+                .build();
+        var emma = User.withUsername("emma")
+                .password("12345")
+                .authorities("write")
+                .build();
+
+        return new InMemoryUserDetailsManager(natalie, emma);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+To define the authorization rule for this method, we use the @PreAuthorize annotation. The @PreAuthorize annotation receives as a value a Spring Expression Language (SpEL) expression that describes the authorization rule.
+
+```java
+@Service
+public class HelloService {
+
+    @PreAuthorize("hasAuthority('write')")
+    public String getName() {
+        return "Fantastico";
+    }
+}
+```
+
+```java
+@RestController
+public class HelloController {
+
+    private final HelloService helloService;
+
+    public HelloController(HelloService helloService) {
+        this.helloService = helloService;
+    }
+
+    @GetMapping("/hello")
+    public String hello() {
+        return "Hello, " + helloService.getName();
+    }
+}
+```
+
+```shell
+curl -u emma:12345 http://localhost:8080/hello
+Hello, Fantastico
+```
+
+```shell
+curl -u natalie:12345 http://localhost:8080/hello
+```
+
+```json
+{
+    "status":403,
+    "error":"Forbidden",
+    "message":"Forbidden",
+    "path":"/hello"
+}
+```
+
+Similarly, you can use any other expression we discussed in chapter 7 for endpoint authentication. Here’s a short recap of them: 
+* ``hasAnyAuthority()`` — Specifies multiple authorities. The user must have at least one of these authorities to call the method. 
+* ``hasRole()`` — Specifies a role a user must have to call the method. 
+* ``hasAnyRole()`` — Specifies multiple roles. The user must have at least one of them to call the method.
+
+Let’s extend our example to prove how you can use the values of the method parameters to define the authorization rules (figure 16.6).
+
+![chapter-16-figure-16-6.PNG](pictures/chapter-16-figure-16-6.PNG)
+
+The endpoint now takes a value through a path variable and calls a service class to obtain the “secret names” for a given username.
+
 
 
 
