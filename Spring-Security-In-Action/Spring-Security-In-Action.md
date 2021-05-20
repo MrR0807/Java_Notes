@@ -7174,7 +7174,453 @@ Let’s extend our example to prove how you can use the values of the method par
 
 The endpoint now takes a value through a path variable and calls a service class to obtain the “secret names” for a given username.
 
+The endpoint now takes a value through a path variable and calls a service class to obtain the “secret names” for a given username.
 
+```java
+@RestController
+public class HelloController {
+
+    private final HelloService helloService;
+
+    public HelloController(HelloService helloService) {
+        this.helloService = helloService;
+    }
+
+    @GetMapping("/secret/names/{name}")
+    public String hello(@PathVariable String name) {
+        return helloService.getName(name);
+    }
+}
+```
+
+```java
+@Service
+public class HelloService {
+
+    private Map<String, List<String>> secretNames = Map.of(
+            "natalie", List.of("Energico", "Perfecto"),
+            "emma", List.of("Fantastico"));
+
+    @PreAuthorize("#name == authentication.principal.username")
+    public List<String> getName(String name) {
+        return secretNames.get(name);
+    }
+}
+```
+
+The expression we use for authorization now is #name == authentication.principal. username. In this expression, we use #name to refer to the value of the getSecretNames() method parameter called name, and we have access directly to the authentication object that we can use to refer to the currently authenticated user. The expression we use indicates that the method can be called only if the authenticated user’s username is the same as the value sent through the method’s parameter. In other words, a user can only retrieve its own secret names.
+
+```shell
+curl -u emma:12345 http://localhost:8080/secret/names/emma
+["Fantastico"]
+```
+
+```shell
+curl -u emma:12345 http://localhost:8080/secret/names/natalie
+```
+
+```json
+{
+    "status":403,
+    "error":"Forbidden",
+    "message":"Forbidden",
+    "path":"/secret/names/natalie"
+}
+```
+
+```shell
+curl -u natalie:12345 http://localhost:8080/secret/names/natalie
+["Energico","Perfecto"]
+```
+
+## Applying postauthorization
+
+Now say you want to allow a call to a method, but in certain circumstances, you want to make sure the caller doesn’t receive the returned value. When we want to apply an authorization rule that is verified after the call of a method, we use postauthorization. It may sound a little bit awkward at the beginning: why would someone be able to execute the code but not get the result? Well, it’s not about the method itself, but imagine this method retrieves some data from a data source, say a web service or a database. You can be confident about what your method does, but you can’t bet on the third party your method calls. So you allow the method to execute, but you validate what it returns and, if it doesn’t meet the criteria, you don’t let the caller access the return value.
+
+To apply postauthorization rules with Spring Security, we use the @PostAuthorize annotation, which is similar to @PreAuthorize.
+
+The scenario for our example, defines an object Employee. Our Employee has a name, a list of books, and a list of authorities. We associate each Employee to a user of the application. To stay consistent with the other examples in this chapter, we define the same users, Emma and Natalie. We want to make sure that the caller of the method gets the details of the employee only if the employee has read authority. Because we don’t know the authorities associated with the employee record until we retrieve the record, we need to apply the authorization rules after the method execution. For this reason, we use the @PostAuthorize annotation.
+
+```java
+//Getters are required, because Spring cannot handle records normally
+public record Employee(String name, List<String> books, List<String> roles) {
+
+    public String getName() {
+        return this.name;
+    }
+
+    public List<String> getBooks() {
+        return this.books;
+    }
+
+    public List<String> getRoles() {
+        return this.roles;
+    }
+}
+```
+
+```java
+@Service
+public class BookService {
+
+    private Map<String, Employee> records = Map.of(
+            "emma", new Employee("Emma Thompson", List.of("Karamazov Brothers"), List.of("accountant", "reader")),
+            "natalie", new Employee("Natalie Parker", List.of("Beautiful Paris"), List.of("researcher")));
+
+    @PostAuthorize("returnObject.roles.contains('reader')")
+    public Employee getBookDetails(String name) {
+        return records.get(name);
+    }
+}
+```
+
+```java
+@RestController
+public class HelloController {
+
+    private final BookService bookService;
+
+    public HelloController(BookService bookService) {
+        this.bookService = bookService;
+    }
+
+    @GetMapping("/book/details/{name}")
+    public Employee getDetails(@PathVariable String name) {
+        return bookService.getBookDetails(name);
+    }
+}
+```
+
+```shell
+curl -u emma:12345 http://localhost:8080/book/details/emma
+```
+
+```json
+{
+    "name":"Emma Thompson",
+    "books":["Karamazov Brothers"],
+    "roles":["accountant","reader"]
+}
+```
+
+```shell
+curl -u natalie:12345 http://localhost:8080/book/details/emma
+```
+
+```json
+{
+    "name":"Emma Thompson",
+    "books":["Karamazov Brothers"],
+    "roles":["accountant","reader"]
+}
+```
+
+```shell
+curl -u emma:12345 http://localhost:8080/book/details/natalie
+```
+
+```json
+{
+    "status":403,
+    "error":"Forbidden",
+    "message":"Forbidden",
+    "path":"/book/details/natalie"
+}
+```
+
+```shell
+curl -u natalie:12345 http://localhost:8080/book/details/natalie
+```
+
+```json
+{
+    "status":403,
+    "error":"Forbidden",
+    "message":"Forbidden",
+    "path":"/book/details/natalie"
+}
+```
+
+## Implementing permissions for methods
+
+Up to now, you learned how to define rules with simple expressions for preauthorization and postauthorization. Now, let’s assume the authorization logic is more complex, and you cannot write it in one line. It’s definitely not comfortable to write huge SpEL expressions. I never recommend using long SpEL expressions in any situation, regardless if it’s an authorization rule or not. It simply creates hard-to-read code, and this affects the app’s maintainability. When you need to implement complex authorization rules, instead of writing long SpEL expressions, take the logic out in a separate class. Spring Security provides the concept of **permission**, which makes it easy to write the authorization rules in a separate class so that your application is easier to read and understand.
+
+In this scenario, you have an application managing documents. Any document has an owner, which is the user who created the document. To get the details of an existing document, a user either has to be an admin or they have to be the owner of the document.
+
+```java
+public record Document(String owner) {}
+```
+
+To mock the database and make our example shorter for your comfort, I created a repository class that manages a few document instances in a Map.
+
+```java
+@Repository
+public class DocumentRepository {
+
+    private final Map<String, Document> documents = Map.of(
+            "abc123", new Document("natalie"),
+            "qwe123", new Document("natalie"),
+            "asd555", new Document("emma"));
+
+    public Optional<Document> findDocument(String code) {
+        return Optional.ofNullable(documents.get(code));
+    }
+}
+```
+
+A service class defines a method that uses the repository to obtain a document by its code. The method in the service class is the one for which we apply the authorization rules. The logic of the class is simple. It defines a method that returns the Document by its unique code. We annotate this method with @PostAuthorize and use a hasPermission() SpEL expression. This method allows us to refer to an external authorization expression that we implement further in this example. Meanwhile, observe that the parameters we provide to the hasPermission() method are the returnObject, which represents the value returned by the method, and the name of the role for which we allow access, which is 'ROLE_admin'.
+
+```java
+@Service
+public class DocumentService {
+
+    private final DocumentRepository repository;
+
+    public DocumentService(DocumentRepository repository) {
+        this.repository = repository;
+    }
+
+    @PostAuthorize("hasPermission(returnObject, 'ROLE_admin')")
+    public Document getDocument(String code) {
+        return repository.findDocument(code)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+    }
+}
+```
+
+It’s our duty to implement the permission logic. And we do this by writing an object that implements the PermissionEvaluator contract. The PermissionEvaluator contract provides two ways to implement the permission logic: 
+* By object and permission — Used in the current example, it assumes the permission evaluator receives two objects: one that’s subject to the authorization rule and one that offers extra details needed for implementing the permission logic. 
+* By object ID, object type, and permission — Assumes the permission evaluator receives an object ID, which it can use to retrieve the needed object. It also receives a type of object, which can be used if the same permission evaluator applies to multiple object types, and it needs an object offering extra details for evaluating the permission.
+
+```java
+public interface PermissionEvaluator {
+
+    boolean hasPermission(Authentication a, Object subject, Object permission);
+
+    boolean hasPermission(Authentication a, Serializable id, String type, Object permission);
+}
+```
+
+For your awareness and to avoid confusion, I’d also like to mention that you don’t have to pass the Authentication object. Spring Security automatically provides this parameter value when calling the hasPermission() method. The framework knows the value of the authentication instance because it is already in the SecurityContext.
+
+```java
+@Component
+public class DocumentPermissionEvaluator implements PermissionEvaluator {
+
+    @Override
+    public boolean hasPermission(Authentication authentication, Object o, Object o1) {
+        var authorities = authentication.getAuthorities();
+        if (o instanceof Document document && o1 instanceof String permission) {
+            var isAdmin = authorities.stream().anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals(permission));
+            var isOwner = document.owner().equals(authentication.getName());
+            return isAdmin || isOwner;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean hasPermission(Authentication authentication, Serializable serializable, String s, Object o) {
+        return false; //We don't need to implement the second method because we don't use it.
+    }
+}
+```
+
+To make Spring Security aware of our new PermissionEvaluator implementation, we have to define a MethodSecurityExpressionHandler in the configuration class. The following listing presents how to define a MethodSecurityExpressionHandler to make the custom PermissionEvaluator known.
+
+```java
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ProjectConfig extends GlobalMethodSecurityConfiguration {
+
+    private final DocumentPermissionEvaluator evaluator;
+
+    public ProjectConfig(DocumentPermissionEvaluator evaluator) {
+        this.evaluator = evaluator;
+    }
+
+    @Override
+    protected MethodSecurityExpressionHandler createExpressionHandler() {
+        var expressionHandler = new DefaultMethodSecurityExpressionHandler();
+        expressionHandler.setPermissionEvaluator(evaluator);
+
+        return expressionHandler;
+    }
+
+    @Bean
+    public UserDetailsManager userDetailsManager() {
+        var natalie = User.withUsername("natalie")
+                .password("12345")
+                .roles("admin")
+                .build();
+        var emma = User.withUsername("emma")
+                .password("12345")
+                .roles("manager")
+                .build();
+
+        return new InMemoryUserDetailsManager(natalie, emma);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+**NOTE**. We use here an implementation for MethodSecurityExpressionHandler named DefaultMethodSecurityExpressionHandler that Spring Security provides. You could as well implement a custom MethodSecurityExpressionHandler to define custom SpEL expressions you use to apply the authorization rules. You rarely need to do this in a real-world scenario
+
+```java
+@RestController
+public class DocumentController {
+    
+    private final DocumentService service;
+
+    public DocumentController(DocumentService service) {
+        this.service = service;
+    }
+
+    @GetMapping("documents/{code}")
+    public Document getDetails(@PathVariable String code) {
+        return service.getDocument(code);
+    }
+}
+```
+
+Let’s run the application and call the endpoint to observe its behavior. User Natalie can access the documents regardless of their owner. User Emma can only access the documents she owns.
+
+```shell
+curl -u natalie:12345 http://localhost:8080/documents/abc123
+```
+
+```json
+{
+  "owner":"natalie"
+}
+```
+
+```shell
+curl -u natalie:12345 http://localhost:8080/documents/asd555
+```
+
+```json
+{
+  "owner":"emma"
+}
+```
+
+```shell
+curl -u emma:12345 http://localhost:8080/documents/asd555
+```
+
+```json
+{
+  "owner":"emma"
+}
+```
+
+```shell
+curl -u emma:12345 http://localhost:8080/documents/abc123
+```
+
+```json
+{
+    "status":403,
+    "error":"Forbidden",
+    "message":"Forbidden",
+    "path":"/documents/abc123"
+}
+```
+
+In a similar manner, you can use the second PermissionEvaluator method to write your authorization expression. The second method refers to using an identifier and subject type instead of the object itself. For example, say that we want to change the current example to apply the authorization rules before the method is executed, using @PreAuthorize. In this case, we don’t have the returned object yet. But instead of having the object itself, we have the document’s code, which is its unique identifier.
+
+```java
+@Component
+public class DocumentPermissionEvaluator implements PermissionEvaluator {
+
+    private final DocumentRepository documentRepository;
+
+    public DocumentPermissionEvaluator(DocumentRepository documentRepository) {
+        this.documentRepository = documentRepository;
+    }
+
+    @Override
+    public boolean hasPermission(Authentication authentication, Object target, Object permission) {
+        return false; //No longer defines the authorization rules through the first method.
+    }
+    @Override
+    public boolean hasPermission(Authentication authentication, Serializable targetId, String targetType, Object permission) {
+        if (targetId instanceof String code && permission instanceof String p) {
+            var document = documentRepository.findDocument(code).orElseThrow();
+
+            var isAdmin = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals(p));
+            var isDocumentOwner = document.getOwner().equals(authentication.getName());
+            
+            return isAdmin || isDocumentOwner;
+        }
+        
+        return false;
+    }
+}
+```
+
+Of course, we also need to use the proper call to the permission evaluator with the @PreAuthorize annotation.
+
+```java
+@Service
+public class DocumentService {
+
+    private final DocumentRepository repository;
+
+    public DocumentService(DocumentRepository repository) {
+        this.repository = repository;
+    }
+
+    @PreAuthorize("hasPermission(#code, 'document', 'ROLE_admin')")
+    public Document getDocument(String code) {
+        return repository.findDocument(code)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+    }
+}
+```
+
+You can rerun the application and check the behavior of the endpoint. **You should see the same result** as in the case where we used the first method of the permission evaluator to implement the authorization rules.
+
+## Using the @Secured and @RolesAllowed annotations
+
+The @EnableGlobalMethodSecurity annotation offers two other similar attributes that you can use to enable different annotations. You use the ``jsr250Enabled`` attribute to enable the @RolesAllowed annotation and the ``securedEnabled`` attribute to enable the @Secured annotation. Using these two annotations, @Secured and @RolesAllowed, is less powerful than using @PreAuthorize and @PostAuthorize,
+
+```java
+@EnableGlobalMethodSecurity(jsr250Enabled = true, securedEnabled = true)
+```
+
+Once you’ve enabled these attributes, you can use the @RolesAllowed or @Secured annotations to specify which roles or authorities the logged-in user needs to have to call a certain method.
+
+```java
+@Service
+public class NameService {
+    @RolesAllowed("ROLE_ADMIN")
+    public String getName() {
+        return "Fantastico";
+    }
+}
+```
+
+Similarily, you can use the @Secured annotation instead of the @RolesAllowed annotation.
+
+```java
+@Service
+public class NameService {
+    @Secured("ROLE_ADMIN")
+    public String getName() {
+        return "Fantastico";
+    }
+}
+```
+
+@Secured and @RolesAllowed are the same the only difference is @RolesAllowed is a standard annotation (i.e. not only spring security) whereas @Secured is spring security only.
+
+# Chapter 17. Global method security: Pre- and postfiltering
 
 
 
