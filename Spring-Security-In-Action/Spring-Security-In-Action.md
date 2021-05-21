@@ -7622,6 +7622,224 @@ public class NameService {
 
 # Chapter 17. Global method security: Pre- and postfiltering
 
+In chapter 16, you learned how to apply authorization rules using global method security. We worked on examples using the @PreAuthorize and @PostAuthorize annotations. By using these annotations, you apply an approach in which the application either allows the method call or it completely rejects the call. Suppose you don’t want to forbid the call to a method, but you want to make sure that the parameters sent to it follow some rules. Or, in another scenario, you want to make sure that after someone calls the method, the method’s caller only receives an authorized part of the returned value. We name such a functionality filtering, and we classify it in two categories: 
+* **Prefiltering** — The framework filters the values of the parameters before calling the method. 
+* **Postfiltering** — The framework filters the returned value after the method call.
+
+Filtering works differently than call authorization. With filtering, the framework executes the call and **doesn’t throw an exception if a parameter or returned value doesn’t follow an authorization rule you define**. Instead, it **filters out elements that don’t follow the conditions you specify.**
+
+It’s important to mention from the beginning that you can only apply filtering to collections and arrays.
+
+## Applying prefiltering for method authorization
+
+```java
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ProjectConfig extends GlobalMethodSecurityConfiguration {
+    @Bean
+    public UserDetailsManager userDetailsManager() {
+        var natalie = User.withUsername("john")
+                .password("12345")
+                .roles("read")
+                .build();
+        var emma = User.withUsername("don")
+                .password("12345")
+                .roles("write")
+                .build();
+
+        return new InMemoryUserDetailsManager(natalie, emma);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}
+```
+
+```java
+public record Product(String name, String owner) {}
+```
+
+The ProductService class defines the service method we protect with @PreFilter. In that listing, before the ``sellProducts()`` method, you can observe the use of the @PreFilter annotation. The Spring Expression Language (SpEL) used with the annotation is ``filterObject.owner == authentication.name``, which allows only values where the ``owner`` attribute of the Product equals the username of the logged-in user. On the left side of the equals operator in the SpEL expression; we use ``filterObject``. With ``filterObject``, we refer to objects in the list as parameters. Because we have a list of products, the ``filterObject`` in our case is of type Product. For this reason, we can refer to the product’s owner attribute. On the right side of the equals operator in the expression; we use the authentication object. For the @PreFilter and @PostFilter annotations, we can directly refer to the authentication object, which is available in the SecurityContext after authentication
+
+The service method returns the list exactly as the method receives it. This way, we can test and validate that the framework filtered the list as we expected by checking the list returned in the HTTP response body.
+
+```java
+@Service
+public class ProductService {
+
+    @PreFilter("filterObject.owner == authentication.name")
+    public List<Product> sellProducts(List<Product> products) {
+        // sell products and return the sold products list
+        return products;
+    }
+}
+```
+
+```java
+@RestController
+public class ProductController {
+    
+    private final ProductService service;
+
+    public ProductController(ProductService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/sell")
+    public List<Product> sellProduct() {
+        List<Product> products = new ArrayList<>();
+        products.add(new Product("beer", "john"));
+        products.add(new Product("candy", "john"));
+        products.add(new Product("chocolate", "don"));
+        return service.sellProducts(products);
+    }
+}
+```
+
+```shell
+curl -u john:12345 http://localhost:8080/sell
+[{"name":"beer","owner":"john"},{"name":"candy","owner":"john"}]
+```
+
+```shell
+curl -u don:12345 http://localhost:8080/sell
+[{"name":"chocolate","owner":"don"}]
+```
+
+What you need to be careful about is the fact that the aspect changes the given collection. In our case, don’t expect it to return a new List instance. In fact, it’s the same instance from which the aspect removed the elements that didn’t match the given criteria. This is important to take into consideration. **You must always make sure that the collection instance you provide is not immutable.**
+
+Providing an immutable collection to be processed results in an exception at execution time because the filtering aspect won’t be able to change the collection’s contents
+
+```java
+@RestController
+public class ProductController {
+
+    private final ProductService service;
+
+    public ProductController(ProductService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/sell")
+    public List<Product> sellProduct() {
+        List<Product> products = List.of(
+                new Product("beer", "john"),
+                new Product("candy", "john"),
+                new Product("chocolate", "don"));
+        return service.sellProducts(products);
+    }
+}
+```
+
+```shell
+curl -u don:12345 http://localhost:8080/sell
+```
+
+```json
+{
+    "status":500,
+    "error":"Internal Server Error",
+    "message":"No message available",
+    "path":"/sell"
+    }
+```
+
+## Applying postfiltering for method authorization
+
+Say we have the following scenario. An application that has a frontend implemented in Angular and a Spring-based backend manages some products. Users own products, and they can obtain details only for their products. To get the details of their products, the frontend calls endpoints exposed by the backend
+
+https://confluence.danskenet.net/display/FINANDEV/QA+Practice
+
+Similar to prefiltering, postfiltering also relies on an aspect. This aspect allows a call to a method, but once the method returns, the aspect takes the returned value and makes sure that it follows the rules you define. **The post-filter aspect filters from the returned collection or array those elements that don’t follow your rules.**
+
+Make sure you apply the @PostFilter annotation only for methods that have as a return type an array or a collection.
+
+```java
+@Service
+public class ProductService {
+    
+    @PostFilter("filterObject.owner == authentication.name")
+    public List<Product> findProducts() {
+        List<Product> products = new ArrayList<>();
+        products.add(new Product("beer", "john"));
+        products.add(new Product("candy", "john"));
+        products.add(new Product("chocolate", "don"));
+        return products;
+    }
+}
+```
+
+```java
+@RestController
+public class ProductController {
+
+    private final ProductService service;
+
+    public ProductController(ProductService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/find")
+    public List<Product> sellProduct() {
+        return service.findProducts();
+    }
+}
+```
+
+```shell
+curl -u john:12345 http://localhost:8080/find
+[{"name":"beer","owner":"john"},{"name":"candy","owner":"john"}]
+```
+
+```shell
+curl -u don:12345 http://localhost:8080/find
+[{"name":"chocolate","owner":"don"}]
+```
+
+## Using filtering in Spring Data repositories
+
+Using the @PreFilter annotation in the case of repositories is the same as applying this annotation at any other layer of your application. But when it comes to postfiltering, the situation changes. **Using @PostFilter on repository methods technically works fine, but it’s rarely a good choice from a performance point of view.**
+
+Let’s work on an application where we first use the @PostFilter annotation on the Spring Data repository method, and then we change to the second approach where we write the condition directly in the query. This way, we have the opportunity to experiment with both approaches and compare them.
+
+```java
+public interface ProductRepository extends JpaRepository<Product, Integer> { 
+    
+    @PostFilter("filterObject.owner == authentication.name") 
+    List<Product> findProductByNameContains(String text); 
+}
+```
+
+We discussed earlier in this section that using @PostFilter in the repository isn’t the best choice. We should instead make sure we don’t select from the database what we don’t need.
+
+We can provide SpEL expressions directly in the queries used by the repository classes. To achieve this, we follow two simple steps: 
+* We add an object of type SecurityEvaluationContextExtension to the Spring context. We can do this using a simple @Bean method in the configuration class. 
+* We adjust the queries in our repository classes with the proper clauses for selection.
+
+```java
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ProjectConfig {
+    @Bean
+    public SecurityEvaluationContextExtension securityEvaluationContextExtension() {
+        return new SecurityEvaluationContextExtension();
+    }
+    // Omitted declaration of the UserDetailsService and PasswordEncoder
+}
+```
+
+```java
+public interface ProductRepository extends JpaRepository<Product, Integer> {
+    
+    @Query("SELECT p FROM Product p WHERE p.name LIKE %:text% AND p.owner=?#{authentication.name}")
+    List<Product> findProductByNameContains(String text);
+}
+```
+
+# Chapter 18. Hands-on: An OAuth 2 application
+
 
 
 
