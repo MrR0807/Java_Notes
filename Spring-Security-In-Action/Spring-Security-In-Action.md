@@ -7840,6 +7840,64 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
 # Chapter 18. Hands-on: An OAuth 2 application
 
+## The application scenario
+
+Say we need to build a backend for a fitness application. Besides other great features, the app also stores a history of users’ workouts. In this chapter, we’ll focus on the part of the application that stores the history of workouts. We presume our backend needs to implement three use cases. For each action defined by the use cases, we have specific security restrictions. The three use cases are these:
+* **Add a new workout record for a user**. In a database table named workout, we add a new record that stores user, the start and the end times of the workout, and the difficulty of the workout, using an integer on a scale from 1 to 5. The authorization restriction for this use case asserts that authenticated users can only add workout records for themselves. The client calls an endpoint exposed by the resource server to add a new workout record. 
+* **Find all the workouts for a user**. The client needs to display a list of workouts in the user’s history. The client calls an endpoint to retrieve that list. The authorization restriction in this case states that a user can only get their own workout records. 
+* **Delete a workout**. Any user having the admin role can delete a workout for any other user. The client calls an endpoint to delete a workout record. The authorization restriction says that only an admin can delete records.
+
+We need to implement three use cases for which we have two acting roles. The two roles are:
+* Standard user - **fitnessuser**.
+* Admin - **fitnessadmin**.
+
+A fitnessuser can add a workout for themselves and can see their own workout history. A fitnessadmin can only delete workout records for any user. Of course, an admin can also be a user, and in this case, they can also add workouts for themselves or see their own recorded workouts.
+
+![chapter-18-figure-18-2.PNG](pictures/chapter-18-figure-18-2.PNG)
+
+## Configuring Keycloak as an authorization server
+
+Keycloak is an excellent open source tool designed for identity and access management. You can download Keycloak from keycloak.org. Keycloak offers the ability to manage simple users locally and also provides advanced features such as user federation. You could connect it to your LDAP and Active Directory services or to different identity providers. For example, you could use Keycloak as a high-level authentication layer by connecting it to one of the common OAuth 2 providers we discussed in chapter 12.
+
+In chapter 9 of *Enterprise Java Microservices by Ken Finnigan (Manning, 2018)*, you can also find a good discussion on securing microservices where the author uses Keycloak for user management.
+
+To install Keycloak, you only need to download an archive containing the latest version from the official website https://www.keycloak.org/downloads. Then, unzip the archive in a folder, and you can start Keycloak using the standalone executable file, which you find in the bin folder. If you’re using Linux, you need to run standalone. sh. For Windows, you run standalone.bat.
+
+Once you start the Keycloak server, access it in a browser at http://localhost:8080. In Keycloak’s first page, you configure an admin account by entering a username and a password (figure 18.4).
+
+![chapter-18-figure-18-4.PNG](pictures/chapter-18-figure-18-4.PNG)
+
+In the Administration Console, you can start configuring the authorization server. We need to know which OAuth 2–related endpoints Keycloak exposes. You find those endpoints in the General section of the Realm Settings page, which is the first page you land on after logging in to the Administration Console (figure 18.6).
+
+![chapter-18-figure-18-6.PNG](pictures/chapter-18-figure-18-6.PNG)
+
+In the next code snippet, I extracted a part of the OAuth 2 configuration that you find by clicking the OpenID Endpoint Configuration link. This configuration provides the token endpoint, the authorization endpoint, and the list of supported grant types. These details should be familiar to you, as we discussed them in chapters 12 through 15.
+
+```json
+{
+"issuer": "http://localhost:8080/auth/realms/master",
+"authorization_endpoint": "http://localhost:8080/auth/realms/master/protocol/openid-connect/auth",
+"token_endpoint": "http://localhost:8080/auth/realms/master/protocol/openid-connect/token",
+"jwks_uri": "http://localhost:8080/auth/realms/master/protocol/openid-connect/certs",
+"grant_types_supported":[
+    "authorization_code",
+    "implicit",
+    "refresh_token",
+    "password",
+    "client_credentials"
+],
+...
+}
+```
+
+Now that we’ve installed Keycloak, set up the admin credentials, and made a few adjustments, we can configure the authorization server. Here’s a list of the configuration steps. 
+* Register a client for the system. An OAuth 2 system needs at least one client recognized by the authorization server. The client makes authentication requests for users. In section 18.2.1, you’ll learn how to add a new client registration. 
+* Define a client scope. The client scope identifies the purpose of the client in the system. We use the client scope definition to customize the access tokens issued by the authorization server. In section 18.2.2, you’ll learn how to add a client scope, and in section 18.2.4, we’ll configure it to customize the access token. 
+* Add users for our application. To call the endpoints on the resource server, we need users for our application. You’ll learn how to add users managed by Keycloak in section 18.2.3. 
+* Define user roles and custom access tokens. After adding users, you can issue access tokens for them. You’ll notice that the access tokens don’t have all the details we need to accomplish our scenario. You’ll learn how to configure roles for the users and customize the access tokens to present the details expected by the resource server we’ll implement using Spring Security in section 18.2.4.
+
+### Registering a client for our system
+
 
 
 
