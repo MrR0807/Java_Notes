@@ -3857,7 +3857,7 @@ In this section, we discuss how CORS applies to web applications. If you are the
 Any situation in which an application makes calls between two different domains is prohibited. But, of course, you can find cases in which you need to make such calls. In these situations, CORS allows you to specify from which domain your application allows requests and what details can be shared. The CORS mechanism works based on HTTP headers (figure 10.14). The most important are 
 * Access-Control-Allow-Origin — Specifies the foreign domains (origins)that can access resources on your domain. 
 * Access-Control-Allow-Methods — Lets us refer only to some HTTP methodsin situations in which we want to allow access to a different domain, but only to specific HTTP methods. You use this if you’re going to enable example. com to call some endpoint, but only with HTTP GET, for example. 
-* Access-Control-Allow-Headers — Adds limitations to which headers youcan use in a specific request.
+* Access-Control-Allow-Headers — Adds limitations to which headers you can use in a specific request.
 
 ![chapter-10-figure-10-14.PNG](pictures/chapter-10-figure-10-14.PNG)
 
