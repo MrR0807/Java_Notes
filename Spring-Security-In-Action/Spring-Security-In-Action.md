@@ -7898,6 +7898,263 @@ Now that we’ve installed Keycloak, set up the admin credentials, and made a fe
 
 ### Registering a client for our system
 
+In this section, we discuss registering a client when using Keycloak as an authorization server. Like in any other OAuth 2 system, we need to register the client applications at the authorization server level. To add a new client, we use Keycloak Administration Console. As presented in figure 18.9, you find a list of clients by navigating to the Clients tab on the left-hand menu. From here, you can also add a new client registration.
+
+![chapter-18-figure-18-9.PNG](pictures/chapter-18-figure-18-9.PNG)
+
+![chapter-18-figure-18-10.PNG](pictures/chapter-18-figure-18-10.PNG)
+
+### Specifying client scopes
+
+In this section, we define a scope for the client we registered in section 18.2.1. The client scope identifies the purpose of the client.
+
+![chapter-18-figure-18-11.PNG](pictures/chapter-18-figure-18-11.PNG)
+
+For the app that we build in this hands-on example, I added a new client scope named fitnessapp. When adding a new scope, also make sure that the protocol for which you set the client scope is **openid-connect**.
+
+Once you create the new role, you assign it to your client as figure 18.13 presents. You get to this screen by navigating to the Clients menu and then selecting the Client Scopes tab.
+
+![chapter-18-figure-18-12.PNG](pictures/chapter-18-figure-18-12.PNG)
+
+![chapter-18-figure-18-13.PNG](pictures/chapter-18-figure-18-13.PNG)
+
+### Adding users and obtaining access tokens
+
+In this section, we create and configure users for our application. Previously, we configured the client and its scope in sections 18.2.1 and 18.2.2. But besides the client app, we need users to authenticate and access the services offered by our resource server. We configure three users that we use to test our application (figure 18.14). I named the users Mary, Bill, and Rachel.
+
+![chapter-18-figure-18-14.PNG](pictures/chapter-18-figure-18-14.PNG)
+
+When adding a new user in the Add User form, give it a unique username and check the box stating the email was verified (figure 18.15). Also, make sure the user has no Required User Actions. When a user has Required User Actions pending, you cannot use it for authentication; thus, you cannot obtain an access token for that user.
+
+Once you create the users, you should find all of them in the Users list. Figure 18.16 presents the Users list.
+
+![chapter-18-figure-18-15.PNG](pictures/chapter-18-figure-18-15.PNG)
+
+![chapter-18-figure-18-16.PNG](pictures/chapter-18-figure-18-16.PNG)
+
+![chapter-18-figure-18-17.PNG](pictures/chapter-18-figure-18-17.PNG)
+
+Of course, users also need passwords to log in. Usually, they’d configure their own passwords, and the administrator shouldn’t know their credentials. In our case, we have no choice but to configure passwords ourselves for the three users (figure 18.17). To keep our example simple, I configured the password “12345” for all users. I also made sure that the password isn’t temporary by unchecking the Temporary check box. If you make the password temporary, Keycloak automatically adds a required action for the user to change the password at their first login. Because of this required action, we wouldn’t be able to authenticate with the user.
+
+Having the users configured, you can now obtain an access token from your authorization server implemented with Keycloak.
+
+```shell
+curl -XPOST "http://localhost:8080/auth/realms/master/protocol/openid-connect/token" \
+-H "Content-Type: application/x-www-form-urlencoded" \
+--data-urlencode "grant_type=password" \
+--data-urlencode "username=rachel" \
+--data-urlencode "password=12345" \
+--data-urlencode "scope=fitnessapp" \
+--data-urlencode "client_id=fitnessapp"
+```
+
+![chapter-18-figure-18-18.PNG](pictures/chapter-18-figure-18-18.PNG)
+
+You receive the access token in the body of the HTTP response.
+
+```json
+{
+    "access_token":"eyJhbGciOiJIUzI…",
+    "expires_in":6000,
+    "refresh_expires_in":1800,
+    "refresh_token":"eyJhbGciOiJIUz… ",
+    "token_type":"bearer",
+    "not-before-policy":0,
+    "session_state":"1f4ddae7-7fe0-407e-8314-a8e7fcd34d1b",
+    "scope":"fitnessapp"
+}
+```
+
+The next code snippet presents the decoded JSON body of the JWT access token. Taking a glance at the code snippet, you can observe that the token doesn’t contain all the details we need to make our application work. **The roles and username are missing**.
+
+```json
+{
+    "exp": 1585392296,
+    "iat": 1585386296,
+    "jti": "01117f5c-360c-40fa-936b-763d446c7873",
+    "iss": "http://localhost:8080/auth/realms/master",
+    "sub": "c42b534f-7f08-4505-8958-59ea65fb3b47",
+    "typ": "Bearer",
+    "azp": "fitnessapp",
+    "session_state": "fce70fc0-e93c-42aa-8ebc-1aac9a0dba31",
+    "acr": "1",
+    "scope": "fitnessapp"
+}
+```
+
+### Defining the user roles
+
+Adding roles to a user is simple. The Roles tab in the left-hand menu allows you to find a list of all roles and add new roles, as presented in figure 18.19. I created two new roles, fitnessuser and fitnessadmin.
+
+![chapter-18-figure-18-19.PNG](pictures/chapter-18-figure-18-19.PNG)
+
+We now assign these roles to our users. I assigned the role fitnessadmin to Mary, our administrator, while Bill and Rachel, who are regular users, take the role fitnessuser.
+
+![chapter-18-figure-18-20.PNG](pictures/chapter-18-figure-18-20.PNG)
+
+Unfortunately, by default, these new details won’t appear in the access token. We have to customize the token according to the requirements of the application. We customize the token by configuring the client scope we created and assigned to the token in section 18.2.2. We need to add three more details to our tokens: 
+* Roles — Used to apply a part of the authorization rules at the endpoint layer according to the scenario 
+* Username — Filters the data when we apply the authorization rules 
+* Audience claim (aud) — Used by the resource server to acknowledge the requests, as you’ll learn in section 18.3.
+
+The next code snippet presents the fields that are added to the token once we finish setup.
+
+```json
+{
+// ...
+  "authorities": ["fitnessuser"],
+  "aud": "fitnessapp",
+  "user_name": "rachel",
+// ...
+}
+```
+
+![chapter-18-figure-18-21.PNG](pictures/chapter-18-figure-18-21.PNG)
+
+Figure 18.22 shows how to create a mapper to add the roles to the token. We add the roles with the *authorities* key in the token because this is the way the resource server expects it.
+
+![chapter-18-figure-18-22.PNG](pictures/chapter-18-figure-18-22.PNG)
+
+With an approach similar to the one presented in figure 18.22, we can also define a mapper to add the username to the token.
+
+![chapter-18-figure-18-23.PNG](pictures/chapter-18-figure-18-23.PNG)
+
+Finally, we need to specify the audience. The audience claim (aud) defines the intended recipient of the access token.
+
+![chapter-18-figure-18-24.PNG](pictures/chapter-18-figure-18-24.PNG)
+
+If you obtain an access token again and decode it, you should find the authorities, user_name, and aud claims in the token’s body. Now we can use this JWT to authenticate and call endpoints exposed by the resource server.
+
+![chapter-18-decoded-jwt.PNG](pictures/chapter-18-decoded-jwt.PNG)
+
+## Implementing the resource server
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.5.0-RC1</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>spring-security</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>spring-security</name>
+    <description>Demo project for Spring Boot</description>
+    <properties>
+        <java.version>16</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-oauth2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-data</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>16</source>
+                    <target>16</target>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+schema.sql:
+```sql
+CREATE SCHEMA spring;
+
+CREATE TABLE spring.workout (
+    id          BIGINT      NOT NULL AUTO_INCREMENT,
+    user        VARCHAR(45) NULL,
+    start       DATETIME2   NULL,
+    end         DATETIME2   NULL,
+    difficulty  INT         NULL,
+    PRIMARY KEY (id)
+);
+```
+
+data.sql:
+```sql
+INSERT INTO spring.workout (id, user, start, end, difficulty) VALUES
+(1, 'bill',   '2020-06-10 15:05:05', '2020-06-10 16:10:07', '3'),
+(2, 'rachel', '2020-06-10 15:05:10', '2020-06-10 16:10:20', '3'),
+(3, 'bill',   '2020-06-12 12:00:10', '2020-06-12 13:01:10', '4'),
+(4, 'rachel', '2020-06-12 12:00:05', '2020-06-12 12:00:11', '4');
+```
+
+application.yml
+```yaml
+spring:
+  main:
+    banner-mode: off
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:resource-server;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    platform: h2
+  jpa:
+    database: h2
+    show-sql: true #Use ``true`` only when you need to debug. Otherwise performance will degraded due to stoud'ing all SQL opperations
+    generate-ddl: false #Never let Hibernate/JPA generate your database schemas. Otherwise, you might find surprises if you've annotated incorrectly. See unidirectional @OneToMany.
+    hibernate:
+      ddl-auto: none #Do not autogenerate SQL tables. Sometimes it might lead to suboptimal structures/types. Control you database!
+    properties:
+      hibernate:
+        #Turn it on only when you need for analysing queries. Do not leave it on!
+        generate_statistics: false
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+    open-in-view: false #Do not allow Spring to automagically fetch data from database. See https://vladmihalcea.com/the-open-session-in-view-anti-pattern/
+  h2:
+    console:
+      enabled: true
+      path: /h2
+  application:
+    name: spring-security
+
+server:
+  port: 9090
+```
+
 
 
 
