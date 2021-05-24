@@ -8156,7 +8156,401 @@ server:
   port: 9090
 ```
 
+```java
 
+@Entity
+public class Workout {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private String user;
+    private LocalDateTime start;
+    private LocalDateTime end;
+    private int difficulty;
+    // Omitted getter and setters
+}
+```
+
+```java
+public interface WorkoutRepo extends JpaRepository<WorkoutEntity, Long> {
+
+    @Query("SELECT w FROM Workout w WHERE w.user = ?#{authentication.name}")
+    List<WorkoutEntity> findAllByUser();
+}
+```
+
+The controller directly calls the methods of this class. According to our scenario, we need to implement three methods:
+
+* ``saveWorkout()`` — Adds a new workout record in the database
+* ``findWorkouts()`` — Retrieves the workout records for a user
+* ``deleteWorkout()`` — Deletes a workout record for a given ID
+
+```java
+
+@Service
+public class WorkoutService {
+
+    private final WorkoutRepo repo;
+
+    public WorkoutService(WorkoutRepo repo) {
+        this.repo = repo;
+    }
+
+    @PreAuthorize("#workout.user == authentication.name")
+    public void saveWorkout(WorkoutEntity workout) {
+        this.repo.save(workout);
+    }
+
+    public List<WorkoutEntity> findWorkouts() {
+        return this.repo.findAllByUser();
+    }
+
+    public void deleteWorkout(Long id) {
+        this.repo.deleteById(id);
+    }
+}
+```
+
+```java
+
+@RestController
+@RequestMapping("workout")
+public class WorkoutController {
+
+    private final WorkoutService service;
+
+    public WorkoutController(WorkoutService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/")
+    public void add(@RequestBody WorkoutEntity workout) {
+        this.service.saveWorkout(workout);
+    }
+
+    @GetMapping("/")
+    public List<WorkoutEntity> findAll() {
+        return this.service.findWorkouts();
+    }
+
+    @DeleteMapping("{id}")
+    public void delete(@PathVariable Long id) {
+        this.service.deleteWorkout(id);
+    }
+}
+```
+
+The last thing we need to define to have a complete application is the configuration class. We need to choose the way
+the resource server validates tokens issued by the authorization server. We discussed three approaches in chapters 14
+and 15:
+
+* With a direct call to the authorization server
+* Using a blackboarding approach
+* With cryptographic signatures
+
+Because we already know the authorization server issues JWTs, the most comfortable choice is to rely on the
+cryptographic signature of the token. As you know from chapter 15, we need to provide the resource server the key to
+validate the signature. Fortunately, Keycloak offers an endpoint where public keys are exposed:
+
+```shell
+http://localhost:8080/auth/realms/master/protocol/openid-connect/certs
+```
+
+We add this URI, together with the value of the aud claim we set on the token in the application.properties file:
+
+```properties
+claim.aud=fitnessapp
+jwkSetUri=http://localhost:8080/auth/realms/master/protocol/openid-connect/certs
+```
+
+Now we can write the configuration file.
+
+```java
+
+@Configuration
+@EnableResourceServer
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+
+    private final String claimAud;
+    private final String urlJwk;
+
+    public ResourceServerConfig(@Value("${claim.aud}") String claimAud, @Value("${jwkSetUri}") String urlJwk) {
+        this.claimAud = claimAud;
+        this.urlJwk = urlJwk;
+    }
+
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) {
+        resources.tokenStore(tokenStore());
+        resources.resourceId(this.claimAud);
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwkTokenStore(this.urlJwk);
+    }
+}
+```
+
+To create an instance of TokenStore, we use an implementation called JwkTokenStore. This implementation uses an endpoint
+where we can expose multiple keys. To validate a token, JwkTokenStore looks for a specific key whose ID needs to exist
+in the header of the provided JWT token.
+
+If you call the keys URI, you see something similar to the next code snippet. In the HTTP response body, you have
+multiple keys. We call this collection of keys the key set. Each key has multiple attributes, including the value of the
+key and a unique ID for each key. The attribute kid represents the key ID in the JSON response.
+
+```json
+{
+  "keys":[
+    {
+      "kid":"LHOsOEQJbnNbUn8PmZXA9TUoP56hYOtc3VOk0kUvj5U",
+      "kty":"RSA",
+      "alg":"RS256",
+      "use":"sig",
+      …
+    }
+    …
+  ]
+}
+```
+
+The JWT needs to specify which key ID is used to sign the token. The resource server needs to find the key ID in the JWT
+header. If you generate a token with our resource server as we did in section 18.2 and decode the header of the token,
+you can see the token contains the key ID as expected. In the next code snippet, you find the decoded header of a token
+generated with our Keycloak authorization server:
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "LHOsOEQJbnNbUn8PmZXA9TUoP56hYOtc3VOk0kUvj5U"
+}
+```
+
+To complete our configuration class, let’s add the authorization rules for the endpoint level and the SecurityEvaluationContextExtension. Our application needs this extension to evaluate the SpEL expression we used at the repository layer.
+
+```java
+@Configuration
+@EnableResourceServer
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+
+    private final String claimAud;
+    private final String urlJwk;
+
+    public ResourceServerConfig(@Value("${claim.aud}") String claimAud, @Value("${jwkSetUri}") String urlJwk) {
+        this.claimAud = claimAud;
+        this.urlJwk = urlJwk;
+    }
+
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) {
+        resources.tokenStore(tokenStore());
+        resources.resourceId(this.claimAud);
+    }
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwkTokenStore(this.urlJwk);
+    }
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .mvcMatchers(HttpMethod.DELETE, "/**").hasAuthority("fitnessadmin")
+                .anyRequest().authenticated();
+    }
+    @Bean
+    public SecurityEvaluationContextExtension securityEvaluationContextExtension() {
+        return new SecurityEvaluationContextExtension();
+    }
+}
+```
+
+## Testing the application
+
+The scenarios we need to test are the following: 
+* A client can add a workout only for the authenticated user 
+* A client can only retrieve their own workout records 
+* Only admin users can delete a workout 
+  
+In my case, the Keycloak authorization server runs on port 8080, and the resource server I configured in the application.properties file runs on port 9090.
+
+### Proving an authenticated user can only add a record for themself
+
+According to the scenario, a user can only add a record for themself. In other words, if I authenticate as Bill, I shouldn’t be able to add a workout record for Rachel. To prove this is the app’s behavior, we call the authorization server and issue a token for one of the users, say, Bill. Then we try to add both a workout record for Bill and a workout record for Rachel. We prove that Bill can add a record for himself, but the app doesn’t allow him to add a record for Rachel. To issue a token, we call the authorization server as presented in the next code snippet:
+
+```shell
+curl -XPOST "http://localhost:8080/auth/realms/master/protocol/openid-connect/token" \
+-H 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=password' \
+--data-urlencode 'username=bill' \
+--data-urlencode 'password=12345' \
+--data-urlencode 'scope=fitnessapp' \
+--data-urlencode 'client_id=fitnessapp'
+```
+
+Among other details, you also get an access token for Bill. I truncated the value of the token in the following code snippet to make it shorter. The access token contains all the details needed for authorization, like the username and the authorities we added previously by configuring Keycloak in section 18.1.
+
+```json
+{
+    "access_token": "eyJhbGciOiJSUzI1NiIsInR…",
+    "expires_in": 6000,
+    "refresh_expires_in": 1800,
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI…",
+    "token_type": "bearer",
+    "not-before-policy": 0,
+    "session_state": "0630a3e4-c4fb-499c-946b-294176de57c5",
+    "scope": "fitnessapp"
+}
+```
+
+Having the access token, we can call the endpoint to add a new workout record. We first try to add a workout record for Bill. We expect that adding a workout record for Bill is valid because the access token we have was generated for Bill.
+
+The next code snippet presents the cURL command you run to add a new workout for Bill. Running this command, you get an HTTP response status of 200 OK, and a new workout record is added to the database. Of course, as the value of the Authorization header, you should add your previously generated access token. I truncated the value of my token in the next code snippet to make the command shorter and easier to read:
+
+```shell
+curl -v -XPOST 'localhost:9090/workout/' \
+-H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOi...' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "user" : "bill",
+    "start" : "2020-06-10T15:05:05",
+    "end" : "2020-06-10T16:05:05",
+    "difficulty" : 2
+}'
+```
+
+If you call the endpoint and try to add a record for Rachel, you get back an HTTP response status of 403 Forbidden:
+
+```shell
+curl -v -XPOST 'localhost:9090/workout/' \
+-H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOi...' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "user" : "rachel",
+    "start" : "2020-06-10T15:05:05",
+    "end" : "2020-06-10T16:05:05",
+    "difficulty" : 2
+}'
+```
+
+The response body is
+```json
+{
+    "error": "access_denied",
+    "error_description": "Access is denied"
+}
+```
+
+### Proving that a user can only retrieve their own records
+
+To demonstrate this behavior, we generate access tokens for both Bill and Rachel, and we call the endpoint to retrieve their workout history. Neither one of them should see records for the other. To generate an access token for Bill, use this curl command:
+
+```shell
+curl -XPOST 'http://localhost:8080/auth/realms/master/protocol/openid-connect/token' \
+-H 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=password' \
+--data-urlencode 'username=bill' \
+--data-urlencode 'password=12345' \
+--data-urlencode 'scope=fitnessapp' \
+--data-urlencode 'client_id=fitnessapp'
+```
+
+Calling the endpoint to retrieve the workout history with the access token generated for Bill, the application only returns Bill’s records:
+
+```shell
+curl 'localhost:9090/workout/' -H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSl...'
+```
+
+The response body is:
+
+```json
+[
+    {
+        "id": 1,
+        "user": "bill",
+        "start": "2020-06-10T15:05:05",
+        "end": "2020-06-10T16:10:07",
+        "difficulty": 3
+    },
+    ...
+]
+```
+
+Next, generate a token for Rachel and call the same endpoint. To generate an access token for Rachel, run this curl command:
+
+```shell
+curl -XPOST 'http://localhost:8080/auth/realms/master/protocol/openid-connect/token' \
+-H 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=password' \
+--data-urlencode 'username=rachel' \
+--data-urlencode 'password=12345' \
+--data-urlencode 'scope=fitnessapp' \
+--data-urlencode 'client_id=fitnessapp'
+```
+
+Using the access token for Rachel to get the workout history, the application only returns records owned by Rachel:
+
+```shell
+curl 'localhost:9090/workout/' -H 'Authorization: Bearer eyJhaXciOiJSUzI1NiIsInR5cCIgOiAiSl...'
+```
+
+```json
+[
+    {
+        "id": 2,
+        "user": "rachel",
+        "start": "2020-06-10T15:05:10",
+        "end": "2020-06-10T16:10:20",
+        "difficulty": 3
+    },
+    ...
+]
+```
+
+### Proving that only admins can delete records
+
+The third and last test scenario in which we want to prove the application behaves as desired is that only admin users can delete workout records. To demonstrate this behavior, we generate an access token for our admin user Mary and an access token for one of the other users who are not admins, let’s say, Rachel.
+
+```shell
+curl -XPOST 'http://localhost:8080/auth/realms/master/protocol/openid-connect/token' \
+-H 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=password' \
+--data-urlencode 'username=rachel' \
+--data-urlencode 'password=12345' \
+--data-urlencode 'scope=fitnessapp' \
+--data-urlencode 'client_id=fitnessapp'
+```
+
+```shell
+curl -XDELETE 'localhost:9090/workout/2' --header 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsIn...'
+```
+
+If you use Rachel’s token to delete an existing workout, you get back a 403 Forbidden HTTP response status.
+
+```shell
+curl -XPOST 'http://localhost:8080/auth/realms/master/protocol/openid-connect/token' \
+-H 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=password' \
+--data-urlencode 'username=mary' \
+--data-urlencode 'password=12345' \
+--data-urlencode 'scope=fitnessapp' \
+--data-urlencode 'client_id=fitnessapp'
+```
+
+Calling the endpoint to delete a workout record with the access token for Mary returns an HTTP status 200 OK.
+
+```shell
+curl -XDELETE 'localhost:9090/workout/2' --header 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsIn...'
+```
+
+# Chapter 19. Spring Security for reactive apps
+
+Not interested.
+
+# Chapter 20. Spring Security testing
 
 
 
