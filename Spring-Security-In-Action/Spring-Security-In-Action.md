@@ -8552,6 +8552,261 @@ Not interested.
 
 # Chapter 20. Spring Security testing
 
+## Using mock users for tests
+
+In this section, we discuss using mock users to test authorization configuration. This approach is the most straightforward and frequently used method for testing authorization configurations. When using a mock user, the test completely skips the authentication process (figure 20.3). The mock user is valid only for the test execution, and for this user, you can configure any characteristics you need to validate a specific scenario. You can, for example, give specific roles to the user (ADMIN, MANAGER, and so on) or use different authorities to validate that the app behaves as expected in these conditions.
+
+![chapter-20-figure-20-3.PNG](pictures/chapter-20-figure-20-3.PNG)
+
+To prove how to write such a test, let’s go back to the simplest example. This project exposes an endpoint for the path /hello with only the default Spring Security configuration. What do we expect to happen? 
+* When calling the endpoint without a user, the HTTP response status should be 401 Unauthorized. 
+* When calling the endpoint having an authenticated user, the HTTP response status should be 200 OK, and the response body should be Hello!.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.2.5.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>spring-security</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>spring-security</name>
+    <description>Demo project for Spring Boot</description>
+    <properties>
+        <java.version>11</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+A convenient way to implement a test for the behavior of an endpoint is by using Spring’s MockMvc. In a Spring Boot application, you can autoconfigure the MockMvc utility for testing endpoint calls by adding an annotation over the class.
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+public class MainTests {
+
+    @Autowired
+    private MockMvc mvc;
+}
+```
+
+Now that we have a tool we can use to test endpoint behavior, let’s get started with the first scenario. When calling the /hello endpoint without an authenticated user, the HTTP response status should be 401 Unauthorized.
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+public class MainTests {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @Test
+    void helloUnauthenticated() throws Exception {
+        mvc.perform(MockMvcRequestBuilders.get("/hello"))
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
+    }
+}
+```
+
+To test the second scenario, we need a mock user. To validate the behavior of calling the /hello endpoint with an authenticated user, we use the @WithMockUser annotation. By adding this annotation above the test method, we instruct Spring to set up a SecurityContext that contains a UserDetails implementation instance. It’s basically skipping authentication. Now, calling the endpoint behaves like the user defined with the @WithMockUser annotation successfully authenticated.
+
+With this simple example, we don’t care about the details of the mock user like its username, roles, or authorities. So we add the @WithMockUser annotation, which provides some defaults for the mock user’s attributes. Later in this chapter, you’ll learn to configure the user’s attributes for test scenarios in which their values are important.
+
+```java
+    @Test
+    @WithMockUser
+    void helloAuthenticated() throws Exception {
+        mvc.perform(MockMvcRequestBuilders.get("/hello"))
+                .andExpect(MockMvcResultMatchers.content().string("Hello"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+    }
+```
+
+But in some situations, we need to use a specific name or give the user specific roles or authorities to implement the test.
+
+```java
+    @Test
+    @WithMockUser(username = "mary")
+    void helloAuthenticated() throws Exception {
+        mvc.perform(MockMvcRequestBuilders.get("/hello"))
+                .andExpect(MockMvcResultMatchers.content().string("Hello, mary"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+    }
+```
+
+The framework interprets annotations like ``@WithMockUser`` before it executes the test method. This way, the test method creates the test request and executes it in an already configured security environment. When using a ``RequestPostProcessor``, the framework first calls the test method and builds the test request. The framework then applies the ``RequestPostProcessor``, which alters the request or the environment in which it’s executed before sending it. In this case, the framework configures the test dependencies, like the mock users and the SecurityContext, after building the test request.
+
+Like setting up the username, you can set the authorities and roles for testing authorization rules. An alternative approach to creating a mock user is using a ``RequestPostProcessor``. We can provide a ``RequestPostProcessor`` the ``with()`` method.
+
+``SecurityMockMvcRequestPostProcessors`` provided by Spring Security offers us lots of implementations for ``RequestPostProcessor``, which helps us cover various test scenarios.
+
+The method ``user()`` of the class ``SecurityMockMvcRequestPostProcessors`` returns a ``RequestPostProcessor`` we can use as an alternative to the ``@WithMockUser`` annotation.
+
+```java
+    @Test
+    void helloAuthenticated() throws Exception {
+        mvc.perform(MockMvcRequestBuilders.get("/hello").with(SecurityMockMvcRequestPostProcessors.user("mary")))
+                .andExpect(MockMvcResultMatchers.content().string("Hello, mary"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+    }
+```
+
+## Testing with users from a UserDetailsService
+
+In this section, we discuss obtaining the user details for tests from a UserDetailsService. This approach is an alternative to creating a mock user. The difference is that, instead of creating a fake user, this time we need to get the user from a given UserDetailsService. You use this approach if you want to also test integration with the data source from where your app loads the user details (figure 20.6).
+
+![chapter-20-figure-20-6.PNG](pictures/chapter-20-figure-20-6.PNG)
+
+Note that, with this approach, we need to have a UserDetailsService bean in the context. To specify the user we authenticate from this UserDetailsService, we annotate the test method with @WithUserDetails. With the @WithUserDetails annotation, to find the user, you specify the username. The following listing presents the implementation of the test for the /hello endpoint using the @WithUserDetails annotation to define the authenticated user.
+
+```java
+@Configuration
+public class ProjectConfig {
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        var john = User.withUsername("john")
+                .password("12345")
+                .authorities("read")
+                .build();
+        return new InMemoryUserDetailsManager(john);
+    }
+}
+```
+
+```java
+    @Test
+    @WithUserDetails("john")
+    public void helloAuthenticated() throws Exception {
+        mvc.perform(get("/hello"))
+                .andExpect(status().isOk());
+    }
+```
+
+## Using custom Authentication objects for testing
+
+Generally, when using a mock user for a test, you don’t care which class the framework uses to create the Authentication instances in the SecurityContext. But say you have some logic in the controller that depends on the type of the object. Can you somehow instruct the framework to create the Authentication object for the test using a specific type? The answer is yes, and this is what we discuss in this section.
+
+The logic behind this approach is simple. We define a factory class responsible for building the SecurityContext. This way, we have full control over how the SecurityContext for the test is built, including what’s inside it (figure 20.7). For example, we can choose to have a custom Authentication object.
+
+![chapter-20-figure-20-7.PNG](pictures/chapter-20-figure-20-7.PNG)
+
+Let’s open project and write a test in which we configure the mock SecurityContext and instruct the framework on how to create the Authentication object. An interesting aspect to remember about this example is that we use it to prove the implementation of a custom AuthenticationProvider. The custom AuthenticationProvider we implement in our case only authenticates a user named John.
+
+However, as in the other two previous approaches we discussed the current approach skips authentication. For this reason, you see at the end of the example that we can actually give any name to our mock user. We follow three steps to achieve this behavior (figure 20.8): 
+* Write an annotation to use over the test similarly to the way we use @WithMockUser or @WithUserDetails. 
+* Write a class that implements the WithSecurityContextFactory interface. This class implements the createSecurityContext() method that returns the mock SecurityContext the framework uses for the test. 
+* Link the custom annotation created in step 1 with the factory class created in step 2 via the @WithSecurityContext annotation.
+
+### STEP 1: DEFINING A CUSTOM ANNOTATION
+
+As properties of the annotation, you can define whatever details you need to create the mock Authentication object. I added only the username here for my demonstration. Also, don’t forget to use the annotation @Retention (RetentionPolicy.RUNTIME) to set the retention policy to runtime. Spring needs to read this annotation using Java reflection at runtime.
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+public @interface WithCustomUser {
+    
+    String username();
+}
+```
+
+### STEP 2: CREATING A FACTORY CLASS FOR THE MOCK SECURITYCONTEXT
+
+The second step consists in implementing the code that builds the SecurityContext that the framework uses for the test’s execution. Here’s where we decide what kind of Authentication to use for the test.
+
+```java
+public class CustomSecurityContextFactory implements WithSecurityContextFactory<WithCustomUser> {
+    
+    @Override
+    public SecurityContext createSecurityContext(WithCustomUser withCustomUser) {
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        var a = new UsernamePasswordAuthenticationToken(withCustomUser.username(), null, null);
+        context.setAuthentication(a);
+        return context;
+    }
+}
+```
+
+### STEP 3: LINKING THE CUSTOM ANNOTATION TO THE FACTORY CLASS
+
+Using the @WithSecurityContext annotation, we now link the custom annotation we created in step 1 to the factory class for the SecurityContext we implemented in step 2.
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@WithSecurityContext(factory = CustomSecurityContextFactory.class)
+public @interface WithCustomUser {
+
+    String username();
+}
+```
+
+```java
+    @Test
+    @WithCustomUser(username = "mary")
+    public void helloAuthenticated() throws Exception {
+        mvc.perform(get("/hello"))
+                .andExpect(status().isOk());
+    }
+```
+
+Running the test, you observe a successful result. You might think, “Wait! In this example, we implemented a custom AuthenticationProvider that only authenticates a user named John. How could the test be successful with the username Mary?”. **As in the case of @WithMockUser and @WithUserDetails, with this method we skip the authentication logic.** So you can use it only to test what’s related to authorization and onward.
+
+
+
 
 
 
