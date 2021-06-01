@@ -67,11 +67,12 @@ public class TextCleaner {
                 var joinWord = noSpaces.substring(0, noSpaces.length() - 1);
                 finalText.append(joinWord);
             } else if (noSpaces.startsWith("")) {
-                finalText.append(noSpaces.replace("", "\n*"));
+                finalText.append(noSpaces.replace("", "\n*")).append(" ");
+            } else if (noSpaces.endsWith(".PNG") || noSpaces.endsWith(".png")) {
+                finalText.append("![").append(noSpaces).append("]").append("(pictures/").append(noSpaces).append(")");
             } else {
                 finalText.append(noSpaces).append(" ");
             }
-
         }
         return finalText.toString().strip();
     }
