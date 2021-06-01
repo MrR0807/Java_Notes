@@ -1,3 +1,205 @@
+# Table of Content
+
+- [Chapter 1. Security today](#chapter-1-security-today)
+  * [Common security vulnerabilities in web applications](#common-security-vulnerabilities-in-web-applications)
+    + [Broken authentication](#broken-authentication)
+    + [What is session fixation?](#what-is-session-fixation)
+    + [What is cross-site scripting (XSS)?](#what-is-cross-site-scripting-xss)
+    + [What is cross-site request forgery (CSRF)?](#what-is-cross-site-request-forgery-csrf)
+    + [Understanding injection vulnerabilities in web applications](#understanding-injection-vulnerabilities-in-web-applications)
+    + [Dealing with the exposure of sensitive data](#dealing-with-the-exposure-of-sensitive-data)
+    + [What is the lack of method access control?](#what-is-the-lack-of-method-access-control)
+    + [Using dependencies with known vulnerabilities](#using-dependencies-with-known-vulnerabilities)
+  * [Security applied in various architectures](#security-applied-in-various-architectures)
+    + [Designing a one-piece web application](#designing-a-one-piece-web-application)
+    + [Designing security for a backend/frontend separation](#designing-security-for-a-backendfrontend-separation)
+    + [Understanding the OAuth 2 flow](#understanding-the-oauth-2-flow)
+    + [Using API keys, cryptographic signatures, and IP validation to secure requests](#using-api-keys-cryptographic-signatures-and-ip-validation-to-secure-requests)
+- [Chapter 2. Hello Spring Security](#chapter-2-hello-spring-security)
+  * [Starting with the first project](#starting-with-the-first-project)
+  * [Logging Spring Security](#logging-spring-security)
+  * [Which are the default configurations?](#which-are-the-default-configurations)
+  * [Overriding default configurations](#overriding-default-configurations)
+    + [Overriding the UserDetailsService component](#overriding-the-userdetailsservice-component)
+    + [Overriding the endpoint authorization configuration](#overriding-the-endpoint-authorization-configuration)
+    + [Setting the configuration in different ways](#setting-the-configuration-in-different-ways)
+    + [Overriding the AuthenticationProvider implementation](#overriding-the-authenticationprovider-implementation)
+    + [Using multiple configuration classes in your project](#using-multiple-configuration-classes-in-your-project)
+- [Chapter 3. Managing users](#chapter-3-managing-users)
+  * [Implementing authentication in Spring Security](#implementing-authentication-in-spring-security)
+  * [Describing the user](#describing-the-user)
+    + [Demystifying the definition of the UserDetails contract](#demystifying-the-definition-of-the-userdetails-contract)
+    + [Detailing on the GrantedAuthority contract](#detailing-on-the-grantedauthority-contract)
+    + [Writing a minimal implementation of UserDetails](#writing-a-minimal-implementation-of-userdetails)
+    + [Using a builder to create instances of the UserDetails type](#using-a-builder-to-create-instances-of-the-userdetails-type)
+    + [Combining multiple responsibilities related to the user](#combining-multiple-responsibilities-related-to-the-user)
+  * [Instructing Spring Security on how to manage users](#instructing-spring-security-on-how-to-manage-users)
+    + [Understanding the UserDetailsService contract](#understanding-the-userdetailsservice-contract)
+    + [Implementing the UserDetailsService contract](#implementing-the-userdetailsservice-contract)
+    + [Implementing the UserDetailsManager contract](#implementing-the-userdetailsmanager-contract)
+      - [USING A JDBCUSERDETAILSMANAGER FOR USER MANAGEMENT](#using-a-jdbcuserdetailsmanager-for-user-management)
+      - [USING AN LDAPUSERDETAILSMANAGER FOR USER MANAGEMENT](#using-an-ldapuserdetailsmanager-for-user-management)
+- [Chapter 4. Dealing with passwords](#chapter-4-dealing-with-passwords)
+  * [Understanding the PasswordEncoder contract](#understanding-the-passwordencoder-contract)
+    + [The definition of the PasswordEncoder contract](#the-definition-of-the-passwordencoder-contract)
+    + [Implementing the PasswordEncoder contract](#implementing-the-passwordencoder-contract)
+    + [Choosing from the provided implementations of PasswordEncoder](#choosing-from-the-provided-implementations-of-passwordencoder)
+    + [Multiple encoding strategies with DelegatingPasswordEncoder](#multiple-encoding-strategies-with-delegatingpasswordencoder)
+  * [More about the Spring Security Crypto module](#more-about-the-spring-security-crypto-module)
+    + [Using key generators](#using-key-generators)
+    + [Using encryptors for encryption and decryption operations](#using-encryptors-for-encryption-and-decryption-operations)
+- [Chapter 5. Implementing authentication](#chapter-5-implementing-authentication)
+  * [Understanding the AuthenticationProvider](#understanding-the-authenticationprovider)
+    + [Representing the request during authentication](#representing-the-request-during-authentication)
+    + [Implementing custom authentication logic](#implementing-custom-authentication-logic)
+    + [Applying custom authentication logic](#applying-custom-authentication-logic)
+  * [Using the SecurityContext](#using-the-securitycontext)
+    + [Using a holding strategy for the security context](#using-a-holding-strategy-for-the-security-context)
+    + [Using a holding strategy for asynchronous calls](#using-a-holding-strategy-for-asynchronous-calls)
+    + [Using a holding strategy for standalone applications](#using-a-holding-strategy-for-standalone-applications)
+    + [Forwarding the security context with DelegatingSecurityContextRunnable](#forwarding-the-security-context-with-delegatingsecuritycontextrunnable)
+    + [Forwarding the security context with DelegatingSecurityContextExecutorService](#forwarding-the-security-context-with-delegatingsecuritycontextexecutorservice)
+  * [Understanding HTTP Basic and form-based login authentications](#understanding-http-basic-and-form-based-login-authentications)
+    + [Using and configuring HTTP Basic](#using-and-configuring-http-basic)
+    + [Implementing authentication with form-based login](#implementing-authentication-with-form-based-login)
+- [Chapter 6. Hands-on: A small secured web application](#chapter-6-hands-on-a-small-secured-web-application)
+  * [Project requirements and setup](#project-requirements-and-setup)
+  * [Implementing user management](#implementing-user-management)
+  * [Implementing custom authentication logic](#implementing-custom-authentication-logic)
+  * [My own implementation using Jdbc and DelegatingPasswordEncoder](#my-own-implementation-using-jdbc-and-delegatingpasswordencoder)
+- [Chapter 7. Configuring authorization: Restricting access](#chapter-7-configuring-authorization-restricting-access)
+  * [Restricting access based on authorities and roles](#restricting-access-based-on-authorities-and-roles)
+    + [Restricting access for all endpoints based on user authorities](#restricting-access-for-all-endpoints-based-on-user-authorities)
+    + [Restricting access for all endpoints based on user roles](#restricting-access-for-all-endpoints-based-on-user-roles)
+    + [Restricting access to all endpoints](#restricting-access-to-all-endpoints)
+- [Chapter 8. Configuring authorization: Applying restrictions](#chapter-8-configuring-authorization-applying-restrictions)
+  * [Using matcher methods to select endpoints](#using-matcher-methods-to-select-endpoints)
+  * [Selecting requests for authorization using MVC matchers](#selecting-requests-for-authorization-using-mvc-matchers)
+  * [Selecting requests for authorization using Ant matchers](#selecting-requests-for-authorization-using-ant-matchers)
+  * [Selecting requests for authorization using regex matchers](#selecting-requests-for-authorization-using-regex-matchers)
+- [Chapter 9. Implementing filters](#chapter-9-implementing-filters)
+  * [Implementing filters in the Spring Security architecture](#implementing-filters-in-the-spring-security-architecture)
+  * [Adding a filter before an existing one in the chain](#adding-a-filter-before-an-existing-one-in-the-chain)
+  * [Adding a filter after an existing one in the chain](#adding-a-filter-after-an-existing-one-in-the-chain)
+  * [Adding a filter at the location of another in the chain](#adding-a-filter-at-the-location-of-another-in-the-chain)
+  * [Filter implementations provided by Spring Security](#filter-implementations-provided-by-spring-security)
+- [Chapter 10. Applying CSRF protection and CORS](#chapter-10-applying-csrf-protection-and-cors)
+  * [Applying cross-site request forgery (CSRF) protection in applications](#applying-cross-site-request-forgery-csrf-protection-in-applications)
+    + [How CSRF protection works in Spring Security](#how-csrf-protection-works-in-spring-security)
+    + [Using CSRF protection in practical scenarios](#using-csrf-protection-in-practical-scenarios)
+    + [Customizing CSRF protection](#customizing-csrf-protection)
+  * [Using cross-origin resource sharing](#using-cross-origin-resource-sharing)
+    + [How does CORS work?](#how-does-cors-work)
+    + [Applying CORS policies with the @CrossOrigin annotation](#applying-cors-policies-with-the-crossorigin-annotation)
+    + [Applying CORS using a CorsConfigurer](#applying-cors-using-a-corsconfigurer)
+- [Chapter 11. Hands-on: A separation of responsibilities](#chapter-11-hands-on-a-separation-of-responsibilities)
+  * [The scenario and requirements of the example](#the-scenario-and-requirements-of-the-example)
+  * [Implementing and using tokens](#implementing-and-using-tokens)
+    + [What is a token?](#what-is-a-token)
+    + [What is a JSON Web Token?](#what-is-a-json-web-token)
+  * [Implementing the authentication server](#implementing-the-authentication-server)
+  * [Implementing the business logic server](#implementing-the-business-logic-server)
+    + [Implementing the Authentication objects](#implementing-the-authentication-objects)
+    + [Implementing the proxy to the authentication server](#implementing-the-proxy-to-the-authentication-server)
+    + [Implementing the AuthenticationProvider interface](#implementing-the-authenticationprovider-interface)
+    + [Implementing the filters](#implementing-the-filters)
+    + [Writing the security configurations](#writing-the-security-configurations)
+    + [Testing the whole system](#testing-the-whole-system)
+- [Chapter 12. How does OAuth 2 work?](#chapter-12-how-does-oauth-2-work)
+  * [The OAuth 2 framework](#the-oauth-2-framework)
+  * [The components of the OAuth 2 authentication architecture](#the-components-of-the-oauth-2-authentication-architecture)
+  * [Implementation choices with OAuth 2](#implementation-choices-with-oauth-2)
+    + [Implementing the authorization code grant type](#implementing-the-authorization-code-grant-type)
+      - [STEP 1: MAKING THE AUTHENTICATION REQUEST WITH THE AUTHORIZATION CODE GRANT TYPE](#step-1-making-the-authentication-request-with-the-authorization-code-grant-type)
+      - [STEP 2: OBTAINING AN ACCESS TOKEN WITH THE AUTHORIZATION CODE GRANT TYPE](#step-2-obtaining-an-access-token-with-the-authorization-code-grant-type)
+      - [STEP 3: CALLING THE PROTECTED RESOURCE WITH THE AUTHORIZATION CODE GRANT TYPE](#step-3-calling-the-protected-resource-with-the-authorization-code-grant-type)
+    + [Implementing the password grant type](#implementing-the-password-grant-type)
+      - [STEP 1: REQUESTING AN ACCESS TOKEN WHEN USING THE PASSWORD GRANT TYPE](#step-1-requesting-an-access-token-when-using-the-password-grant-type)
+      - [STEP 2: USING AN ACCESS TOKEN TO CALL RESOURCES WHEN USING THE PASSWORD GRANT TYPE](#step-2-using-an-access-token-to-call-resources-when-using-the-password-grant-type)
+    + [Implementing the client credentials grant type](#implementing-the-client-credentials-grant-type)
+      - [STEP 1: REQUESTING AN ACCESS TOKEN WITH THE CLIENT CREDENTIAL GRANT TYPE](#step-1-requesting-an-access-token-with-the-client-credential-grant-type)
+      - [STEP 2: USING AN ACCESS TOKEN TO CALL RESOURCES WITH THE CLIENT CREDENTIAL GRANT TYPE](#step-2-using-an-access-token-to-call-resources-with-the-client-credential-grant-type)
+    + [Using refresh tokens to obtain new access tokens](#using-refresh-tokens-to-obtain-new-access-tokens)
+  * [The sins of OAuth 2](#the-sins-of-oauth-2)
+  * [Implementing a simple single sign-on application](#implementing-a-simple-single-sign-on-application)
+    + [Managing the authorization server](#managing-the-authorization-server)
+    + [Starting the implementation](#starting-the-implementation)
+    + [Implementing ClientRegistration](#implementing-clientregistration)
+    + [Implementing ClientRegistrationRepository](#implementing-clientregistrationrepository)
+    + [The pure magic of Spring Boot configuration](#the-pure-magic-of-spring-boot-configuration)
+    + [Obtaining details about an authenticated user](#obtaining-details-about-an-authenticated-user)
+    + [Testing the application](#testing-the-application)
+- [Chapter 13. OAuth 2: Implementing the authorization server](#chapter-13-oauth-2-implementing-the-authorization-server)
+  * [Writing your own authorization server implementation](#writing-your-own-authorization-server-implementation)
+  * [Defining user management](#defining-user-management)
+  * [Registering clients with the authorization server](#registering-clients-with-the-authorization-server)
+  * [Using the password grant type](#using-the-password-grant-type)
+  * [Using the authorization code grant type](#using-the-authorization-code-grant-type)
+  * [Using the client credentials grant type](#using-the-client-credentials-grant-type)
+  * [Using the refresh token grant type](#using-the-refresh-token-grant-type)
+- [Chapter 14. OAuth 2: Implementing the resource server](#chapter-14-oauth-2-implementing-the-resource-server)
+  * [Implementing a resource server](#implementing-a-resource-server)
+  * [Checking the token remotely](#checking-the-token-remotely)
+      - [Using token introspection without Spring Security OAuth](#using-token-introspection-without-spring-security-oauth)
+  * [Implementing blackboarding with a JdbcTokenStore](#implementing-blackboarding-with-a-jdbctokenstore)
+  * [A short comparison of approaches](#a-short-comparison-of-approaches)
+- [Chapter 15. OAuth 2: Using JWT and cryptographic signatures](#chapter-15-oauth-2-using-jwt-and-cryptographic-signatures)
+  * [Using tokens signed with symmetric keys with JWT](#using-tokens-signed-with-symmetric-keys-with-jwt)
+    + [Using JWTs](#using-jwts)
+    + [Implementing an authorization server to issue JWTs](#implementing-an-authorization-server-to-issue-jwts)
+    + [Implementing a resource server that uses JWT](#implementing-a-resource-server-that-uses-jwt)
+    + [Using symmetric keys without the Spring Security OAuth project](#using-symmetric-keys-without-the-spring-security-oauth-project)
+  * [Using tokens signed with asymmetric keys with JWT](#using-tokens-signed-with-asymmetric-keys-with-jwt)
+    + [Generating the key pair](#generating-the-key-pair)
+      - [GENERATING A PRIVATE KEY](#generating-a-private-key)
+      - [OBTAINING THE PUBLIC KEY](#obtaining-the-public-key)
+    + [Implementing an authorization server that uses private keys](#implementing-an-authorization-server-that-uses-private-keys)
+    + [Implementing a resource server that uses public keys](#implementing-a-resource-server-that-uses-public-keys)
+    + [Using asymmetric keys without the Spring Security OAuth project](#using-asymmetric-keys-without-the-spring-security-oauth-project)
+    + [Using an endpoint to expose the public key](#using-an-endpoint-to-expose-the-public-key)
+  * [Adding custom details to the JWT](#adding-custom-details-to-the-jwt)
+    + [Configuring the authorization server to add custom details to tokens](#configuring-the-authorization-server-to-add-custom-details-to-tokens)
+    + [Configuring the resource server to read the custom details of a JWT](#configuring-the-resource-server-to-read-the-custom-details-of-a-jwt)
+- [Chapter 16. Global method security: Pre- and postauthorizations](#chapter-16-global-method-security-pre--and-postauthorizations)
+  * [Enabling global method security](#enabling-global-method-security)
+    + [Understanding call authorization](#understanding-call-authorization)
+      - [USING PREAUTHORIZATION TO SECURE ACCESS TO METHODS](#using-preauthorization-to-secure-access-to-methods)
+      - [USING POSTAUTHORIZATION TO SECURE A METHOD CALL](#using-postauthorization-to-secure-a-method-call)
+    + [Enabling global method security in your project](#enabling-global-method-security-in-your-project)
+  * [Applying preauthorization for authorities and roles](#applying-preauthorization-for-authorities-and-roles)
+  * [Applying postauthorization](#applying-postauthorization)
+  * [Implementing permissions for methods](#implementing-permissions-for-methods)
+  * [Using the @Secured and @RolesAllowed annotations](#using-the-secured-and-rolesallowed-annotations)
+- [Chapter 17. Global method security: Pre- and postfiltering](#chapter-17-global-method-security-pre--and-postfiltering)
+  * [Applying prefiltering for method authorization](#applying-prefiltering-for-method-authorization)
+  * [Applying postfiltering for method authorization](#applying-postfiltering-for-method-authorization)
+  * [Using filtering in Spring Data repositories](#using-filtering-in-spring-data-repositories)
+- [Chapter 18. Hands-on: An OAuth 2 application](#chapter-18-hands-on-an-oauth-2-application)
+  * [The application scenario](#the-application-scenario)
+  * [Configuring Keycloak as an authorization server](#configuring-keycloak-as-an-authorization-server)
+    + [Registering a client for our system](#registering-a-client-for-our-system)
+    + [Specifying client scopes](#specifying-client-scopes)
+    + [Adding users and obtaining access tokens](#adding-users-and-obtaining-access-tokens)
+    + [Defining the user roles](#defining-the-user-roles)
+  * [Implementing the resource server](#implementing-the-resource-server)
+  * [Testing the application](#testing-the-application)
+    + [Proving an authenticated user can only add a record for themself](#proving-an-authenticated-user-can-only-add-a-record-for-themself)
+    + [Proving that a user can only retrieve their own records](#proving-that-a-user-can-only-retrieve-their-own-records)
+    + [Proving that only admins can delete records](#proving-that-only-admins-can-delete-records)
+- [Chapter 19. Spring Security for reactive apps](#chapter-19-spring-security-for-reactive-apps)
+- [Chapter 20. Spring Security testing](#chapter-20-spring-security-testing)
+  * [Using mock users for tests](#using-mock-users-for-tests)
+  * [Testing with users from a UserDetailsService](#testing-with-users-from-a-userdetailsservice)
+  * [Using custom Authentication objects for testing](#using-custom-authentication-objects-for-testing)
+    + [STEP 1: DEFINING A CUSTOM ANNOTATION](#step-1-defining-a-custom-annotation)
+    + [STEP 2: CREATING A FACTORY CLASS FOR THE MOCK SECURITYCONTEXT](#step-2-creating-a-factory-class-for-the-mock-securitycontext)
+    + [STEP 3: LINKING THE CUSTOM ANNOTATION TO THE FACTORY CLASS](#step-3-linking-the-custom-annotation-to-the-factory-class)
+  * [Testing method security](#testing-method-security)
+  * [Testing authentication](#testing-authentication)
+  * [Testing CSRF configurations](#testing-csrf-configurations)
+  * [Testing CORS configurations](#testing-cors-configurations)
+  * [Testing reactive Spring Security implementations](#testing-reactive-spring-security-implementations)
+
 # Chapter 1. Security today
 
 ## Common security vulnerabilities in web applications
@@ -8805,24 +9007,275 @@ public @interface WithCustomUser {
 
 Running the test, you observe a successful result. You might think, “Wait! In this example, we implemented a custom AuthenticationProvider that only authenticates a user named John. How could the test be successful with the username Mary?”. **As in the case of @WithMockUser and @WithUserDetails, with this method we skip the authentication logic.** So you can use it only to test what’s related to authorization and onward.
 
+## Testing method security
 
+In this section, we discuss testing method security. All the tests we wrote until now in this chapter refer to endpoints.
 
+You can still use @WithMockUser, @WithUserDetails, or a custom annotation to define your own SecurityContext. But instead of using MockMvc, you directly inject from the context the bean defining the method you need to test.
 
+Figure 20.9 represents graphically the three scenarios we test:
+* Calling the method without an authenticated user, the method should throw AuthenticationException.
+* Calling the method with an authenticated user that has an authority different than the expected one (write), the method should throw AccessDeniedException.
+* Calling the method with an authenticated user that has the expected authority returns the expected result.
 
+![chapter-20-figure-20-9.PNG](pictures/chapter-20-figure-20-9.PNG)
 
+```java
+@Service
+public class NameService {
 
+    @PreAuthorize("hasAuthority('write')")
+    public String getName() {
+        return "Fantastico";
+    }
+}
+```
 
+```java
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class ProjectConfig {}
+```
 
+```java
+@SpringBootTest
+public class MainTests {
 
+    @Autowired
+    private NameService nameService;
 
+    @Test
+    void testNameServiceWithNoUser() {
+        assertThrows(AuthenticationException.class, () -> nameService.getName());
+    }
 
+    @Test
+    @WithMockUser(authorities = "read")
+    void testNameServiceWithUserButWrongAuthority() {
+        assertThrows(AccessDeniedException.class, () -> nameService.getName());
+    }
 
+    @Test
+    @WithMockUser(authorities = "write")
+    void testNameServiceWithUserButCorrectAuthority() {
+        var result = nameService.getName();
 
+        assertEquals("Fantastico", result);
+    }
+}
+```
 
+We don’t configure MockMvc anymore because we don’t need to call an endpoint. Instead, we directly inject the NameService instance to call the tested method.
 
+## Testing authentication
 
+In this section, we discuss testing authentication. Previously, in this chapter, you learned how to define mock users and test authorization configurations. But what about authentication? Can we also test the authentication logic? You need to do this if, for example, you have custom logic implemented for your authentication, and you want to make sure the entire flow works. When testing authentication, the test implementation requests work like normal client requests.
 
+![chapter-20-figure-20-10.PNG](pictures/chapter-20-figure-20-10.PNG)
 
+```java
+@RestController
+public class HelloController {
 
+    @GetMapping("/hello")
+    public String hello() {
+        return "Hello!";
+    }
+}
+```
 
+```java
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
 
+    private CustomAuthenticationProvider authenticationProvider;
+
+    public ProjectConfig(CustomAuthenticationProvider authenticationProvider) {
+        this.authenticationProvider = authenticationProvider;
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) {
+        auth.authenticationProvider(authenticationProvider);
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests().anyRequest().authenticated();
+    }
+}
+```
+
+```java
+@Component
+public class CustomAuthenticationProvider implements AuthenticationProvider {
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        String username = authentication.getName();
+        String password = String.valueOf(authentication.getCredentials());
+
+        if ("john".equals(username) && "12345".equals(password)) {
+            return new UsernamePasswordAuthenticationToken(username, password, List.of());
+        } else {
+            throw new AuthenticationCredentialsNotFoundException("Error!");
+        }
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+}
+```
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+public class AuthenticationTests {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @Test
+    @DisplayName("Test calling /hello endpoint authenticating with valid credentials returns ok.")
+    public void helloAuthenticatingWithValidUser() throws Exception {
+        mvc.perform(get("/hello")
+                .with(httpBasic("john","12345")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Test calling /hello endpoint authenticating with wrong credentials returns unauthorized.")
+    public void helloAuthenticatingWithInvalidUser() throws Exception {
+        mvc.perform(get("/hello")
+                .with(httpBasic("mary","12345")))
+                .andExpect(status().isUnauthorized());
+    }
+}
+```
+
+Using the httpBasic() request postprocessor, we instruct the test to execute the authentication. This way, we validate the behavior of the endpoint when authenticating using either valid or invalid credentials. You can use the same approach to test the authentication with a form login.
+
+## Testing CSRF configurations
+
+For any mutating operation (POST, PUT, DELETE), the request needs to have a valid CSRF token in its headers. Spring Security provides an easy approach to test CSRF protection using a RequestPostProcessor.
+
+```java
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests().anyRequest().permitAll();
+    }
+}
+```
+
+```java
+@RestController
+public class HelloController {
+
+    @GetMapping("/hello")
+    public String getHello() {
+        return "Get Hello!";
+    }
+
+    @PostMapping("/hello")
+    public String postHello() {
+        return "Post Hello!";
+    }
+}
+```
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+public class MainTests {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @Test
+    public void testHelloPOST() throws Exception {
+        mvc.perform(post("/hello"))
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    public void testHelloPOSTWithCSRF() throws Exception {
+        mvc.perform(post("/hello").with(csrf()))
+                .andExpect(status().isOk());
+    }
+}
+```
+
+## Testing CORS configurations
+
+As you learned in chapter 10, if a browser loads a web app from one origin (say, example.com), the browser won’t allow the app to use an HTTP response that comes from a different origin (say, example.org). We use CORS policies to relax these restrictions.
+
+All we need to do when writing tests for the CORS policies is to make sure that these headers (and maybe other CORS-related headers, depending on the complexity of your configurations) exist and have the correct values. For this validation, we can act precisely as the browser does when making a preflight request. We make a request using the HTTP OPTIONS method, requesting the value for the CORS headers.
+
+```java
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.cors(c -> {
+            CorsConfigurationSource source = request -> {
+                CorsConfiguration config = new CorsConfiguration();
+                config.setAllowedOrigins(List.of("*"));
+                config.setAllowedMethods(List.of("*"));
+                return config;
+            };
+            c.configurationSource(source);
+        });
+
+        http.csrf().disable();
+
+        http.authorizeRequests().anyRequest().permitAll();
+    }
+}
+```
+
+```java
+@RestController
+public class HelloController {
+
+    @PostMapping("/test")
+    @ResponseBody
+//    @CrossOrigin("http://localhost:8080")
+    public String test() {
+        return "HELLO";
+    }
+}
+```
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+public class MainTests {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @Test
+    @DisplayName("Test CORS configuration for /test endpoint")
+    public void testCORSForTestEndpoint() throws Exception {
+        mvc.perform(options("/test")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Origin", "http://www.example.com")
+        )
+                .andExpect(header().exists("Access-Control-Allow-Origin"))
+                .andExpect(header().string("Access-Control-Allow-Origin", "*"))
+                .andExpect(header().exists("Access-Control-Allow-Methods"))
+                .andExpect(header().string("Access-Control-Allow-Methods", "POST"))
+                .andExpect(status().isOk());
+    }
+}
+```
+
+## Testing reactive Spring Security implementations
+
+Not interested.
