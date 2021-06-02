@@ -416,3 +416,42 @@ The Gradle GUI has been deprecated and will be removed in Gradle 4.0.
 
 # Chapter 2. Creating Gradle Build Scripts
 
+In Gradle, projects and tasks are two important concepts. **A Gradle build always consists of one or more projects. A project defines some sort of component that we want to build.** There are no defining rules about what the component is. It can be a JAR file with utility classes to be used in other projects, or a web application to be deployed to the corporate intranet. A project doesn't have to be about building and packaging code, it can also be about doing things such as copying files on a remote server or deployment of applications to servers.
+
+**A project has one or more tasks. A task is a small piece of work that is executed when we run a build**, for example, compiling source code, packaging code in an archive file, generating documentation, and so on.
+
+## Writing a build script
+
+```groovy
+project.description = 'Simple project'
+
+task simple {
+    doLast {
+        println 'Running simple task for project ' + project.description
+    }
+}
+```
+
+```shell
+gradle simple -q
+Running simple task for project Simple project
+```
+
+A couple of interesting things happen with this small build script. Gradle reads the script file and creates a Project object. The build script configures the Project object, and finally, the set of tasks to be executed is determined and executed.
+
+So, it is important to note that Gradle creates a Project object for us. The Project object has several properties and methods and it is available in our build scripts. We can use the project variable name to reference the Project object, but we can also leave out this variable name to reference properties and methods of the Project object.
+
+We used the explicit project variable name and Groovy property assignment syntax. The following build script uses a different syntax, which is a bit more like Java, to get the same result
+
+```groovy
+project.setDescription('Simple project')
+
+project.getTasks().create('simple') {
+    println 'Running simple task for project ' + project.description
+}
+```
+
+Here, we use the Java syntax to set and get the value of the description property of the Project object.
+
+## Defining tasks
+
