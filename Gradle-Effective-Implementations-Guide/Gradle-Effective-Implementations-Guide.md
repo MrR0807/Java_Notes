@@ -400,3 +400,19 @@ To always use the --daemon command-line option, but we don't want to type it eve
 * Instead of using the --daemon command-line option, we can use the org.gradle.daemon Java system property to enable the daemon. ```$ export GRADLE_OPTS="-Dorg.gradle.daemon=true"```
 * Finally, we can add a ``gradle.properties`` file to the root of our project directory. ``gradle.properties`` content: ```org.gradle.daemon=true```
 
+## Profiling
+
+Gradle also provides the ``--profile`` command-line option. This option records the time that certain tasks take to complete. The data is saved in an HTML file in the ``build/reports/profile`` directory.
+
+## Offline usage
+
+If we don't have access to a network at some location, we might get errors from our Gradle build, when a task needs to download something from the Internet, for example. We can use the ``--offline`` command-line option to instruct Gradle to not access any network during the build. This way we can still execute the build if all necessary files are already available offline and we don't get an error.
+
+## Understanding the Gradle graphical user interface
+
+*Note.*
+
+The Gradle GUI has been deprecated and will be removed in Gradle 4.0.
+
+# Chapter 2. Creating Gradle Build Scripts
+
