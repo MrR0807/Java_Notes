@@ -455,3 +455,397 @@ Here, we use the Java syntax to set and get the value of the description propert
 
 ## Defining tasks
 
+A project has one or more tasks to execute some actions, so a task is made up of actions. These actions are executed when the task is executed. **Gradle supports several ways to add actions to our tasks.** In this section, we discuss about the different ways to add actions to a task.
+
+We can use the ``doFirst`` and ``doLast`` methods to add actions to our task.
+
+```groovy
+task first {
+    doFirst {
+        println 'Running first'
+    }
+}
+task second {
+    doLast { Task task ->
+        println "Running ${task.name}"
+    }
+}
+```
+
+```shell
+$ gradle first second
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Task :first
+Running first
+
+> Task :second
+Running second
+```
+
+For the second task, we add the action to print text with the doLast method. The method accepts a closure as an argument. The task object is passed to the closure as a parameter. This means that we can use the task object in our actions. In the sample build file, we get the value for the name property of task and print it to the console.
+
+Maybe it is a good time to look more closely at closures as they are an important part of Groovy and are used throughout Gradle build scripts. **Closures** are basically reusable pieces of code that **can be assigned to a variable or passed to a method**. A closure is defined by enclosing the piece of code with curly brackets ``({... })``. We can **pass one or more parameters to the closures**. **If the closure has only one argument, an implicit parameter, ``it``, can be used to reference the parameter value.** We could have written the second task as follows, and the result would still be the same:
+
+```groovy
+task second {
+    doLast {
+    // Using implicit 'it' closure parameter. The type of 'it' is a Gradle task.
+        println "Running ${it.name}"
+    }
+}
+```
+
+We can also define a name for the parameter and use this name in the code. This is what we did for the second task.
+
+```groovy
+task second {
+    doLast { Task task ->
+        // Using explicit name 'task' as closure parameter.
+        // We also defined the type of the parameter.
+        // This can help the IDE to add code completion.
+        println "Running ${task.name}"
+    }
+}
+```
+
+## Defining actions with the Action interface
+
+Besides using closures to add actions to a task, we can also follows a more verbose way of passing an implementation class of the ``org.gradle.api.Action`` interface. The Action interface has one method: execute. This method is invoked when the task is executed.
+
+```groovy
+task first {
+    doFirst(
+            new Action() {
+                void execute(O task) {
+                    println "Running ${task.name}"
+                }
+            }
+    )
+}
+```
+*Note.*
+Does not work. However, if I add generic type, then it works:
+```groovy
+task first {
+    doFirst(
+            new Action<Task>() {
+                void execute(Task task) {
+                    println "Running ${task.name}"
+                }
+            }
+    )
+}
+```
+
+## Build scripts are Groovy code
+
+We already saw the use of so-called Groovy ``GString`` in our sample script. The ``GString`` object is defined as a String with double quotes and can contain references to variables defined in a ``${... }`` section. The variable reference is resolved when we get the value of the ``GString``.
+
+However, other great Groovy constructs can also be used in Gradle scripts. The following sample script shows some of these constructs:
+
+```groovy
+task numbers {
+    doLast {
+        (1..4).each { number ->
+            def squared = number * number;
+            println "Square of ${number} = ${squared}"
+        }
+    }
+}
+
+task list {
+    doFirst {
+        def list = ['Groovy', 'Gradle']
+        println list.collect { it.toLowerCase() }.join('&')
+    }
+}
+```
+
+## Defining dependencies between tasks
+
+Until now, we have defined tasks independent of each other. However, in our projects, we need dependencies between tasks. For example, a task to package compiled class files is dependent on the task to compile the class files. The build system should then run the compile task first, and when the task is finished, the package task must be executed.
+
+In Gradle, we can add task dependencies with the dependsOn method for a task. **We can specify a task name as the String value or task object as the argument.** We can even specify more than one task name or object to specify multiple task dependencies.
+
+```groovy
+task first {
+    doLast { task ->
+        println "Run ${task.name}"
+    }
+}
+
+task second {
+    doLast { task ->
+        println "Run ${task.name}"
+    }
+}
+
+second.dependsOn 'first'
+```
+
+```shell
+$ gradle -q second
+Run first
+Run second
+```
+
+Note that we define the dependency of the second task on the first task, in the last line. When we run the script, we see that the first task is executed before the second task.
+
+Another way of defining the dependency between tasks is to set the ``dependsOn`` property instead of using the ``dependsOn`` method. There is a subtle difference, Gradle just offers several ways to achieve the same result. In the following piece of code, we use the property to define the dependency of the second task. For the third task, we immediately define the property when we define the task:
+
+```groovy
+task first {
+    doLast { task ->
+        println "Run ${task.name}"
+    }
+}
+
+task second {
+    doLast { task ->
+        println "Run ${task.name}"
+    }
+}
+
+second.dependsOn = ['first']
+
+task third (dependsOn: 'second') {
+    doLast{ task ->
+        println "Run ${task.name}"
+    }
+}
+```
+
+```shell
+$ gradle -q third
+
+Run first
+Run second
+Run third
+```
+
+The dependency between tasks is lazy. We can define a dependency on a task that is defined later in the build script. Gradle will set up all task dependencies during the configuration phase and not during the execution phase.
+
+It is important to take a good look at your build scripts and see if things can be organized better and if the code can be reused instead of repeated. Even our simple build script can be rewritten as follows:
+
+```groovy
+def printTaskName = { task -> println "Run ${task.name}"}
+
+// We use the variable with the closure.
+task third(dependsOn: 'second') << printTaskName
+task second(dependsOn: 'first') << printTaskName
+task first << printTaskName
+```
+
+*Note.*
+
+Because ``<<`` is not supported anymore, one should do like so:
+```groovy
+def printTaskName = { task -> println "Run ${task.name}" }
+
+task first {
+    doLast printTaskName
+}
+
+task second {
+    doLast printTaskName
+}
+
+second.dependsOn = ['first']
+
+task third(dependsOn: 'second') {
+    doLast printTaskName
+}
+```
+
+```groovy
+def printTaskName = { task -> println "Run ${task.name}" }
+
+task third {
+    doLast (
+            new Action<Task>() {
+                void execute(Task task) {
+                    printTaskName.call(task)
+                }
+            }
+    )
+}
+```
+
+## Defining dependencies via tasks
+
+In our build scripts, we defined the task dependencies using the task name. However, there are more ways to define a task dependency. We can use the task object instead of the task name to define a task dependency:
+
+```groovy
+def printTaskName = { task -> println "Run ${task.name}"}
+
+task first {
+    doLast printTaskName
+}
+
+// Here we use first (not the string value 'first') as a value for dependsOn.
+task second(dependsOn: first) {doLast printTaskName}
+```
+
+## Defining dependencies via closures
+
+We can also use a closure to define the task dependencies. The closure must return a single task name or object, or a collection of task names or task objects. Using this technique, we can really fine-tune the dependencies for our task. For example, in the following build script, we define a dependency for the second task on all tasks in the project with task names that have the letter f in the task name:
+
+```groovy
+def printTaskName = { task -> println "Run ${task.name}"}
+
+task second {
+    doLast printTaskName
+}
+
+second.dependsOn {
+    project.tasks.findAll { task ->
+        task.name.contains 'f'
+    }
+}
+
+task first {
+    doLast printTaskName
+}
+
+task beforeSecond {
+    doLast printTaskName
+}
+```
+
+## Setting default tasks
+
+To execute a task, we use the task name on the command line when we run gradle. So, if our build script contains a task with the first name, we can run the task with the following command:
+
+```shell
+$ gradle first
+```
+
+However, we can also define a default task or multiple default tasks that need to be executed, even if we don't explicitly set the task name. So, **if we run the gradle command without arguments, the default task of our build script will be executed.**
+
+To set the default task or tasks, we use the defaultTasks method. We pass the names of the tasks that need to be executed to the method. In the following build script, we make the first and second tasks the default tasks:
+
+```groovy
+defaultTasks 'first', 'second'
+
+task first {
+    doLast {
+        println "I am first"
+    }
+}
+task second {
+    doFirst {
+        println "I am second"
+    }
+}
+```
+
+```shell
+$ gradle
+
+> Task :first
+I am first
+
+> Task :second
+I am second
+```
+
+## Organizing tasks
+
+In Chapter 1, Starting with Gradle, we already discussed that we could use the tasks task of Gradle to see the tasks that are available for a build. Let's suppose we have the following simple build script:
+
+```groovy
+defaultTasks 'second'
+
+task first {
+    doLast {
+        println "I am first"
+    }
+}
+
+task second(dependsOn: first) {
+    doLast {
+        println "I am second"
+    }
+}
+```
+
+When we run the tasks task on the command line, we get the following output:
+
+```shell
+$ gradle -q tasks
+------------------------------------------------------------
+All tasks runnable from root project
+------------------------------------------------------------
+Default tasks: second
+Build Setup tasks
+-----------------
+init - Initializes a new Gradle build. [incubating]
+wrapper - Generates Gradle wrapper files. [incubating]
+Help tasks
+----------
+components - Displays the components produced by root project 'organize'.
+[incubating]
+dependencies - Displays all dependencies declared in root project
+'organize'.
+dependencyInsight - Displays the insight into a specific dependency in
+root project 'organize'.
+help - Displays a help message.
+model - Displays the configuration model of root project 'organize'.
+[incubating]
+projects - Displays the sub-projects of root project 'organize'.
+properties - Displays the properties of root project 'organize'.
+tasks - Displays the tasks runnable from root project 'organize'.
+Other tasks
+-----------
+second
+To see all tasks and more detail, run gradle tasks --all
+To see more detail about a task, run gradle help --task <task>
+```
+
+We see our task with the name second in the section Other tasks, but not the task with the name first. To see all tasks, including the tasks other tasks depend on, we must add the option --all to the tasks command:
+
+```shell
+$ gradle tasks --all
+...
+Other tasks
+-----------
+second
+  first
+```
+
+*Note.*
+
+I do not observe any of this. My tasks are only visible with added --all flag. If no flag, then none of the tasks are visible. Also, no indentation. 
+
+## Adding a description to tasks
+
+To describe our task, we can set the description property of a task. The value of the description property is used by the task of Gradle. Let's add a description to our two tasks, as follows:
+
+```groovy
+defaultTasks 'second'
+
+// Use description property to set description.
+task first(description: 'Base task') {
+    doLast {
+        println "I am first"
+    }
+}
+task second(
+        dependsOn: first,
+        description: 'Secondary task') {
+    doLast {
+        println "I am second"
+    }
+}
+```
+
+```shell
+$ gradle tasks --all
+
+...
+first - Base task
+second - Secondary task
+```
+
+## Grouping tasks together
