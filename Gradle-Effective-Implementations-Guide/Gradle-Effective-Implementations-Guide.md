@@ -1370,4 +1370,77 @@ task convertFiles {
 
 ## Summary
 
+Implicit ``it``:
+```groovy
+task second {
+    doLast {
+        println "Running ${it.name}"
+    }
+}
+```
 
+Or adding type:
+```groovy
+task second {
+    doLast { Task task ->
+        println "Running ${task.name}"
+    }
+}
+```
+
+Dependencies between tasks:
+* Property ```second.dependsOn 'first'```
+* Array ```second.dependsOn = ['first']```
+* String in method ```task third (dependsOn: 'second')```
+* Object in method```task third (dependsOn: first)```
+* Via clojure:
+```groovy
+second.dependsOn {
+    project.tasks.findAll { task ->
+        task.name.contains 'f'
+    }
+}
+```
+
+Setting default tasks: ```defaultTasks 'first', 'second'```
+
+Adding a description to tasks: ```task first(description: 'Base task')```
+
+Grouping tasks together: ```task first (description: 'Base task', group: taskGroup) {}```
+
+Accessing tasks as project properties:
+
+```groovy
+// Create a simple task.
+task simple {
+    doLast { task ->
+        println "Running ${task.name}"
+    }
+}
+// The simple task is available as project property.
+simple.description = 'Print task name'
+// We can invoke methods from the Task object.
+simple.doLast {
+    println "Done"
+}
+// We can also reference the task via the project property explicitly.
+project.simple.doFirst {
+    println "Start"
+}
+```
+
+Adding additional properties to tasks - Gradle provides an ext namespace for the task object.
+
+```groovy
+// Create simple task.
+task simple {
+    doLast {
+        println "Hello ${message}"
+    }
+}
+
+// We set the value for the non-existing message property with the task extension support.
+simple.ext.message = 'world'
+```
+    
+# Chapter 3. Working with Gradle Build Scripts
