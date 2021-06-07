@@ -849,3 +849,525 @@ second - Secondary task
 ```
 
 ## Grouping tasks together
+
+With Gradle, we can also group tasks together in so-called **task groups**. A **task group is a set of tasks that belong together, logically.** The task group is used, for example, in the output of the tasks task that we used earlier. Let's expand our sample build script by grouping the two tasks together in a sample task group.
+
+```groovy
+defaultTasks 'second'
+
+// Define name of the task group we want to use
+def taskGroup = 'base'
+
+task first (
+        description: 'Base task',
+        group: taskGroup) {
+    doLast {
+        println 'I am first'
+    }
+}
+
+task second (
+        dependsOn: first,
+        description: 'Secondary task',
+        group: taskGroup) {
+    doLast {
+        println 'I am second'
+    }
+}
+```
+
+Next time when we run the tasks task, we can see our tasks grouped together in a Base tasks section:
+```shell
+$ gradle -q tasks
+
+------------------------------------------------------------
+Tasks runnable from root project 'GradleStuff'
+------------------------------------------------------------
+
+Default tasks: second
+
+Base tasks
+----------
+first - Base task
+second - Secondary task
+...
+```
+
+## Getting more information about a task
+
+Getting more information about a task We can get some more information about a task with the Gradle ``help`` task. We need to specify an extra argument for the ``help`` task: ``--task``, with the name of the task that we want more information about. Gradle will print some details about our task in the console.
+
+```shell
+$ gradle help --task second
+
+> Task :help
+Detailed task information for second
+
+Path
+     :second
+
+Type
+     Task (org.gradle.api.Task)
+
+Description
+     Secondary task
+
+Group
+     base
+```
+
+## Adding tasks in other ways
+
+Until now, we have added tasks to our build project using the task keyword, followed by the name of the task. However, there are more ways to add tasks to our project. We can use a String value with the task name to define a new task, as follows:
+
+```groovy
+task 'simple' {
+    doLast {
+        task ->
+            println "Running ${task.name}"
+    }
+}
+```
+
+```groovy
+def simpleTask = 'simple'
+
+task (simpleTask) {
+    doLast {
+        task ->
+            println "Running ${task.name}"
+    }
+}
+```
+
+```groovy
+def simpleTask = 'simple'
+
+task "${simpleTask}" {
+    doLast {
+        task ->
+            println "Running ${task.name}"
+    }
+}
+
+['Dev', 'Acc', 'Prod'].each {environment ->
+    task "deployTo${environment}" {
+        doLast { task ->
+            println "Deploying to ${environment}"
+        }
+    }
+}
+```
+
+```shell
+$ gradle -q tasks --all
+
+...
+Other tasks
+-----------
+deployToAcc
+deployToDev
+deployToProd
+...
+```
+
+Another way to add a new task is through the ``tasks`` property of a project. Remember that in our build script, we have access to the ``Project`` object; either we use the project variable explicitly or we use methods and properties of the Project object implicitly, without using the project variable. The tasks property of a project is basically a container for all tasks in our project.
+
+```groovy
+def printTaskName = { task ->
+    println "Running ${task.name}"
+}
+// Use tasks project variable to get access
+// to the TaskContainer object.
+// Then we use the create method of
+// TaskContainer to create a new task.
+project.tasks.create(name: 'first') << printTaskName
+// Let Gradle resolve tasks to project variable.
+tasks.create(name: 'second', dependsOn: 'first') << printTaskName
+```
+
+## Using task rules
+
+We have seen how to add tasks dynamically to our build project. However, we can also define so-called **task rules**. These rules are very flexible and allow us to add tasks to our project based on several parameters and project properties.
+
+Suppose, we want to add an extra task that shows the description of every task in our project. If we have a task first in our project, we want to add a descFirst task to show the description property of the first task. With task rules, we define a pattern for new tasks. In our sample, this is desc<TaskName>; it is the desc prefix, followed by the name of the existing task. The following build script shows the implementation of the task rule:
+
+```groovy
+task first(description: 'First task')
+
+task second(description: 'Second task')
+
+tasks.addRule("Pattern: desc<TaskName>: show description of a task.") { taskName ->
+    if (taskName.startsWith('desc')) {
+        // Remove 'desc' from the task name.
+        def targetTaskName = taskName - 'desc'
+        // Uncapitalize the task name.
+        def targetTaskNameUncapitalize = targetTaskName[0].toLowerCase() + targetTaskName[1..-1]
+        // Find the task in the project we search the description for.
+        def targetTask = project.tasks.findByName(targetTaskNameUncapitalize)
+        if (targetTask) {
+            task(taskName) {
+                doLast {
+                    println "Description of task ${targetTask.name} -> ${targetTask.description}"
+                }
+            }
+        }
+    }
+}
+```
+
+```shell
+$ gradle tasks
+
+...
+Rules
+-----
+Pattern: desc<TaskName>: show description of a task.
+...
+```
+
+So, we know we can invoke descFirst and descSecond for our project. Note that these two extra tasks are not shown in the Other tasks section, but the Rules section shows the pattern we can use.
+If we execute the descFirst and descSecond tasks, we get the following output:
+```shell
+$ gradle descFirst descSecond
+:descFirst
+Description of task first -> First task
+:descSecond
+Description of task second -> Second task
+```
+
+## Accessing tasks as project properties
+
+Accessing tasks as project properties Each task that we add is also available as a project property, and we can reference this property like we can reference any other property in our build script. We can, for example, invoke methods or get and set the property values of our task through the property reference. This means that we are very flexible in how we create our tasks and add behavior to the tasks. In the following script, we use the project property reference to a task to change the description property:
+
+```groovy
+// Create a simple task.
+task simple {
+    doLast { task ->
+        println "Running ${task.name}"
+    }
+}
+// The simple task is available as project property.
+simple.description = 'Print task name'
+// We can invoke methods from the Task object.
+simple.doLast {
+    println "Done"
+}
+// We can also reference the task via the project property explicitly.
+project.simple.doFirst {
+    println "Start"
+}
+```
+
+When we run our task from the command line, we get the following output:
+```shell
+$ gradle -q simple
+Start
+Running simple
+Done
+```
+
+## Adding additional properties to tasks
+
+A task object already has several properties and methods. However, we can add any arbitrary new property to a task and use it. Gradle provides an ``ext`` namespace for the task object. We can set new properties and use them again once they are set. We can either set a property directly or use a closure to set a property with a value. In the following sample, we print the value of the message task property. The value of the property is assigned with the ```simple.ext.message = 'world'``` statement:
+
+```groovy
+// Create simple task.
+task simple {
+    doLast {
+        println "Hello ${message}"
+    }
+}
+
+// We set the value for the non-existing message property with the task extension support.
+simple.ext.message = 'world'
+```
+
+```shell
+$ gradle -q simple
+Hello world
+```
+
+## Avoiding common pitfalls
+
+*Note.*
+To understand the difference between Configuration closure and execution closure, one has to know that Gradle has three distinct phases:
+* Initialization - Gradle supports single and multi-project builds. During the initialization phase, Gradle determines which projects are going to take part in the build, and creates a Project instance for each of these projects.
+* Configuration - During this phase the project objects are configured. The build scripts of all projects which are part of the build are executed.
+* Execution - Gradle determines the subset of the tasks, created and configured during the configuration phase, to be executed. The subset is determined by the task name arguments passed to the gradle command and the current directory. Gradle then executes each of the selected tasks.
+
+```groovy
+task simple {
+    println "This is executed during the configuration phase."
+}
+
+task two {
+    doLast {
+        println "This is executed during execution phase"
+    }
+}
+```
+
+```shell
+Ė gradle simple two
+
+> Configure project :
+This is executed during the configuration phase.
+
+> Task :two
+This is executed during execution phase
+```
+
+## Skipping tasks
+
+Sometimes, we want tasks to be excluded from a build. In certain circumstances, we just want to skip a task and continue executing other tasks.
+
+### Using onlyIf predicates
+
+Every task has an onlyIf method that accepts a closure as an argument. The result of the closure must be true or false. If the task must be skipped, the result of the closure must be false, otherwise the task is executed. The task object is passed as a parameter to the closure. Gradle evaluates the closure just before the task is executed.
+
+```groovy
+import static java.util.Calendar.*
+
+task longrunning {
+    // Only run this task if the closure returns true.
+    onlyIf { task ->
+        def now = Calendar.instance
+        def weekDay = now[DAY_OF_WEEK]
+        def weekDayInWeekend = weekDay in [SATURDAY, SUNDAY]
+        return weekDayInWeekend
+    }
+
+    // Add an action.
+    doLast {
+        println "Do long running stuff"
+    }
+}
+```
+
+We can invoke the onlyIf method multiple times for a task. If one of the predicates returns false, the task is skipped. Besides using a closure to define the condition that determines whether the task needs to be executed or not, we can use an implementation of the ``org.gradle.api.specs.Spec`` interface. The ``Spec`` interface has one method: ``isSatisfiedBy``. We must write an implementation and return true if the task must be executed and false if we want the task to be skipped.
+
+```groovy
+// Create a new File object.
+
+def file = new File('data.sample')
+
+task handleFile {
+
+    // Use Spec implementation to write a conditon for the onlyIf method.
+    onlyIf(new Spec() {
+        boolean isSatisfiedBy(task) {
+            file.exists()
+        }
+    })
+
+    doLast {
+        println "Work with file ${file.name}"
+    }
+}
+```
+
+### Skipping tasks by throwing StopExecutionException
+
+Another way to the skip execution of a task is to throw a ``StopExecutionException`` exception. If such an exception is thrown, the build will stop the current task and continue with the next task. We can use the ``doFirst`` method to add a precondition check for a task. In the closure, when we pass to the ``doFirst`` method, we can check for a condition and throw a ``StopExecutionException`` exception if necessary.
+
+```groovy
+// Define closure with the task actions.
+def printTaskName = { task ->
+    println "Running ${task.name}"
+}
+
+task first {
+    doLast printTaskName
+}
+
+// Use doFirst method with closure that throws exception when task is executed during work hours.
+first.doFirst {
+    def today = Calendar.instance
+    def workingHours = today[Calendar.HOUR_OF_DAY] in 8..17
+    if (workingHours) {
+        throw new StopExecutionException()
+    }
+}
+
+// Create second task that depends on first task.
+task second(dependsOn: 'first') {
+    doLast printTaskName
+}
+```
+
+```shell
+$ gradle second
+
+> Task :second
+Running second
+```
+
+### Enabling and disabling tasks
+
+We have seen how we can skip tasks with the onlyIf method or by throwing StopExecutionException. However, we can also use another method to skip a task. Every task has an ``enabled`` property. By default, the value of the property is true, which means that the task is enabled and executed. We can change the value and set it to false in order to disable the task and skip its execution.
+
+```groovy
+task listDirectory {
+    def dir = new File('assemble')
+// Set value for enabled task property.
+    enabled = dir.exists()
+// This is only executed if enabled is true.
+    doLast {
+        println "List directory contents: " + dir.listFiles().join(',')
+    }
+}
+```
+
+### Skipping from the command line
+
+Until now, we have defined the rules to skip a task in the build file. However, we can use the ``--exclude-tasks (-x)`` command-line option if we run the build.
+
+```groovy
+def cloj = {task -> println "Hello ${task.name}"}
+
+task one {
+    doLast cloj;
+}
+
+task two {
+    doLast cloj
+}
+
+task three {
+    doLast cloj
+}
+```
+
+```shell
+$ gradle one two three
+
+> Task :one
+Hello one
+
+> Task :two
+Hello two
+
+> Task :three
+Hello three
+```
+
+```shell
+$ gradle one two -x three
+
+> Task :one
+Hello one
+
+> Task :two
+Hello two
+```
+
+### Skipping tasks that are up to date
+
+Until now, we have defined conditions that are evaluated to determine whether a task needs to be skipped or not. However, with Gradle, we can be even more flexible. Suppose, we have a task that works on a file and generates some output based on the file. For example, a compile task fits this pattern. In the following sample build file, we have the convert task that will take an XML file, parse the contents, and write data to a text file, as shown in the following code:
+
+```groovy
+task convert {
+    def source = new File('source.xml')
+    def output = new File('output.txt')
+    doLast {
+        def xml = new XmlSlurper().parse(source)
+        output.withPrintWriter { writer ->
+            xml.person.each { person -> writer.println "${person.name},${person.email}"}
+        }
+        println "Converted ${source.name} to ${output.name}"
+    }
+}
+```
+
+We can run this task a couple of times. Each time, the data is read from the XML file and written to the text file:
+```shell
+$ gradle convert
+:convert
+Converted source.xml to output.txt
+BUILD SUCCESSFUL
+Total time: 0.592 secs
+$ gradle convert
+:convert
+Converted source.xml to output.txt
+BUILD SUCCESSFUL
+Total time: 0.592 secs
+```
+
+However, our input file hasn't changed between the task invocations, so the task doesn't have to be executed. We want the task to be executed only if the source file has changed, or the output file is missing, or has changed since the last run of the task.
+
+Gradle supports this pattern, this support is known as **incremental build support**. **A task only needs to be executed if necessary**. This is a very powerful feature of Gradle. It will really speed up a build process as only the tasks that need to be executed are executed.
+
+We need to change the definition of our task so that Gradle can determine whether the task needs to be executed based on changes in the input file or output file of the task. **A task has the properties ``inputs`` and ``outputs`` that are used for this purpose.** To define an input file, we invoke the file method of the inputs property with the value of our input file. We set the output file by invoking the file method of the outputs property.
+
+```groovy
+task convert {
+    def source = new File('source.xml')
+    def output = new File('output.txt')
+
+    inputs.file source
+
+    outputs.file output
+
+    doLast {
+        def xml = new XmlSlurper().parse(source)
+        output.withPrintWriter { writer ->
+            xml.person.each { person -> writer.println "${person.name},${person.email}"}
+        }
+        println "Converted ${source.name} to ${output.name}"
+    }
+}
+```
+
+```shell
+$ gradle convert
+
+> Task :convert
+Converted source.xml to output.txt
+
+BUILD SUCCESSFUL in 7s
+1 actionable task: 1 executed
+$ gradle convert
+
+BUILD SUCCESSFUL in 7s
+1 actionable task: 1 up-to-date
+```
+
+We can use the ``--rerun-tasks`` command-line option to ignore the incremental build feature.
+
+We have defined a single file for the inputs and outputs properties. However, Gradle supports more ways to define values for these properties. The **inputs** property has methods to add a directory, multiple files, or even properties to be watched for changes. The **outputs** property has methods to add a directory or multiple files to be monitored for changes. If these methods are not appropriate for our build, we can even use the upToDateWhen method for the outputs property. We pass a closure or implementation of the ``org.gradle.api.specs.Spec`` interface to define a predicate that determines whether the output of the task is up to date.
+
+```groovy
+project.version = '1.0'
+task createVersionDir {
+    def outputDir = new File('output')
+    
+    // If project.version changes then thetask is no longer up-to-date
+    inputs.property 'version', project.version
+    outputs.dir outputDir
+    doLast {
+        println "Making directory ${outputDir.name}"
+        mkdir outputDir
+    }
+}
+
+task convertFiles {
+    // Define multiple files to be checked as inputs. Or use inputs.dir 'input' to check a complete directory.
+    inputs.files 'input/input1.xml', 'input/input2.xml'
+
+    // Use upToDateWhen method to define predicate.
+    outputs.upToDateWhen {
+    // If output directory contains any file which name starts with output and has the xml extension, then the task is up-to-date.
+    // We use the Groovy method any to check if at least one file applies to the condition. The ==~ syntax is a Groovy shortcut to
+    // check if a regular expression is true.
+        new File('output').listFiles() any { it.name ==~ /output.*\.xml$/ }
+    }
+    doLast {
+        println "Running convertFiles"
+    }
+}
+```
+
+## Summary
+
+
