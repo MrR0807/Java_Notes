@@ -1444,3 +1444,365 @@ simple.ext.message = 'world'
 ```
     
 # Chapter 3. Working with Gradle Build Scripts
+
+A Gradle script is a program. We use a Groovy DSL to express our build logic. Gradle has several useful built-in methods to handle files and directories as we often deal with files and directories in our build logic.
+
+## Working with files
+
+### Locating files
+
+To locate a file or directory relative to the current project, we can use the ``file()`` method. This method is actually a method of the ``Project`` object that is connected to our build
+
+The ``file()`` method will resolve the location of a file or directory relative to the current project and not the current working directory.
+
+We can pass any object as an argument for the ``file()`` method. Usually, we will pass a ``String`` or ``java.io.File`` object.
+
+```groovy
+// Use String for file reference.
+File wsdl = file('src/wsdl/sample.wsdl')
+// Use File object for file reference.
+File xmlFile = new File('xml/input/sample.xml')
+def inputXml = project.file(xmlFile)
+```
+
+There are many ways in which we can use the file() method. We can pass a url or uri instance as an argument. Only file based URLs are now supported by Gradle. We can also use closure to define the file or directory. Finally, we could also pass an instance of the java.util.concurrent.Callable interface, where the return value of the call() method is a valid reference to a file or directory:
+
+```groovy
+import java.util.concurrent.Callable
+
+// Use URL instance to locate file.
+def url = new URL('file:/README')
+File readme = file(url)
+// Or a URI instance.
+def uri = new URI('file:/README')
+def readmeFile = file(uri)
+// Use a closure to determine the file or directory name.
+def fileNames = ['src', 'web', 'config']
+def configDir = file {
+    fileNames.find { fileName ->
+        fileName.startsWith('config')
+    }
+}
+// Use Callable interface.
+def source = file(new Callable<String>() {
+    String call() {
+        'src'
+    }
+})
+```
+
+With the ``file()`` method, we create a new File object; this object can reference a file or directory. We can use the ``isFile()`` or ``isDirectory()`` method of the File object to see if we are dealing with a file or directory. In case we want to check whether the file or directory really exists, we use the ``exists()`` method.
+
+In Gradle, we can pass an extra argument to the file() method, of the org.gradle.api.PathValidation type. Gradle then validates whether the created File object is valid for the PathValidation instance; if it isn't, the build is stopped and we get a nice error message telling us what went wrong.
+
+Suppose, we want to work with a directory named config in our build script. The directory must be present, otherwise the build will stop:
+
+```groovy
+def dir = project.file(new File('config'), PathValidation.DIRECTORY)
+```
+
+```shell
+$ gradle -q
+FAILURE: Build failed with an exception.
+* Where:
+Build file '/Users/mrhaki/Projects/gradle-effective-implementationguide-2/Code_Files/build.gradle' line: 1
+* What went wrong:
+A problem occurred evaluating root project 'files'.
+> Directory '/Users/mrhaki/Projects/gradle-effective-implementationguide-2/Code_Files/files/config' does not exist.
+```
+
+We can also use the PathValidation argument to test whether a File object is really a file and not a directory. Finally, we can check whether the File object references an existing file or directory.
+
+```groovy
+// Check file or directory exists.
+def readme = project.file('README', PathValidation.EXISTS)
+// Check File object is really a file.
+def license = project.file('License.txt', PathValidation.FILE)
+```
+
+### Using file collections
+
+We can also work with a set of files or directories instead of just a single file or directory. In Gradle, a set of files is represented by the ``ConfigurableFileCollection`` interface.
+
+We can use the ``files()`` method to define a file collection in our build script. This method is defined in the Project object that we can access in our build script. The files() method accepts many different types of arguments, which makes it very flexible to use.
+
+```groovy
+// Use String instances.
+def multiple = files('README', 'licence.txt')
+// Use File objects.
+def userFiles = files(new File('README'), new File('INSTALL'))
+// We can combine different argument types.
+def combined = files('README', new File('INSTALL'))
+
+def urlFiles = files(new URI('file:/README'), new URL('file:/INSTALL'))
+```
+
+We can also use an array, ``Collection``, or ``Iterable`` object with file names or another ``ConfigurableFileCollection`` instance as an argument:
+```groovy
+// Use a Collection with file or directory names.
+def listOfFileNames = ['src', 'test']
+def mainDirectories = files(listOfFileNames)
+// Use an array.
+// We use the Groovy ``as`` keyword to force an object to a certain type.
+mainDirectories = files(listOfFileNames as String[])
+// Or an implementation of the Iterable interface.
+mainDirectories = files(listOfFileNames as Iterable)
+// Combine arguments and pass another file collection.
+def allDirectories = files(['config'], mainDirectories)
+```
+
+We can also use a closure or instance of the Callable interface to define a list of files, as follows:
+```groovy
+import java.util.concurrent.Callable
+
+def dirs = files {
+    [new File('src'), file('README')].findAll { file -> file.directory}
+}
+
+def rootFiles = files(new Callable<List<File>>() {
+    def files = [new File('src'), file('README'), file('INSTALL')]
+    List<File> call() {
+        files.findAll { fileObject ->
+            fileObject.file
+        }
+    }
+})
+```
+
+The ConfigurableFileCollection interface has useful methods to manipulate the collection, for example, we can use + and - operators to add or remove elements from the collection, respectively:
+```groovy
+// Define collection.
+def fileCollection = files('README', 'INSTALL')
+// Remove INSTALL file from collection.
+def readme = fileCollection - files('INSTALL')
+// Add new collection to existing collection.
+def moreFiles = fileCollection + files(file('config', PathValidation.DIRECTORY))
+```
+
+To get the absolute path names for the elements in ConfigurableFileCollection, we can use the ``asPath`` property.
+
+```groovy
+task collectionPath {
+    doLast {
+        def fileCollection = files('README', 'INSTALL')
+        println fileCollection.asPath
+    }
+}
+```
+
+Finally, we can apply a filter to our file collection with the filter() method. We pass a closure that defines the elements that are to be in the filtered collection. The filtered collection is a live collection. This means that if we add new elements to the original collection, the filter closure is applied again for our filtered collection.
+
+```groovy
+task filterFiles {
+    doLast {
+        def rootFiles = files('INSTALL.txt', 'README')
+
+        // Filter for files with a txt extension.
+        def smallFiles = rootFiles.filter { file ->
+            file.name.endsWith 'txt'
+        }
+
+        rootFiles = rootFiles + files('LICENSE.txt')
+        // smallFiles now contains 2 files:
+        // INSTALL and LICENSE
+
+        smallFiles.forEach {
+            println "${it}"
+        }
+    }
+}
+```
+
+*Note.*
+
+It doesn't seem to be working. Only INSTALL is printed out. Not sure whether they've removed this functionality.
+
+### Working with file trees
+
+Working with file trees In Gradle, we can also work with file collections organized as a tree, for example, a directory tree on a disk or hierarchical content in a ZIP file. A hierarchical file collection is represented by a ``ConfigurableFileTree`` interface. This interface extends the ``ConfigurableFileCollection`` interface that we saw earlier.
+
+To create a new file tree, we use the fileTree() method in our project. We can use several ways to define the file tree.
+
+We can use the 
+* include method and includes property to define a matching pattern to include a file (or files) in the file tree. 
+* exclude method and excludes property, we can use the same syntax to exclude a file or multiple files from the file tree.
+
+The matching pattern style is described as an Ant-style matching pattern:
+* ``*`` to match any number of characters 
+* ``?`` to match any single character 
+* ``**`` to match any number of directories or files
+
+The following example demonstrates how to create a file tree:
+
+```groovy
+// Create file tree with base directory 'src/main' and only include files with extension .java
+def srcDir = fileTree('src/main').include('**/*.java')
+// Use map with arguments to create a file tree.
+def resources = fileTree(dir: 'src/main', excludes: ['**/*.java', '**/*.groovy'])
+
+// Create file tree with project directory as base directory and use method include() on tree object to include 2 files.
+def base = fileTree('.')
+base.include 'README', 'INSTALL'
+
+// Use closure to create file tree.
+def javaFiles = fileTree {
+    from 'src/main/java'
+    exclude '*.properties'
+}
+```
+
+To filter a file tree, we can use the ``filter()`` method as we do with file collections, but we can also use the ``matching()`` method. We pass a closure to the ``matching()`` method or an instance of the ``org.gradle.api.tasks.util.PatternFilterable`` interface. We can use ``include``, ``includes``, ``exclude``, and ``excludes`` methods to either include or exclude files from the file tree, as follows:
+
+```groovy
+def sources = fileTree {
+    from 'src'
+}
+def javaFiles = sources.matching {
+    include '**/*.java'
+}
+def nonJavaFiles = sources.matching {
+    exclude '**/*.java'
+}
+def nonLanguageFiles = sources.matching {
+    exclude '**/*.scala', '**/*.groovy', '**/*.java'
+}
+def modifiedLastWeek = sources.matching {
+    lastWeek = new Date() - 7
+    include { file ->
+        file.lastModified > lastWeek.time
+    }
+}
+```
+
+We can use the visit() method to visit each tree node. We can check whether the node is a directory or file. The tree is then visited in breadth-wise order, as shown in the following code:
+
+```groovy
+def testFiles = fileTree(dir: 'src/test')
+testFiles.visit { fileDetails ->
+    if (fileDetails.directory) {
+        println "Entering directory ${fileDetails.relativePath}"
+    } else {
+        println "File name: ${fileDetails.name}"
+    }
+}
+def projectFiles = fileTree(dir: 'src/test')
+projectFiles.visit(new FileVisitor() {
+    void visitDir(FileVisitDetails details) {
+        println "Directory: ${details.path}"
+    }
+    void visitFile(FileVisitDetails details) {
+        println "File: ${details.path}, size: ${details.size}"
+    }
+})
+```
+
+### Copying files
+
+To copy files in Gradle, we can use the ``Copy`` task. We must assign a set of source files to be copied and the destination of these files. This is defined with a copy spec. A copy spec is defined by the ``org.gradle.api.file.CopySpec`` interface.
+
+The following example shows a simple Copy task called simpleCopy with a single source ``src/xml`` directory and a ``destination`` definitions directory:
+```groovy
+task simpleCopy(type: Copy) {
+    from 'src/xml'
+    into 'definitions'
+}
+```
+
+**The ``from()`` method accepts the same arguments as the ``files()`` method.** When the argument is a directory, all files in that directory — but not the directory itself—are copied to the destination directory. If the argument is a file, then only that file is copied.
+
+**The ``into()`` method accepts the same arguments as the ``file()``method.** To include or exclude files, we use the ``include()`` and ``exclude()`` methods of the CopySpec interface. We can apply the Ant-style matching patterns just like we do with the ``fileTree()`` method.
+
+```groovy
+// Define a closure with ANT-style pattern for files.
+def getTextFiles = {
+    '**/*.txt'
+}
+task copyTask(type: Copy) {
+// Copy from directory.
+    from 'src/webapp'
+// Copy single file.
+    from 'README.txt'
+// Include files with html extension.
+    include '**/*.html', '**/*.htm'
+// Use closure to resolve files.
+    include getTextFiles
+// Exclude file INSTALL.txt.
+    exclude 'INSTALL.txt'
+// Copy into directory dist
+// resolved via closure.
+    into { file('dist') }
+}
+```
+
+Another way to copy files is with the ``Project.copy()`` method. The ``copy()`` method accepts a ``CopySpec`` interface implementation, just like the ``Copy`` task.
+
+```groovy
+task simpleCopy << {
+// We use the project.copy() method in our task. We can leave out the project reference, because Gradle knows how to
+// resolve it automatically.
+    copy {
+        from 'src/xml'
+        into 'definitions'
+    }
+}
+```
+
+### Archiving files
+
+To create an archive file, we can use Zip, Tar, Jar, War, and Ear tasks. To define the source files for the archive and the destination inside the archive files, we use a ``CopySpec`` interface, just like with copying files. We can use ``rename()``, ``filter()``, ``expand()``, ``include()``, and ``exclude()`` methods in the same way so that you don't have to learn anything new, you can use what you have already learned.
+
+To set the filename of the archive, we use any of these properties: ``baseName``, ``appendix``, ``version``, ``classifier``, or ``extension``. Gradle will use the following pattern to create a filename: ``[baseName]-[appendix]-[version]-[classifier].[extension]``. If a property is not set, then it is not included in the resulting filename.
+
+In the following example, we will create a ZIP archive with the archiveZip task. We will include all the files from the dist directory and put them in the root of the archive. The name of the file is set by the individual properties that follow Gradle's pattern:
+
+```groovy
+task archiveDist(type: Zip) {
+from 'dist'
+// Create output filename. Final filename is: dist-files-archive-1.0-sample.zip
+    baseName = 'dist-files'
+    appendix = 'archive'
+    extension = 'zip'
+    version = '1.0'
+    classifier = 'sample'
+}
+```
+
+When we run the archiveDist task, a new dist-files-archive-1.0-sample.zip file is created in the root of our project. To change the destination directory of the archive file, we must set the ``destinationDir`` property.
+
+```groovy
+// By using task type Zip we instruct Gradle to create an archive in ZIP format.
+task archiveFiles(type: Zip) {
+    from 'dist'
+// Copy files to a directory inside the archive.
+    into 'files'
+// Set destination directory for ZIP file. $buildDir refers to default Gradle build directory 'build/'.
+    destinationDir = file("$buildDir/zips")
+// Set complete filename at once.
+    archiveName = 'dist-files.zip'
+}
+```
+
+To create a TAR archive with the optional gzip or bzip2 compression, we must use the tarFiles task. The syntax is the same as the task for the Zip type, but we have an extra compression property that we can use to set the type of compression (gzip, bzip2) that we want to use.
+
+We set the compression property to gzip. After running this task, we get a new dist/tarballs/dist-files.tar.gz file:
+
+```groovy
+task tarFiles(type: Tar) {
+    from 'dist'
+// Set destination directory.
+    destinationDir = file("$buildDir/tarballs")
+// Set filename properties.
+    baseName = 'dist-files'
+// Default extension for tar files with gzip compression is tgz.
+    extension = 'tar.gz'
+// Use gzip compression.
+    compression = Compression.GZIP // or Compression.BZIP2
+}
+```
+
+The Jar, War, and Ear task types follow the same pattern as the Zip and Tar task types. Each type has some extra properties and methods to include files specific for that type of archive.
+
+## Project properties
+
+In a Gradle build file, we can access several properties that are defined by Gradle, but we can also create our own properties. We can set the value of our custom properties directly in the build script and we can also do this by passing values via the command line.
+
