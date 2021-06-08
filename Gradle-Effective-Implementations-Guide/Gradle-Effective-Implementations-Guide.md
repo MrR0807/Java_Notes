@@ -1806,3 +1806,246 @@ The Jar, War, and Ear task types follow the same pattern as the Zip and Tar task
 
 In a Gradle build file, we can access several properties that are defined by Gradle, but we can also create our own properties. We can set the value of our custom properties directly in the build script and we can also do this by passing values via the command line.
 
+The default properties that we can access in a Gradle build are displayed in the following table:
+
+![Chapter-3-default-properties.PNG](pictures/Chapter-3-default-properties.PNG)
+
+```groovy
+version = '1.0'
+group = 'Sample'
+description = 'Sample build file to show project properties'
+task defaultProperties << {
+    println "Project: $project"
+    println "Name: $name"
+    println "Path: $path"
+    println "Project directory: $projectDir"
+    println "Build directory: $buildDir"
+    println "Version: $version"
+    println "Group: $project.group"
+    println "Description: $project.description"
+    println "AntBuilder: $ant"
+}
+```
+
+### Defining custom properties in script
+
+To add our own properties, we have to define them in an ext{} script block in a build file. Prefixing the property name with ext. is another way to set the value. To read the value of the property, we don't have to use the ext. prefix, we can simply refer to the name of the property. The property is automatically added to the internal project property as well.
+
+```groovy
+// Define new property.
+ext.customProperty = 'custom'
+// Or we can use ext{} script block.
+ext {
+    anotherCustomProperty = 'custom'
+}
+task showProperties {
+    ext {
+        customProperty = 'override'
+    }
+    doLast {
+        // We can refer to the property in different ways:
+        println customProperty
+        println project.ext.customProperty
+        println project.customProperty
+        println anotherCustomProperty
+    }
+}
+```
+
+```shell
+$ gradle showProperties
+
+> Task :showProperties
+override
+custom
+custom
+custom
+```
+
+### Defining properties using an external file
+
+We can also set the properties for our project in an external file. The file needs to be named gradle.properties, and it should be a plain text file with the name of the property and its value on separate lines. We can place the file in the project directory or Gradle user home directory. The default Gradle user home directory is $USER_HOME/.gradle. **A property defined in the properties file, in the Gradle user home directory, overrides the property values defined in a properties file in the project directory.**
+
+We will now create a gradle.properties file in our project directory, with the following contents.
+
+```properties
+version=4.0
+customProperty=Property value from gradle.properties
+```
+
+```shell
+gradle -q showProperties
+Version: 4.0
+Custom property: Property value from gradle.properties
+```
+
+### Passing properties via the command line
+
+Instead of defining the property directly in the build script or external file, we can use the ``-P`` command-line option to add an extra property to a build. We can also use the ``-P`` command-line option to set a value for an existing property. If we define a property using the -P command-line option, we can override a property with the same name defined in the external gradle.properties file.
+
+```shell
+$ gradle -Pversion=1.1 -PcustomProperty=custom showProperties
+:showProperties
+Version: 1.1
+Custom property: custom
+```
+
+### Defining properties via system properties
+
+We can also use Java system properties to define properties for our Gradle build. We use the ``-D`` command-line option just like in a normal Java application. The name of the system property must start with ``org.gradle.project``, followed by the name of the property we want to set, and then by the value.
+
+We can use the same build script that we created before.
+
+```shell
+$ gradle -Dorg.gradle.project.version=2.0 -
+Dorg.gradle.project.customProperty=custom showProperties
+:showProperties
+Version: 2.0
+Custom property: custom
+```
+
+### Adding properties via environment variables
+
+The environment variable name starts with ORG_GRADLE_PROJECT_ and is followed by the property name.
+
+Firstly, we set ``ORG_GRADLE_PROJECT_version`` and ``ORG_GRADLE_PROJECT_customProperty`` environment variables, then we run our showProperties task, as follows:
+
+```shell
+$ ORG_GRADLE_PROJECT_version=3.1 \
+ORG_GRADLE_PROJECT_customProperty="Set by environment variable" \
+gradle showProp
+:showProperties
+Version: 3.1
+Custom property: Set by environment variable
+```
+
+## Using logging
+
+Gradle supports several logging levels that we can use for our own messages. The level of our messages is important as we can use the command-line options to filter the messages for log levels.
+
+The following table shows the log levels that are supported by Gradle:
+
+![Chapter-3-log-levels.PNG](pictures/Chapter-3-log-levels.PNG)
+
+Every Gradle build file and task has a logger object. The logger object is an instance of a Gradle-specific extension of the Simple Logging Facade for Java (SLF4J) Logger interface.
+
+To use the logger object in our Gradle build files, we only have to reference logger and invoke the method for the logging level we want to use, or we can use the common log()method and pass the log level as a parameter to this method.
+
+```groovy
+// Simple logging sample.
+task logLevels {
+    doLast{
+        logger.debug 'debug: Most verbose logging level'
+        logger.log LogLevel.DEBUG, 'debug: Most verbose logging level'
+        logger.info 'info: Use for information messages'
+        logger.log LogLevel.INFO, 'info: Use for information messages'
+        logger.lifecycle 'lifecycle: Progress information messages'
+        logger.log LogLevel.LIFECYCLE, 'lifecycle: Progress information messages'
+        logger.warn 'warn: Warning messages like invalid configuration'
+        logger.log LogLevel.WARN, 'warn: Warning messages like invalid configuration'
+        logger.quiet 'quiet: This is important but not an error'
+        logger.log LogLevel.QUIET, 'quiet: This is important but not an error'
+        logger.error 'error: Use for errors'
+        logger.log LogLevel.ERROR, 'error: Use for errors'
+    }
+}
+```
+
+```shell
+$ gradle logLevels
+
+> Task :logLevels
+lifecycle: Progress information messages
+lifecycle: Progress information messages
+warn: Warning messages like invalid configuration
+warn: Warning messages like invalid configuration
+quiet: This is important but not an error
+quiet: This is important but not an error
+error: Use for errors
+error: Use for errors
+```
+
+We notice that only the LIFECYCLE, WARN, QUIET, and ERROR log levels are shown if we don't add any extra command-line options. To see the INFO messages, we must use the ``--info`` command-line option.
+```shell
+$ gradle --info logLevels
+```
+
+To get even more output and our DEBUG level logging messages, we must use the ``--debug`` command-line option to invoke the logLevels task, as follows:
+
+```shell
+$ gradle --debug logLevels
+```
+
+So, we know that every Gradle project and task has a logger we can use. **However, we can also explicitly create a logger instance with the Logging class.**
+
+***Note***
+
+Not interested. Very edge case.
+
+### Controlling output
+
+Configuring Gradle output via LoggingManager. Very edge case. Not interested.
+
+## Using the Gradle Wrapper
+
+The Gradle Wrapper can be used to allow others to build our project even if they don't have Gradle installed on their computers.
+
+The wrapper is a batch script on the Microsoft Windows operating systems or shell script on other operating systems that will download Gradle and run the build using the downloaded Gradle.
+
+### Creating wrapper scripts
+
+To create the Gradle Wrapper batch and shell scripts, we can invoke the built-in wrapper task. This task is already available if we have installed Gradle on our computer. Let's invoke the wrapper task from the command-line:
+
+```shell
+$ gradle wrapper
+:wrapper
+```
+
+After the execution of the task, we have two script files — ``gradlew.bat`` and ``gradlew`` — in the root of our project directory. These scripts contain all the logic needed to run Gradle.
+
+In the ``gradle/wrapper`` directory, relative to our project directory, we find the ``gradlewrapper.jar`` and ``gradle-wrapper.properties`` files. The ``gradle-wrapper.jar`` file contains a couple of class files necessary to download and invoke Gradle. The ``gradlewrapper.properties`` file contains settings, such as the URL, to download Gradle.
+
+All the generated files are now part of our project. **If we use a version control system, then we must add these files to the version control.** Other people that check out our project can use the gradlew scripts to execute tasks from the project.
+
+If we want to use another Gradle version, we can invoke the wrapper task with the ``--gradle-version`` option.
+
+```shell
+$ gradle wrapper --gradle-version=2.12
+:wrapper
+```
+
+### Customizing the Gradle Wrapper
+
+If we want to customize properties of the built-in wrapper task, we must add a new task to our Gradle build file with the org.gradle.api.tasks.wrapper.Wrapper type. We will not change the default wrapper task, but create a new task with new settings that we want to apply.
+
+We can change the names of the script files that are generated with the scriptFile property of the Wrapper task. To change the name and location of the generated JAR and properties files, we can change the jarFile property:
+
+```groovy
+task createWrapper(type: Wrapper) {
+    // Set Gradle version for wrapper files.
+    gradleVersion = '2.12'
+    // Rename shell scripts name to startGradle instead of default gradlew.
+    scriptFile = 'startGradle'
+    // Change location and name of JAR file with wrapper bootstrap code and accompanying properties files.
+    jarFile = "${projectDir}/gradle-bin/gradle-bootstrap.jar"
+}
+```
+
+If we run the createWrapper task, we get a Windows batch file and shell script and the Wrapper bootstrap JAR file with the properties file is stored in the gradle-bin directory:
+
+```shell
+$ gradle createWrapper
+:createWrapper
+BUILD SUCCESSFUL
+Total time: 0.605 secs
+$ tree .
+.
++-- gradle-bin
+¦ +-- gradle-bootstrap.jar
+¦   +-- gradle-bootstrap.properties
+¦ +-- startGradle
+¦ +-- startGradle.bat
+¦ +-- build.gradle
+```
+
+# Chapter 4. Using Gradle for Java Projects
