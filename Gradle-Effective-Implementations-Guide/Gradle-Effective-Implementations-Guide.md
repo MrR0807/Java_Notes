@@ -2049,3 +2049,354 @@ $ tree .
 ```
 
 # Chapter 4. Using Gradle for Java Projects
+
+## Why plugins?
+
+In Gradle, we can apply plugins to our project. A plugin basically adds extra functionalities such as tasks and properties to our project. By using a plugin, functionality is decoupled from the core Gradle build logic. We can write our own plugins, but Gradle also ships with plugins that are ready out of the box. For example, Gradle has a Java plugin. This plugin adds tasks for compiling, testing, and packaging Java source code to our project.
+
+## Getting started with the Java plugin
+
+The Java plugin provides a lot of useful tasks and properties that we can use for building a Java application or library.
+
+Let's start with a new build file and use the Java plugin. We only have to apply the plugin for our build:
+
+```groovy
+apply plugin: 'java'
+```
+
+That's it! Just by adding this simple line, we now have a lot of tasks that we can use to work with in our Java project.
+
+```shell
+$ gradle tasks
+
+> Task :tasks
+
+------------------------------------------------------------
+Tasks runnable from root project 'GradleStuff'
+------------------------------------------------------------
+
+Build tasks
+-----------
+assemble - Assembles the outputs of this project.
+build - Assembles and tests this project.
+buildDependents - Assembles and tests this project and all projects that depend on it.
+buildNeeded - Assembles and tests this project and all projects it depends on.
+classes - Assembles main classes.
+clean - Deletes the build directory.
+jar - Assembles a jar archive containing the main classes.
+testClasses - Assembles test classes.
+
+Build Setup tasks
+-----------------
+init - Initializes a new Gradle build.
+wrapper - Generates Gradle wrapper files.
+
+Documentation tasks
+-------------------
+javadoc - Generates Javadoc API documentation for the main source code.
+
+Help tasks
+----------
+buildEnvironment - Displays all buildscript dependencies declared in root project 'GradleStuff'.
+dependencies - Displays all dependencies declared in root project 'GradleStuff'.
+dependencyInsight - Displays the insight into a specific dependency in root project 'GradleStuff'.
+help - Displays a help message.
+javaToolchains - Displays the detected java toolchains.
+outgoingVariants - Displays the outgoing variants of root project 'GradleStuff'.
+projects - Displays the sub-projects of root project 'GradleStuff'.
+properties - Displays the properties of root project 'GradleStuff'.
+tasks - Displays the tasks runnable from root project 'GradleStuff'.
+
+Verification tasks
+------------------
+check - Runs all checks.
+test - Runs the unit tests.
+```
+
+If we look at the list of tasks, we can see the number of tasks that are now available to us, which we didn't have before; all this is done just by adding a simple line to our build file.
+
+We have several task groups with their own individual tasks, which can be used. We have tasks related to building source code and packaging in the ``Build tasks`` section. The javadoc task is used to generate Javadoc documentation, and is in the ``Documentation tasks`` section. The tasks for running tests and checking code quality are in the ``Verification tasks`` section. Finally, we have several rule-based tasks to build, upload, and clean artifacts or tasks in our Java project.
+
+The plugin also adds the so-called convention object to our project.
+
+**A *convention* object has several properties and methods, which are used by the tasks of the plugin.** These properties and methods are added to our project and can be accessed like normal project properties and methods. So, with the convention object, we can not only look at the properties used by the tasks in the plugin, but we can also change the value of the properties to reconfigure certain tasks.
+
+### Using the Java plugin
+
+To work with the Java plugin, we are first going to create a very simple Java source file.
+
+By applying the Java plugin, we must now follow some conventions for our project directory structure:
+* ``src/main/java`` - Java source files' directory (relative to the project directory);
+* ``src/main/resources`` - non-Java source files that need to be included in the JAR file;
+* ``src/test/java`` - test source files; 
+* ``src/test/resources`` - non-Java source files.
+
+Our sample Java project that we will write is a Java class that uses an external property file to get a welcome message.
+
+```shell
+└───src
+    └───main
+        ├───java
+        │   └───com
+        │       └───hello
+        └───resources
+```
+
+```java
+package com.hello;
+
+import java.util.ResourceBundle;
+
+public class Sample {
+    public Sample() {
+    }
+
+    public String getWelcomeMessage() {
+        ResourceBundle resourceBundle = ResourceBundle.getBundle("messages");
+        String message = resourceBundle.getString("welcome");
+        return message;
+    }
+}
+```
+
+messages.properties:
+
+```properties
+welcome=Welcome to Gradle!
+```
+
+To compile the Java source file and process the properties file, we run the classes task. Note that the classes task has been added by the Java plugin. This is the so-called life cycle task in Gradle. The classes task is actually dependent on two other tasks — ``compileJava`` and ``processResources``. We can see this task dependency when we run the tasks command with the ``--all command-line`` option:
+
+```shell
+$ gradle tasks --all
+...
+classes - Assembles main classes.
+compileJava - Compiles main Java source.
+processResources - Processes main resources.
+...
+```
+
+Let's run the classes task from the command line:
+
+```shell
+$ gradle classes
+:compileJava
+:processResources
+:classes
+BUILD SUCCESSFUL
+```
+
+*Note.*
+
+For me, it does not show:
+```shell
+gradle classes
+
+BUILD SUCCESSFUL in 10s
+2 actionable tasks: 2 executed
+```
+
+However, ``build`` directory is generated.
+
+The build directory is the default directory that Gradle uses to build output files.
+
+If we execute the classes task again, we will notice that the tasks support the incremental build feature of Gradle. As we haven't changed the Java source file or the properties file, and the output is still present, all the tasks can be skipped as they are up-to-date.
+
+To package our class file and properties file, we invoke the jar task. This task is also added by the Java plugin and depends on the classes task. This means that if we run the jar task, the classes task is also executed. Let's try and run the jar task, as follows:
+
+```shell
+$ gradle jar
+
+BUILD SUCCESSFUL in 7s
+3 actionable tasks: 1 executed, 2 up-to-date
+```
+
+The default name of the resulting JAR file is the name of our project. So if our project is called sample, then the JAR file is called ``sample.jar``. We can find the file in the ``build/libs`` directory. If we look at the contents of the JAR file, we see our compiled class file and the ``messages.properties`` file. Also, a manifest file is added automatically by the jar task:
+
+To start again and clean all the generated output from the previous tasks, we can use the clean task. This task deletes the project build directory and all the generated files in this directory. So, if we execute the clean task from the command line, Gradle will delete the build directory.
+
+Note that the Java plugin also added some rule-based tasks. One of them was ``clean<TaskName>``. We can use this task to remove the output files of a specific task. The clean task deletes the complete build directory; but with ``clean<TaskName>``, we only delete the files and directories created by the named task. For example, to clean the generated Java class files of the ``compileJava`` task, we execute the ``cleanCompileJava`` task.
+
+### Working with source sets
+
+The Java plugin also adds a new concept to our project - **source sets**. **A source set is a collection of source files that are compiled and executed together.** The files can be Java source files or resource files. Source sets can be used to group files together with a certain meaning in our project, without having to create a separate project. For example, we can separate the location of source files that describe the API of our Java project in a source set, and run tasks that only apply to the files in this source set.
+
+**Without any configuration, we already have the main and test source sets, which are added by the Java plugin.**
+
+For each source set, the plugin also adds the following three tasks: compile<SourceSet>Java, process<SourceSet>Resources, and <SourceSet>Classes. When the source set is named main, we don't have to provide the source set name when we execute a task. For example, compileJava applies to the main source test, but compileTestJava applies to the test source set.
+
+We can access these properties via the sourceSets property of our project. In the following
+example, we will create a new task to display values for several properties:
+```groovy
+apply plugin: 'java'
+task sourceSetJavaProperties << {
+    sourceSets {
+        main {
+            println "java.srcDirs = ${java.srcDirs}"
+            println "resources.srcDirs = ${resources.srcDirs}"
+            println "java.files = ${java.files.name}"
+            println "allJava.files = ${allJava.files.name}"
+            println "resources.files = ${resources.files.name}"
+            println "allSource.files = ${allSource.files.name}"
+            println "output.classesDir = ${output.classesDir}"
+            println "output.resourcesDir = ${output.resourcesDir}"
+            println "output.files = ${output.files}"
+        }
+    }
+}
+```
+
+```shell
+$ gradle sourceSetJavaproperties
+:sourceSetJavaProperties
+java.srcDirs = [/gradle-book/Chapter4/Code_Files/sourcesets/src/main/java]
+resources.srcDirs = [/gradlebook/Chapter4/Code_Files/sourcesets/src/main/resources]
+java.files = [Sample.java]
+allJava.files = [Sample.java]
+resources.files = [messages.properties]
+allSource.files = [messages.properties, Sample.java]
+output.classesDir = /gradlebook/Chapter4/Code_Files/sourcesets/build/classes/main
+output.resourcesDir = /gradlebook/Chapter4/Code_Files/sourcesets/build/resources/main
+output.files = [/gradlebook/Chapter4/Code_Files/sourcesets/build/classes/main, /gradlebook/Chapter4/Code_Files/sourcesets/build/resources/main]
+BUILD SUCCESSFUL
+Total time: 0.594 secs
+```
+
+### Creating a new source set
+
+We can create our own source set in a project.
+
+In our example, we will add a new source set to include a Java interface. Our Sample class will then implement the interface; however, as we use a separate source set, we can use this later to create a separate JAR file with only the compiled interface class. We will name the source set api as the interface is actually the API of our example project, which we can share with other projects.
+
+```groovy
+apply plugin: 'java'
+sourceSets {
+    api
+}
+```
+
+Gradle will create three new tasks based on this source set— ``apiClasses``, ``compileApiJava``, and ``processApiResources``.
+
+```shell
+$ gradle tasks --all
+...
+Build tasks
+-----------
+apiClasses - Assembles api classes.
+compileApiJava - Compiles api Java source.
+processApiResources - Processes api resources.
+...
+```
+
+We have created our Java interface in the ``src/api/java`` directory, which is the source directory for the Java source files for the api source set. The following code allows us to see the Java interface:
+
+```java
+package com.hello;
+
+public interface ReadWelcomeMessage {
+
+    String getWelcomeMessage();
+}
+```
+
+```java
+package com.hello;
+
+import java.util.ResourceBundle;
+
+public class Sample implements ReadWelcomeMessage {
+    
+    public Sample() {
+    }
+
+    @Override
+    public String getWelcomeMessage() {
+        ResourceBundle resourceBundle = ResourceBundle.getBundle("messages");
+        String message = resourceBundle.getString("welcome");
+        return message;
+    }
+}
+```
+
+To compile the source file, we can execute the compileApiJava or apiClasses task:
+
+```shell
+$ gradle apiClasses
+```
+
+The source file is compiled in the ``build/classes/api`` directory.
+
+```shell
+├───build
+│   ├───classes
+│   │   └───java
+│   │       └───api
+│   │           └───com
+│   │               └───hello
+```
+
+Next, we run the classes task to recompile our changed Java source file:
+```shell
+$ gradle classes
+:compileJava
+/gradle-book/Chapter4/src/main/java/gradle/sample/Sample.java:10: error:
+cannot find symbol
+public class Sample implements ReadWelcomeMessage {
+^
+symbol: class ReadWelcomeMessage
+1 error
+:compileJava FAILED
+FAILURE: Build failed with an exception.
+```
+
+We get a compilation error! The Java compiler cannot find the ReadWelcomeMessage interface. However, we just ran the apiClasses task and compiled the interface without errors.
+
+To fix this, we must define a dependency between the classes and apiClasses tasks. The classes task is dependent on the apiClasses tasks. First, the interface must be compiled and then the class that implements the interface must be compiled.
+
+Next, we must add the output directory with the compiled interface class file to the compileClasspath property of the main source set. Once we have done this, we know for sure that the Java compiler picks up the compiled class file to compile the Sample class.
+
+To do this, we will change the build file and add the task dependency between the two tasks and the main source set configuration, as follows:
+
+```groovy
+apply plugin: 'java'
+
+sourceSets {
+    api
+    main {
+        compileClasspath += files(api.output.classesDir)
+    }
+}
+
+classes.dependsOn apiClasses
+```
+
+Now we can run the classes task again, without errors:
+
+```shell
+$ gradle classes
+:compileApiJava
+:processApiResources UP-TO-DATE
+:apiClasses
+:compileJava
+:processResources
+:classes
+BUILD SUCCESSFUL
+```
+
+*Note.*
+
+```shell
+gradle classes
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 'C:\Users\BC6250\Desktop\GradleStuff\build.gradle' line: 6
+
+* What went wrong:
+A problem occurred evaluating root project 'GradleStuff'.
+> Could not get unknown property 'classesDir' for api classes of type org.gradle.api.internal.tasks.DefaultSourceSetOutput.
+```
+
+It seems that ``classesDir`` has to be renamed to ``classesDirs``.
+
