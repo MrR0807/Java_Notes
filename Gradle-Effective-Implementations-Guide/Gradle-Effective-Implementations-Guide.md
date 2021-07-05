@@ -1619,7 +1619,7 @@ It doesn't seem to be working. Only INSTALL is printed out. Not sure whether the
 
 ### Working with file trees
 
-Working with file trees In Gradle, we can also work with file collections organized as a tree, for example, a directory tree on a disk or hierarchical content in a ZIP file. A hierarchical file collection is represented by a ``ConfigurableFileTree`` interface. This interface extends the ``ConfigurableFileCollection`` interface that we saw earlier.
+In Gradle, we can also work with file collections organized as a tree, for example, a directory tree on a disk or hierarchical content in a ZIP file. A hierarchical file collection is represented by a ``ConfigurableFileTree`` interface. This interface extends the ``ConfigurableFileCollection`` interface that we saw earlier.
 
 To create a new file tree, we use the fileTree() method in our project. We can use several ways to define the file tree.
 
