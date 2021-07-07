@@ -2616,3 +2616,88 @@ No dependencies
 ![chapter-5-java-plugin-configuration.png](pictures/chapter-5-java-plugin-configuration.png)
 
 Runtime configuration, indeed, extends compile configuration. It means, that any dependency added to compile configuration is available in runtime configuration.
+
+If our code has a dependency on a library, we can set the dependency with the compile configuration. The dependency is then automatically available in the runtime, testCompile, testRuntime, and default configurations.
+
+## Repositories
+
+We can declare several repository types in the Gradle build file. Gradle provides some preconfigured repositories, but it is also very easy to use a custom Maven or Ivy repository.
+
+![chapter-5-java-repositories.png](pictures/chapter-5-java-repositories.png)
+
+We define a repository with the repositories() method. This method accepts a closure that is used to configure an org.gradle.api.artifacts.dsl.RepositoryHandler object.
+
+### Adding Maven repositories
+
+A lot of Java projects use Maven as a build tool and for it's dependency management features. A Maven repository stores libraries with version information and metadata described in a descriptor XML file. The layout of a Maven repository is fixed and follows the ``someroot/[organization]/[module]/[revision]/[module][revision].[ext]`` pattern. The organization section is split into subfolders based on the dots used in the organization name. For example, if the organization name is ``org.gradle``, an org folder with the gradle subfolder needs to be in the Maven repository. A JAR library with the organization name, ``org.gradle``; module name, ``gradle-api``; and revision, ``1.0``, is resolved via the s``omeroot/org/gradle/gradle-api/1.0/gradle-api-1.0.jar`` path.
+
+The Maven central repository is located at ``https://repo1.maven.org/maven2`` and contains a lot of libraries. Many open source projects deploy their artifacts to Maven's central repository. We can use the ``mavenCentral()`` method in the configuration closure for the ``repositories()`` method.
+
+```groovy
+repositories {
+    // Define Maven Central as repository for dependencies.
+    mavenCentral()
+}
+```
+
+If you have used Maven before on your computer, there is a good chance that you have a local Maven repository. Maven will use a hidden folder in our home directory to store the downloaded dependency libraries. **We can add this local Maven repository with the ``mavenLocal()`` method to the list of repositories.**
+
+```groovy
+repositories {
+    mavenLocal()
+}
+```
+
+Our company can have a Maven repository available via the intranet. We define the URL of the Maven repository with the ``maven()`` or ``mavenRepo()`` method.
+
+```groovy
+repositories {
+    maven {
+        // Name is optional. If not set url property is used
+        name = 'Main Maven repository'
+        url = 'http://intranet/repo'
+    }
+    
+    // Alternative way for defining a custom Maven repository.
+    mavenRepo(name: 'Snapshot repository', url: 'http://intranet/snapshots')
+}
+```
+
+Both methods configure a repository via a combination of a closure and method arguments.
+
+Sometimes we must access a Maven repository that stores the metadata in the descriptor XML files, but the actual JAR files are in a different location. To support this scenario, we must set the artifactUrls property and assign the addresses of the servers that store the JAR files:
+
+```groovy
+repositories {
+    maven {
+        url: 'http://intranet/mvn'
+        // Use a different location for
+        // the artifacts.
+        artifactUrls 'http://intranet/jars'
+        artifactUrls 'http://intranet/snapshot-jars'
+    }
+}
+```
+
+To access a Maven repository with basic authentication, we can set the credentials when we define the repository, as follows:
+
+```groovy
+repositories {
+    maven(name: 'Secured repository') {
+        // Set credentials to access the repository. It is better to store the values for username
+        // and password outside the build file.
+        credentials {
+            username = 'username'
+            password = 'password'
+        }
+    
+        url = 'http://intranet/repo'
+    }
+}
+```
+
+It is not a good idea to store username and password as plain text in the build file as anyone can read our password if stored in plain text. It is better if we define the properties in a gradle.properties file in the Gradle user home directory, apply the correct security constraints on the property file, and use these properties in our build file.
+
+### Adding Ivy repositories
+
+Not interested.
