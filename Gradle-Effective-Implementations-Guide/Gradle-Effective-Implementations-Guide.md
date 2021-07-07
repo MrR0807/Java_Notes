@@ -2568,7 +2568,7 @@ task apiJar(type: Jar) {
 
 The ``apiJar`` task is a Jar task. We define the ``appendix`` property that is used to generate the final filename of the JAR file. We use the ``from()`` method to point the output directory of our API source set, so all the generated output is included in the JAR file. When we run the ``apiJar`` task, a new ``gradle-sample-api-1.0.jar`` JAR file is generated in the ``build/libs`` directory.
 
-# Dependency Management
+# Chapter 5. Dependency Management
 
 ## Dependency configuration
 
