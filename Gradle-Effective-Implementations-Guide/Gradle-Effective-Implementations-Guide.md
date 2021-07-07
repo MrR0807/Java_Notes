@@ -2400,3 +2400,219 @@ A problem occurred evaluating root project 'GradleStuff'.
 
 It seems that ``classesDir`` has to be renamed to ``classesDirs``.
 
+### Custom configuration
+
+If we use Gradle for an existing project, we might have a different directory structure than the default structure defined by Gradle, or it may be that we want to have a different structure for another reason.
+
+Consider that we have a project with the following source directory structure:
+
+```
+.
+├── resources
+│   ├── java
+│   └── test
+├── src
+│   └── java
+├── test
+│ ├── integration
+│ │   └── java
+│ └── unit
+│     └── java
+└── tree.txt
+```
+
+We will need to reconfigure the main and test source sets, but we must also add a new integration-test source set.
+
+```groovy
+apply plugin: 'java'
+sourceSets {
+    main {
+        java {
+            srcDir 'src/java'
+        }
+        resources {
+            srcDir 'resources/java'
+        }
+    }
+    test {
+        java {
+            srcDir 'test/unit/java'
+        }
+        resources {
+            srcDir 'resources/test'
+        }
+    }
+    'integeration-test' {
+        java {
+            srcDir 'test/integration/java'
+        }
+        resources {
+            srcDir 'resources/test'
+        }
+    }
+}
+```
+
+Notice how we must put the name of the integration-test source set in quotes; this is because we use a hyphen in the name. Gradle then converts the name of the source set into integrationTest (without the hyphen and with a capital T). To compile, for example, the source files of the integration test source set, we use the compileIntegrationTestJava task.
+
+### Working with properties
+
+We have already discussed that the Java plugin adds tasks and source sets to our Gradle project; however, we also get a lot of new properties that we can use. Custom properties of a plugin are set in a ``Convention`` object of the ``org.gradle.api.plugins.Convention`` type. A ``Convention`` object is used by a plugin to expose properties and methods that we can use in our project. The ``Convention`` object of the plugin is added to the ``convention`` property of a project. The ``convention`` property of a Gradle project is a container for all the ``Convention`` objects from the plugins.
+
+For example, the ``sourceSets`` property is a property of the ``Convention`` object of the Java plugin. With the following task, ``showConvention``, we see the different ways that we have in order to access this property:
+
+```groovy
+task showConvetions {
+    doLast {
+        println sourceSets.main.name
+        println project.sourceSets.main.name
+        println project.convention.plugins.java.sourceSets.main.name
+    }
+}
+```
+
+To see all the ``properties`` available to us, we must invoke the properties task from the command line.
+
+```shell
+$ gradle properties
+
+...
+taskThatOwnsThisObject: null
+tasks: task set
+testReportDir: C:\GradleStuff\test\build\reports\tests
+testReportDirName: tests
+testResultsDir: C:\GradleStuff\test\build\test-results
+...
+```
+
+If we look through the list, we see a lot of properties that we can use to redefine the directories where output files of the compile or test tasks are stored:
+* ``distDirName`` (default value: distributions). This is the directory name relative to the build directory to store distribution files;
+* ``libsDirName`` (default value: libs). This is the directory name to store generated JAR files; it is relative to the build directory;
+* ``dependencyCacheDirName`` (default value: dependency-cache). This is the name of the directory for storing cached information about dependencies; it is relative to the build directory;
+* ``docsDirName`` (default value: docs). This is the name of the directory for storing generated documentation; it is relative to the build directory;
+* ``testReportDirName`` (default value: tests). This is the directory name relative to the build directory to store test reports;
+* ``testResultsDirName`` (default value: test-results). This stores test result XML files; it is relative to the build directory.
+
+The following table shows the convention properties of the Java plugin:
+* ``archivesBaseName``. Default value - name of the project. This is the base filename to use for archives created by archive tasks, such as JAR;
+* ``sourceCompatibility``. Default value - Java version of JDK used to run Gradle. This is the Java version compatibility to be used when compiling Java source files with the compile task;
+* ``targetCompatibility``. Default value - value of sourceCompatibility. This is the version of Java class files are generated for;
+* ``sourceSets``. Default value - these are the source sets for the project;
+* ``manifest``. Default value - empty manifest. This is the manifest to be included in all JAR files;
+* ``metaInf``. Default value - empty list.  This is the list of files to be included in the META-INF directory of all the JAR files created in the project.
+
+### Creating Javadoc documentation
+
+To generate a Javadoc documentation, we must use the ``javadoc`` task.
+
+The task generates a documentation for the Java source files in the main source set. If we want to generate documentation for the source sets in our project, we must configure the javadoc task or add an extra javadoc task to our project.
+
+Note that, in our project, we have an API and main source set with the Java source files. If we want to generate documentation for both the source sets, we have to configure the ``javadoc`` task in our project. The source property of the ``javadoc`` task is set to ``sourceSets.main.allJava`` by default. If we add ``sourceSets.api.allJava`` to the source property, our interface file is also processed by the ``javadoc`` task:
+
+```groovy
+apply plugin: 'java'
+javadoc {
+    source sourceSets.api.allJava
+}
+...
+```
+
+```shell
+$ gradle javadoc
+
+BUILD SUCCESSFUL in 1s
+4 actionable tasks: 4 executed
+```
+
+We can set more properties on the javadoc task. For example, we can set a title for the generated documentation with the title property.
+
+To change the destination directory, we can set the destinationDir property of the javadoc task to the directory that we want.
+
+We can also use the options property to define a lot of properties that we know from the Java SDK javadoc tool.
+
+```groovy
+apply plugin: 'java'
+javadoc {
+    source sourceSets.api.allJava
+    title = 'Gradle Sample Project'
+    options.links = ['http://docs.oracle.com/javase/6/docs/api/']
+    options.footer = "Generated on ${new Date().format('dd MMM yyyy')}"
+    options.header = "Documention for version ${project.version}"
+}
+...
+```
+
+### Assembling archives
+
+If we want to package the output of the new API source set in our JAR file, we must define a new task ourselves.
+
+```groovy
+apply plugin: 'java'
+archivesBaseName = 'gradle-sample'
+version = '1.0'
+sourceSets {
+    api
+    main {
+        compileClasspath += files(api.output.classesDir)
+    }
+}
+classes.dependsOn apiClasses
+
+task apiJar(type: Jar) {
+    // Define appendix that will be appended to the archivesBaseName for the JAR.
+    appendix = 'api'
+    // Define the input for the JAR file.
+    from sourceSets.api.output
+}
+```
+
+The ``apiJar`` task is a Jar task. We define the ``appendix`` property that is used to generate the final filename of the JAR file. We use the ``from()`` method to point the output directory of our API source set, so all the generated output is included in the JAR file. When we run the ``apiJar`` task, a new ``gradle-sample-api-1.0.jar`` JAR file is generated in the ``build/libs`` directory.
+
+# Dependency Management
+
+## Dependency configuration
+
+Java has no real support for working with versioned libraries as dependencies. We cannot express in Java whether our class depends on ``lib-1.0.jar`` or ``lib-2.0.jar``, for example. There are some open source solutions that deal with dependencies and allow us to express whether our Java code depends on.
+
+In a Gradle build file, we group dependencies together in a configuration. A configuration has a name and configurations can extend each other. With a configuration, we can make logical groups of dependencies. For example, we can create a ``javaCompile`` configuration to include dependencies needed to compile the Java code. We can add as many configurations to our build as we want.
+
+Every Gradle build has a ``ConfigurationContainer`` object. This object is accessible via the ``Project`` property with the name ``containers``. Each Configuration object has at least a name, but we can change more properties.
+
+In the following example, we will create a new configuration with the name commonsLib to hold our dependencies and a mainLib configuration that extends commonsLib. **The extended mainLib configuration gets all settings and dependencies from commonsLib**, and we can assign extra dependencies as well:
+
+```groovy
+configurations {
+    commonsLib {
+        description = 'Common libraries'
+    }
+    mainLib {
+        extendsFrom commonsLib
+        description = 'Main libraries'
+    }
+}
+```
+
+Many plugins add new configurations to ConfigurationContainer. **We used the Java plugin in the previous chapter, which added four configurations to our project.** With the built-in dependencies task, we can get an overview of the defined dependencies and configurations for a project.
+
+```shell
+$ gradle -q dependencies
+------------------------------------------------------------
+Root project
+------------------------------------------------------------
+archives - Configuration for archive artifacts.
+No dependencies
+compile - Compile classpath for source set 'main'.
+No dependencies
+default - Configuration for default artifacts.
+No dependencies
+runtime - Runtime classpath for source set 'main'.
+No dependencies
+testCompile - Compile classpath for source set 'test'.
+No dependencies
+testRuntime - Runtime classpath for source set 'test'.
+No dependencies
+```
+
+![chapter-5-java-plugin-configuration.png](pictures/chapter-5-java-plugin-configuration.png)
+
+Runtime configuration, indeed, extends compile configuration. It means, that any dependency added to compile configuration is available in runtime configuration.
