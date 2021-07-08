@@ -2701,3 +2701,342 @@ It is not a good idea to store username and password as plain text in the build 
 ### Adding Ivy repositories
 
 Not interested.
+
+## Adding a local directory repository
+
+To use a simple repository on the local file system or a network share mapped as local storage, we must use the ``flatDir()`` method. The ``flatDir()`` method accepts arguments or a closure to configure the correct directory. We can assign a single directory or multiple directories.
+
+Gradle will resolve files in the configured directory using the first match it finds with the following patterns: 
+* ``[artifact]-[version].[ext] ``
+* ``[artifact]-[version]-[classifier].[ext]``
+* ``[artifact].[ext]``
+* ``[artifact]-[classifier].[ext]``
+
+```groovy
+repositories {
+    flatDir(dir: '../lib', name: 'libs directory')
+    // Alternative way to define flat directory as repository.
+    flatDir {
+        dirs '../project-files', '/volumes/shared-libs'
+        name = 'All dependency directories'
+    }
+}
+```
+
+## Defining dependencies
+
+We define dependencies in our build project with the ``dependencies{}`` script block. We define a closure to pass to the ``dependencies{}`` script block with the configuration of the dependency.
+
+![chapter-5-defining-dependencies.png](pictures/chapter-5-defining-dependencies.png)
+
+### Using external module dependencies
+
+**The most used dependency is the external module dependency.** We can define a module dependency in different ways. For example, we can use arguments to set a group name, module name, and revision of the dependency. We can also use the String notation to set the group name, module name, and revision in a single string. We always assign a dependency to a specific dependency configuration. **The dependency configuration must be defined by ourselves or a plugin that we have applied to our project.**
+
+In the following example build file, we will use the Java plugin so that we get a ``compile`` and ``runtime`` dependency configuration.
+
+```groovy
+apply plugin: 'java'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    // Use attributes for the group, name and version for the external module dependency.
+    compile(group: 'org.springframework', name: 'spring-core', version: '4.2.3.RELEASE')
+    // Use String notation with group, name and version in a single String.
+    runtime('org.springframework:spring-aop:4.2.3.RELEASE')
+}
+```
+
+Remember that a Gradle build file is a Groovy script file, so we can define variables to set values and use them in the dependencies{} script block configuration closure.
+
+```groovy
+apply plugin: 'java'
+
+repositories {
+    jcenter()
+}
+
+ext {
+    springVersion = '4.2.3.RELEASE'
+    springGroup = 'org.springframework'
+}
+
+dependencies {
+    // Use attributes to define dependency and refer to project properties.
+    compile(group: springGroup, name: 'spring-core', version: springVersion)
+    // Use String notation with expression support for variables.
+    runtime("$springGroup:spring-aop:$springVersion")
+}
+```
+
+To see the dependencies and the transitive dependencies, we invoke the built-in dependencies task. We get the following output:
+
+```shell
+$ gradle -q dependencies
+------------------------------------------------------------
+Root project
+------------------------------------------------------------
+archives - Configuration for archive artifacts.
+No dependencies
+compile - Compile classpath for source set 'main'.
+ \--- org.springframework:spring-core:4.2.3.RELEASE
+      \--- commons-logging:commons-logging:1.2
+ default - Configuration for default artifacts.
+ +--- org.springframework:spring-core:4.2.3.RELEASE
+ |    \--- commons-logging:commons-logging:1.2
+ \--- org.springframework:spring-aop:4.2.3.RELEASE
+      +--- aopalliance:aopalliance:1.0
+      +--- org.springframework:spring-beans:4.2.3.RELEASE
+      |    \--- org.springframework:spring-core:4.2.3.RELEASE (*)
+      \--- org.springframework:spring-core:4.2.3.RELEASE (*)
+ runtime - Runtime classpath for source set 'main'.
+ +--- org.springframework:spring-core:4.2.3.RELEASE
+ |    \--- commons-logging:commons-logging:1.2
+ \--- org.springframework:spring-aop:4.2.3.RELEASE
+...
+```
+
+To download only the artifact of an external dependency and not the transitive dependencies, we can set the ``transitive`` property for the dependency to false.
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    // Configure transitive property with closure.
+    compile('org.slf4j:slf4j-simple:1.7.13') {
+        transitive = false
+    }
+    // Or we can use the transitive property as argument.
+    compile(group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.13', transitive: false)
+}
+```
+
+We can also exclude some transitive dependencies with the exclude() method.
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    // Configure transitive property with closure.
+    compile('org.slf4j:slf4j-simple:1.7.13') {
+        exclude 'org.slf4j:slf4j-api'
+    }
+}
+```
+
+When a repository doesn't have a module descriptor file and we want to get the artifact. We must add an @ symbol before the extension of the artifact. Gradle will not look at the module descriptor file, if available, when we use this notation:
+
+```groovy
+apply plugin: 'java'
+
+repositories {
+    jcenter()
+}
+dependencies {
+    // Use artifact-only notation with @ symbol.
+    runtime('org.slf4j:slf4j-simple:1.7.13@jar')
+    // Or we can use the ext property as method argument.
+    runtime(group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.13', ext: 'jar')
+}
+```
+
+We can even set the transitive behavior on a complete configuration.
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    compile('org.slf4j:slf4j-simple:1.7.13')
+}
+// Make all dependencies for the compile configuration transitive.
+configurations.compile.transitive = false
+```
+
+In a Maven repository, we can use classifiers for a dependency. For example, the module descriptor file defines the jdk16 and jdk15 classifiers for different JDK versions of the library.
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    // Use artifact-only notation with @ symbol together with classifier jdk16.
+    compile('sample:simple:1.0:jdk16@jar')
+    // Or we can use the classifier property as method argument.
+    compile(group: 'sample', name: 'simple', version: '1.0', classifier: 'jdk16')
+}
+```
+
+## Using project dependencies
+
+Gradle projects can be dependent on each other. To define such a dependency, we use the ``project()`` method and use the name of the other project as an argument. Gradle will look for a default dependency configuration in this project and use this dependency configuration.
+
+```groovy
+apply plugin: 'java'
+dependencies {
+    // Define a dependency on projectA for the code in our project.
+    compile(project(':projectA'))
+    // Define a dependency on projectB, and use specifically the configuration compile.
+    compile(project(':projectB')) {
+        configuration = 'compile'
+    }
+}
+```
+
+## Using file dependencies
+
+We can add dependencies using FileCollection. We can use the files() and fileTree()methods to add dependencies to a configuration. The dependency must be resolved to an actual artifact.
+
+```groovy
+apply plugin: 'java'
+dependencies {
+    compile files('spring-core.jar', 'spring-aop.jar')
+    compile fileTree(dir: 'deps', include: '*.jar')
+}
+```
+
+### Using client module dependencies (edge case)
+
+Normally, Gradle will use a descriptor XML file for dependencies found in the repository to see which artifacts and optional transitive dependencies need to be downloaded. However, these descriptor files can be misconfigured, and so, we may want to override the descriptors ourselves in order to ensure that the dependencies are correct. To do this, we must use the module() method to define the transitive dependencies of a dependency.
+
+```groovy
+apply plugin: 'java'
+ext {
+    springGroup = 'org.springframework'
+    springRelease = '4.2.3.RELEASE'
+}
+dependencies {
+    compile module("$springGroup:spring-context:$springRelease") {
+        dependency("$springGroup:spring-aop:$springRelease") {
+            transitive = false
+        }
+    }
+}
+```
+
+### Using Gradle and Groovy dependencies
+
+Not interested.
+
+### Accessing configuration dependencies
+
+We can access the dependencies for a dependency configuration in a build file or task through the ``configurations`` property of the ``Project`` object. We can use the ``dependencies()`` and ``allDependencies()`` methods to get a reference to the dependencies, as follows:
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    runtime "org.springframework:spring-aop:4.2.3.RELEASE"
+}
+task dependencyInfo {
+    doLast {
+        println "-- Runtime dependencies --"
+        configurations.runtime.dependencies.each {
+            println "${it.group}:${it.name}:${it.version}"
+        }
+        println "-- Runtime allDependencies --"
+        configurations.runtime.allDependencies.each {
+            println "${it.group}:${it.name}:${it.version}"
+        }
+    }
+}
+```
+
+## Setting dynamic versions
+
+Until now, we have explicitly set a version for a dependency with a complete version number. To set a minimum version number, we can use a special dynamic version syntax. For example, to set the dependency version to a minimum of 2.1 for a dependency, we use a version value 2.1.+. Gradle will resolve the dependency to the latest version after version 2.1 or to version 2.1 itself. In the following example, we will define a dependency on a spring-core version of 3.1 at least:
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    compile(group: 'org.springframework', name: 'spring-core', version: '4.2.+')
+}
+```
+
+We can set ranges as well:
+* ```[1.0, 2.0]``` - All versions greater than or equal to 1.0 and lower than or equal to 2.0;
+* ```[1.0, 2.0[``` - All versions greater than or equal to 1.0 and lower than 2.0;
+* ```]1.0, 2.0]``` - All versions greater than 1.0 and lower than or equal to 2.0;
+* ```]1.0, 2.0[``` - All versions greater than 1.0 and lower than 2.0;
+* ```[1.0, )``` - All versions greater than or equal to 1.0;
+* ```]1.0, )``` - All versions greater than 1.0;
+* ```(, 2.0]``` - All versions lower than or equal to 2.0;
+* ```(, 2.0[``` - All versions lower than 2.0.
+
+```groovy
+apply plugin: 'java'
+repositories {
+    jcenter()
+}
+dependencies {
+    compile(group: 'org.springframework', name: 'spring-core', version: '[4.2, 4.3[')
+}
+```
+
+## Resolving version conflicts
+
+If we have a project with a lot of dependencies and these dependencies have transitive dependencies, version conflicts can easily arise. If one module has a dependency on ``sample:logging:1.0`` and another on ``sample:logging:2.0``, Gradle will use the newest version number by default.
+
+To change the default behavior, we set the ``resolutionStrategy`` property of a dependency configuration. We can instruct Gradle to fail the build if a conflict arises. This is very useful for debugging version conflicts.
+
+```groovy
+apply plugin: 'java'
+configurations.all {
+    resolutionStrategy {
+        failOnVersionConflict()
+    }
+}
+```
+
+To force a certain version number to be used for all dependencies (even transitive dependencies), we can use the ``force()`` method of ``resolutionStrategy``.
+
+```groovy
+apply plugin: 'java'
+configurations.all {
+    resolutionStrategy {
+        force('org.springframework:spring-core:4.2.3.RELEASE')
+    }
+}
+```
+
+## Adding optional ANT tasks
+
+Not interested.
+
+## Using dependency configurations as files
+
+Each dependency configuration implements the FileCollection interface of Gradle. This means that we can use a configuration reference if we need a list of files somewhere. The files that make up the resolved dependency configuration are then used.
+
+Let's create a new build file and use a dependency configuration as the value for the from() method. We create a new task of the Copy type and copy all the dependencies of a new configuration, springLibs, to a directory:
+
+```groovy
+repositories {
+    jcenter()
+}
+configurations {
+    springLibs
+}
+dependencies {
+    springLibs('org.springframework:spring-web:4.2.3.RELEASE')
+}
+task copyCompileDeps(type: Copy) {
+    from configurations.springLibs
+    into "$buildDir/compileLibs"
+}
+```
+
+# Chapter 6. Testing, Building, and Publishing Artifacts
