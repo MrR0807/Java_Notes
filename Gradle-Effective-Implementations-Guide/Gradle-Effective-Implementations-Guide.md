@@ -3040,3 +3040,103 @@ task copyCompileDeps(type: Copy) {
 ```
 
 # Chapter 6. Testing, Building, and Publishing Artifacts
+
+## Testing our projects
+
+Gradle has a built-in support for running tests for our Java projects. When we add the Java plugin to our project, we will get new tasks to compile and run tests. We will also get the ``testCompile`` and ``testRuntime`` dependency configurations. We use these dependencies to set the class path for running the tests in our code base:
+* Let's write a simple JUnit test for a sample Java class. The implementation of gradle.sample.Sample has the getWelcomeMessage() method, where we read a text from the file property and then return the value. The following example contains the code for the Sample class:
+
+```
+// File: src/main/java/gradle/sample/Sample.java
+
+package gradle.sample;
+import java.util.ResourceBundle;
+
+/**
+* Read welcome message from external properties file
+* <code>messages.properties</code>.
+*/
+```
+
+* Next, we must add the resource property file that is used by the Sample class. We will create the messages.properties file in the src/main/resources/gradle/sample directory with the following contents:
+```
+welcome = Welcome to Gradle.
+```
+
+* Test:
+
+```
+// File: src/test/java/gradle/sample/SampleTest.java
+package gradle.sample;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+public class SampleTest {
+    @Test
+    public void readWelcomeMessage() {
+        final Sample sample = new Sample();
+        final String realMessage = sample.getWelcomeMessage();
+        final String expectedMessage = "Welcome to Gradle.";
+        
+        Assert.assertEquals("Get text from properties file", expectedMessage, realMessage);
+    }
+}
+```
+
+To make sure that the required JUnit classes are available to compile and run the test class, we must add JUnit as a dependency to our project. The Java plugin adds testCompile and testRuntime configurations that we can use.
+
+* The following sample build file contains all the necessary code to execute the test:
+
+```
+apply plugin: 'java'
+    repositories {
+        jcenter()
+}
+    dependencies {
+        testCompile('junit:junit:4.12')
+}
+```
+
+* To run our test, we only have to invoke the test task that is added by the Java plugin:
+
+```
+$ gradle test
+```
+
+If we look at the output, we will see that the test has failed, but we don't see why. Now we can enable the info logging level with --info (or -i) arguments, as shown in the following command:
+
+```
+$ gradle test --info
+```
+
+If we open the ``build/reports/tests/index.html`` file in a web browser, we get a clear overview of the tests that have run and failed.
+
+
+## Using TestNG for testing
+
+Not interested. TestNG is dead.
+
+## Configuring the test process
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
