@@ -3528,6 +3528,389 @@ Not interested.
 
 # Chapter 7. Multi-project Builds
 
+## Working with multi-project builds
+
+Let's start with a simple multi-project structure. We have a root project called garden with two other projects, tree and flower. The project structure is as follows:
+
+```shell
+└── garden
+ ├── flower
+ └── tree
+```
+
+We learn how we can invoke tasks in a multi-project build as follows:
+
+* We will add a new printInfo task to each of these projects. The task will print the name of the project to System.out. We must add a build.gradle file to each project with the following contents:
+
+```groovy
+task printInfo {
+    doLast {
+        println "This is ${project.name}"
+    }
+}
+```
+
+* To execute the task for each project, we must first enter the correct directory and then invoke the task with Gradle. We can also run ``build.gradle`` for a specific project with the ``-b`` argument of Gradle.
+
+```shell
+garden $ gradle -q printInfo
+This is garden
+garden $ cd tree
+tree $ gradle -q printInfo
+This tree
+tree $ cd ..
+garden $ gradle -b flower/build.gradle -q printInfo
+This is flower
+```
+We have multiple projects, but we haven't used Gradle's support for multi-project builds yet.
+
+* Let's reconfigure our projects and use Gradle's multi-project support. We need to add a new file, ``settings.gradle``, in the ``garden`` directory. In this file, we will define the projects that are part of our multi-project build. We use the include() method to set the projects that are part of our multi-project build. The project with the ``settings.gradle`` file is automatically part of the build. We will use the following line in the ``settings.gradle`` file to define our multi-project build:
+
+```groovy
+include('tree', 'flower')
+```
+
+* Now, we can execute the printInfo task for each project with a single command.
+
+```shell
+garden $ gradle printInfo
+:printInfo
+This is garden
+:flower:printInfo
+This is flower
+:tree:printInfo
+This is tree
+BUILD SUCCESSFUL
+```
+
+## Executing tasks by project path
+
+We see the output of each invocation of the printInfo task. The path of the project task is also displayed. The root project is denoted by a colon (:) and has no explicit name. The flower project is referenced as :flower, and the printInfo task of the flower project is referenced as :flower:printInfo.
+
+We can also reference a specific task in a project using this syntax from the command line. If we want to invoke the printInfo task of the flower project, we can run the following command:
+
+```shell
+garde $ gradle :flower:printInfo
+:flower:printInfo
+This is flower
+```
+
+This also works for executing tasks in a root project from another project directory. If we first go to the ``flower`` project directory and want to execute the ``printInfo`` task of the root project, we must use the ``:printInfo`` syntax. We get the following output if we execute the ``printInfo`` task of the root project, current project, and ``flower`` project from the ``tree`` project directory:
+
+```shell
+tree $ gradle :printInfo printInfo :flower:printInfo
+:printInfo
+This is garden
+:tree:printInfo
+This is tree
+:flower:printInfo
+This is flower
+```
+
+Gradle takes a couple of steps to determine whether a project must be executed as a single or multi-project build, as follows:
+
+* First, Gradle looks for a ``settings.gradle`` file in a directory with the name master at the same level as the current directory.
+* If ``settings.gradle`` is not found, the parent directories of the current directory are searched for a ``settings.gradle`` file.
+* If ``settings.gradle`` is still not found, the project is executed as a single-project build.
+* If a ``settings.gradle`` file is found, and the current project is part of the multi-project definition, the project is executed as part of the multi-project build. Otherwise, the project is executed as a single-project build.
+
+## Using a flat layout
+
+*Note*.
+Deprecated.
+Using a flat project structure is discouraged. For one thing it causes inefficiencies in file-system watching. Clients should always use a hierarchical project layout and define the structure with include(String...) This method is scheduled for removal in Gradle 8.0.
+
+In our current project setup, we have defined a hierarchical layout of the projects. We placed the ``settings.gradle`` file in the parent directory, and with the ``include()`` method, we added the ``tree`` and ``flower`` projects to our multi-project build.
+
+We can also use a flat layout to set up our multi-project build, which can be done as follows:
+* We must first create a ``master`` directory in the ``garden`` directory;
+* We must move our ``build.gradle`` and ``settings.gradle`` files from the garden directory to the master directory.
+* As we don't have a hierarchical layout anymore, we must replace the ``include()`` method with the ``includeFlat()`` method. Our ``settings.gradle`` file now looks similar to the following code:
+
+```groovy
+// Include tree and flower projects as part of the build.
+includeFlat('tree', 'flower')
+```
+
+## Ways of defining projects
+
+We have added a ``build.gradle`` file to the tree and flower projects with an implementation of the ``printInfo`` task. However, with the multi-project support of Gradle, we don't have to do this. We can define all project tasks and properties in the root ``build.gradle`` file. We can use this to define the common functionality for all projects in a single place.
+
+We can reference a project with the ``project()`` method and use the complete name of the project as an argument. We must use a closure to define the tasks and properties of the project.
+
+For our example project, we will first remove the ``build.gradle`` files from the ``tree`` and ``flower`` directories. Next, we will change the ``build.gradle`` file in the ``master`` directory. Here, we will define the ``printInfo`` tasks with the ``project()`` method for the ``tree`` and ``flower`` projects, as follows:
+
+```groovy
+task printInfo {
+    doLast {
+        println "This is ${project.name}"
+    }
+}
+project(':flower') {
+    // Add an extra action to the printInfo task.
+    task printInfo {
+        doLast {
+            println "This is ${project.name}"
+        }
+    }
+}
+project(':tree') {
+    // Add an extra action to the printInfo task.
+    task printInfo {
+        doLast {
+            println "This is ${project.name}"
+        }
+    }
+}
+```
+
+```shell
+master $ gradle printInfo
+:printInfo
+This is master
+:flower:printInfo
+This is flower
+:tree:printInfo
+This is tree
+```
+
+Gradle also has the ``allprojects{}`` script block to apply project tasks and properties to all projects that are part of the multi-project build. We can rewrite our build.gradle file and use the ``allprojects{}`` script block to get a clean definition of the task without repeating ourselves:
+
+```groovy
+allprojects {
+    // Add task printInfo to all projects: master, flower and tree
+    task printInfo << {
+        println "This is ${project.name}"
+    }
+}
+```
+
+```shell
+master $ gradle -q printInfo
+This is master
+This is flower
+This is tre
+```
+
+If we only want to configure the ``tree`` and ``flower`` ``subprojects``, we must use the ``subprojects{}`` script block. With this script block, only tasks and properties of the subprojects of a multi-project build are configured. In the following example build file, we will only configure ``subprojects``:
+
+```groovy
+subprojects {
+    // Add task printInfo to all sub projects:
+    // flower and tree
+    task printInfo << {
+        println "This is ${project.name}"
+    }
+}
+```
+
+If we invoke the printInfo task, we can see that our master project no longer has the printInfo task:
+
+```shell
+master $ gradle -q printInfo
+This is flower
+This is tree
+```
+
+We can combine the ``allprojects{}`` and ``subprojects{}`` script blocks and the ``project()`` method to define the common behavior and apply specific behavior for specific projects.
+
+```groovy
+allprojects {
+    task printInfo {
+        doLast {
+            println "This is ${project.name}"
+        }
+    }
+}
+subprojects {
+    // Add an extra action to the printInfo task.
+    printInfo {
+        doLast {
+            println "Can be planted"
+        }
+    }
+}
+project(':tree') {
+    // Add an extra action to the printInfo task.
+    printInfo {
+        doLast {
+            println "Has leaves"
+        }
+    }
+}
+project(':flower') {
+    // Add an extra action to the printInfo task.
+    printInfo {
+        doLast {
+            println "Smells nice"
+        }
+    }
+}
+```
+
+```shell
+gradle -q printInfo
+This is master
+This is flower
+Can be planted
+Smells nice
+This is tree
+Can be planted
+Has leaves
+```
+
+## Filtering projects
+
+To apply specific configuration to more than one project, we can also use project filtering. In our ``build.gradle`` file, we must use the ``configure()`` method. We will define a filter based on the project names as an argument of the method.
+
+In the following sample build file, we use a project filter to find the projects that have names that start with f and then apply a configuration to the project, as follows:
+
+```groovy
+allprojects {
+    task printInfo {
+        doLast {
+            println "This is ${project.name}"
+        }
+    }
+}
+// Find all projects that start with an f.
+ext {
+    projectsWithF = allprojects.findAll { project ->
+        project.name.startsWith('f')
+    }
+}
+// Configure the found projects.
+configure(projectsWithF) {
+    printInfo {
+        doLast {
+            println 'Smells nice'
+        }
+    }
+}
+```
+
+```shell
+gradle -q printInfo
+This is master
+This is flower
+Smells nice
+This is tree
+```
+
+We have used the project name as a filter. We can also use project properties to define a filter. As project properties are only set after the build is defined, either with a ``build.gradle`` file or with the ``project()`` method, we must use the ``afterEvaluate()`` method. This method is invoked once all projects are configured and the project properties are set. We will pass our custom configuration as a closure to the ``afterEvaluate()`` method.
+
+In the following example build file, we read the ``hasLeaves`` project property for the ``tree`` and ``flower`` projects. If the property is ``true``, we customize the printInfo task for this project:
+
+```groovy
+allprojects {
+    task printInfo {
+        doLast {
+            println "This is ${project.name}"
+        }
+    }
+}
+subprojects {
+    // After all projects have been evaluated the properties are set and we can check the value.
+    afterEvaluate { project ->
+        if (project.hasLeaves) {
+            printInfo {
+                doLast {
+                    println "Has leaves"
+                }
+            }
+        }
+    }
+}
+project(':tree') {
+    ext.hasLeaves = true
+}
+project(':flower') {
+    ext.hasLeaves = false
+}
+```
+
+```shell
+gradle -q printInfo
+This is master
+This is flower
+This is tree
+Has leaves
+```
+
+## Defining task dependencies between projects
+
+If we invoke the printInfo task, we see that the printInfo task of the flower project is executed before the tree project. **Gradle uses the alphabetical order of the projects, by default, to determine the execution order of the tasks.**
+
+If we first want to execute the ``printInfo`` task of the ``tree`` project before the flower project, we can define that the ``printInfo`` task of the ``flower`` project depends on the ``printInfo`` task of the ``tree`` project. In the following example build file, we will change the dependency of the ``printInfo`` task in the flower project. We will use the ``dependsOn()`` method to reference the printInfo task of the tree project
+
+```groovy
+allprojects {
+    task printInfo << {
+        println "This is ${project.name}"
+    }
+}
+project(':flower') {
+    printInfo.dependsOn(':tree:printInfo')
+}
+```
+
+## Defining configuration dependencies
+
+Besides task dependencies between projects, we can also include other configuration  dependencies. For example, we could have a project property set by one project that is used  by another project.
+
+*Note.*
+This is a code smell, hence I'm not going to add more information. This involves using  ``evaluationDependsOn()``.
+
+## Working with Java multi-project builds
+
+In a Java project, we usually have compile or runtime dependencies between projects. For example, the output of one project is a compile dependency for another project. This is very common in Java projects. Let's create a Java project with a ``common`` project that contains a Java class used by other projects. We will add a ``services`` project that references the class in the ``common`` project. Finally, we will add a ``web`` project with a Java servlet class that uses classes from the ``services`` project.
+
+```shell
+├── build.gradle
+├── common
+│ └── src
+│   └── main
+│     └── java
+│       └── sample
+│         └── gradle
+│           └── util
+│             └── Logger.java
+├── services
+│ └── sample
+│   └── src
+│     ├── main
+│     │ └── java
+│     │   └── sample
+│     │     └── gradle
+│     │       ├── api
+│     │       │ └── SampleService.java
+│     │       └── impl
+│     │         └── SampleImpl.java
+│     └── test
+│       └── java
+│         └── sample
+│           └── gradle
+│             └── impl
+│               └── SampleTest.java
+├── settings.gradle
+└── web
+ └── src
+  └── main
+    └── java
+      └── gradle
+        └── sample
+          └── web
+            └── SampleServlet.java
+```
+
+In the root directory, we will create a settings.gradle file. We will use the include() method to add the common, web, and services/sample projects to the build:
+
+```groovy
+include('common', 'services:sample', 'web')
+```
+
+Next, we will create a ``build.gradle`` file in the root directory. We will apply the Java plugin for each subproject and add a ``testCompile`` dependency on the JUnit libraries. This configuration is applied to each subproject in our build. Our ``:services:sample`` project has a dependency on the ``common`` project. We will configure this dependency in the project configuration of ``:services:sample``. We will use the ``project()`` method to define this inter-project dependency. Our web project uses classes from both ``:common`` and ``:services:sample`` projects. We only have to define the dependency on the ``:services:sample`` project. Gradle will automatically add the dependencies for this project to the ``:web`` project. In our project, this means that the ``:common`` project is also added as a transitive project dependency and we can use the ``Logger`` class from this project in our ``SampleServlet`` class. We will add another external dependency for the servlet API to our ``:web`` project and also apply the ``jar`` plugin to our ``:web`` project.
+
 
 
 
