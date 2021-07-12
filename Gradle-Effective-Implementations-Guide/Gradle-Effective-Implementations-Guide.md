@@ -3460,6 +3460,74 @@ Users should migrate to the publishing system of Gradle by using either the ``ma
 
 More of using deprecated functionality.
 
+## Signing artifacts
+
+We can digitally sign artifacts in Gradle with the signing plugin. The plugin only has support to generate the Pretty Good Privacy (PGP) signature, which is the signature format required for publication to the Maven Central Repository.
+
+To create a PGP signature, we must install some PGP tools on our computers. Installation of the tools is different for each operating system. With the PGP software, we need to create a key pair that we can use to sign our artifacts.
+
+We need to configure the signing plugin with the information about our key pair. We need the hexadecimal representation of the public key, the path to the secret key ring file with our private key, and the passphrase used to protect the private key. The values of these properties are assigned to the ``signing.keyId``, ``signing.secretKeyRingFile``, and ``signing.password`` Gradle project properties. The values of these properties are best kept secret, so it is better to store them in our ``gradle.properties`` file in the Gradle user directory and apply secure file permissions to the file. It is best to make the file read-only for a single user.
+
+The following gradle.properties sample file has the signing properties set. The values of the properties shown are sample values. These will be different for other users:
+
+```groovy
+signing.keyId=4E12C354
+signing.secretKeyRingFile=/Users/current/.gnupg/secring.gpg
+signing.password=secret phassphrase
+```
+
+We are ready to sign our artifacts.
+
+To sign the artifacts, we can use the ``signing()`` method and a closure to configure that all artifacts of the archives configuration need to be signed. The following sample build file shows how we can do this:
+
+```groovy
+apply plugin: 'java'
+apply plugin: 'signing'
+
+archivesBaseName = 'gradle-sample'
+version = '1.0'
+
+signing {
+    sign configurations.archives
+}
+```
+
+Note that the ``gradle-sample-1.0.jar.asc`` signature file is placed next to the artifact
+
+The following build file has the sourcesJar task to create a new archive with the source files of our project. We will use the signing DSL to configure our task for signing:
+
+```groovy
+apply plugin: 'java'
+apply plugin: 'signing'
+
+archivesBaseName = 'gradle-sample'
+version = '1.0'
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+signing {
+    sign sourcesJar
+}
+```
+
+We can invoke the signSourcesJar task to digitally sign our JAR file with the sources of our project. The generated signature file is placed next to the JAR file in the build/libs directory.
+
+## Packaging Java Enterprise Edition applications
+
+Not interested.
+
+### Creating a WAR file
+
+Not interested.
+
+### Creating an EAR file
+
+Not interested.
+
+# Chapter 7. Multi-project Builds
+
 
 
 
