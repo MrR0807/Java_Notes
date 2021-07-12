@@ -3416,7 +3416,49 @@ A software project can contain artifacts that we want to publish. An artifact ca
 
 In Gradle, we group artifacts through configurations, just like dependencies. A configuration can contain both dependencies and artifacts. If we add the Java plugin to our project, we also have two extra tasks per configuration to build and upload the artifacts belonging to the configuration. The task to build the artifacts is called ``build<configurationName>`` and the task to upload the artifacts is called ``upload<configurationName>``.
 
+The Java plugin also adds the archives configuration that can be used to assign artifacts. The default JAR artifact for a Java project is already assigned to this configuration. We can assign more artifacts to this configuration for our project. We can also add new configurations to assign artifacts in a project.
 
+For our Java project, we will define the following sample build file:
+
+```groovy
+apply plugin: 'java'
+archivesBaseName = 'gradle-sample'
+version = '1.0'
+```
+
+As we use the Java plugin, we have the ``archives`` configuration available. When we execute the ``buildArchives`` task, our Java code is compiled and a JAR file is created in the ``build/libs`` directory, called ``gradle-sample-1.0.jar``.
+
+To publish our JAR file, we can execute the ``uploadArchives`` task, but we must first configure where to publish the artifact. The repositories that we have defined for the dependencies are not used to upload the artifacts. We have to define the upload repository in the ``uploadArchives`` task
+
+```groovy
+apply plugin: 'java'
+
+archivesBaseName = 'gradle-sample'
+version = '1.0'
+repositories {
+    flatDir {
+        name 'uploadRepository'
+        dirs 'upload'
+    }
+}
+uploadArchives {
+    repositories {
+        // Use repository defined in project for uploading the JAR file.
+        add project.repositories.uploadRepository
+        // Extra upload repository defined in the upload task.
+        flatDir {
+            dirs 'libs'
+        }
+    }
+}
+```
+*Note*
+**The ``uploadArchives`` task and the ``maven plugin`` are deprecated.**
+Users should migrate to the publishing system of Gradle by using either the ``maven-publish`` or ``ivy-publish`` plugins. These plugins have been stable since Gradle 4.8.
+
+## Uploading our artifacts to a Maven repository
+
+More of using deprecated functionality.
 
 
 
