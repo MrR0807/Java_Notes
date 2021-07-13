@@ -4,6 +4,20 @@ When we develop a software, we write, compile, test, package, and finally, distr
 
 Gradle is flexible, but has sensible defaults for most projects. This means that we can rely on the defaults if we don't want something special, but we can still can use the flexibility to adapt a build to certain custom needs.
 
+## Little bit of Groovy
+
+String interpolation works only with double quotes instead of singular.
+
+```groovy
+def x = 4
+println "x is $x"
+
+def myCourse = "gradle"
+println "This is course about ${myCourse.toUpperCase()}"
+```
+
+With single quotes it would print just ``This is course about ${myCourse.toUpperCase()}``.
+
 ## Declarative builds and convention over configuration
 
 Gradle uses a Domain Specific Language (DSL) based on Groovy to declare builds. The DSL provides a flexible language that can be extended by us. As the DSL is based on Groovy, we can write Groovy code to describe a build and use the power and expressiveness of the Groovy language.
