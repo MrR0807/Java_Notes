@@ -18,6 +18,14 @@ println "This is course about ${myCourse.toUpperCase()}"
 
 With single quotes it would print just ``This is course about ${myCourse.toUpperCase()}``.
 
+Closure, last statement is always a ``return`` statement.
+
+```groovy
+def c = { 
+   def y = 3
+}
+```
+
 ## Declarative builds and convention over configuration
 
 Gradle uses a Domain Specific Language (DSL) based on Groovy to declare builds. The DSL provides a flexible language that can be extended by us. As the DSL is based on Groovy, we can write Groovy code to describe a build and use the power and expressiveness of the Groovy language.
