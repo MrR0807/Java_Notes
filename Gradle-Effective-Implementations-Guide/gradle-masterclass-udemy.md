@@ -66,14 +66,38 @@ When Gradle evaluates ``init.gradle``, then ``Script`` object will delegate to `
 
 Lastly, both ``Project`` and ``Settings`` objects have access to ``Gradle`` object through properties.
 
-# Lesson 18. 
+# Lesson 18. Lifecycle phases and Gradle object
 
+To access gradle object in ``build.gradle`` file, one has to:
 
+```groovy
+println "timestamp @ ${project.gradle.timestamp()}"
+```
 
+or shorter variation
 
+```groovy
+println "timestamp @ ${gradle.timestamp()}"
+```
 
+or without curly bracelets, because we're not evaluating expression
 
+```groovy
+println "Gradle version: $gradle.gradleVersion"
+```
 
+# Lesson 19. Lifecycle phases and Project object
+
+This is a delegate object for a ``build.gradle`` file.
+
+We can access different properties and methods from Project object:
+
+```groovy
+println "$project.buildFile"                          //prints full path
+println "${project.relativePath(project.buildFile)}"  //prints 'build.gradle'
+```
+
+# Lesson 20. Gradle Properties
 
 
 
