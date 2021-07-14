@@ -38,13 +38,13 @@ Lifecycle phases:
 
 This maps to ``init.gradle`` and ``settings.gradle`` files.
 
-First file to be evaluated is ``init.gradle``. They allow to setup common properties, plugins, authentications etc.
+First file to be evaluated is ``init.gradle``. It allows to setup common properties, plugins, authentications etc.
 
 ``settings.gradle`` is for multi-project builds.
 
 If you have a multi-project, then each subproject has to have ``build.gradle`` file.
 
-If you add properties into ``init.gradle`` or other files in that folder (they will be picked up, because Gradle does care whether it's called init.gradle or thisisscript.gradle. They will be executed anyway in alphabetical order), those properties will be available throughtout the whole project. However, as far as I understand, it has to be put on ``gradle`` object:
+If you add properties into ``init.gradle`` or other files in that folder (they will be picked up, because Gradle does care whether it's called ``init.gradle`` or ``thisisscript.gradle``. They will be executed anyway in alphabetical order), those properties will be available throughtout the whole project. However, as far as I understand, it has to be put on ``gradle`` object:
 
 ```groovy
 gradle.ext.timestamp = {
@@ -99,15 +99,85 @@ println "${project.relativePath(project.buildFile)}"  //prints 'build.gradle'
 
 # Lesson 20. Gradle Properties
 
+In groovy, we can omnit ``get`` and parenthesis, hence ``getLogger()`` becomes ``logger``.
 
+Gradle allows "key - value" pairs in a ``gradle.properties`` file. It is available to scripts in the ``settings.gradle`` and ``build.gradle``.
 
+We can also pass properties through command line.
 
+# Lesson 21. ... more on Gradle Properties!
 
+``project.ext`` acts like a map where we can store arbitrary properties.
 
+```groovy
+project.ext.sayHello = "Hello"
+```
 
+``project.hasProperty()`` is a good method to check whether property exists.
 
+# Lesson 22. Tasks and the Gradle Lifecycle
 
+Each project is a collection of tasks. Task is an atomic piece of work.
 
+In configuration phase, tasks are created and configured. In execution phase - they are executed.
+
+A task can contain a collection of actions. Action is an atomic piece of work.
+
+Collection of tasks are held in the **Task Container** which holds helper methods for looking up and creating tasks.
+
+There are two helpful methods on the Task interface:
+* doFirst()
+* doLast()
+
+Each method takes either Action or Closure. In named closure, it has access to the Task object.
+
+```groovy
+task ('hello').doLast {
+  println "Hello from $task.name"
+}
+```
+
+or 
+
+```groovy
+task hello {
+  doLast {
+    println "Hello from $task.name"
+  }
+}
+```
+
+or 
+
+```groovy
+task hello {
+	doLast ({println "Hello from task: $name"})
+}
+```
+
+or 
+
+```groovy
+task('hello').doLast ({println "Hello from task: $name still"})
+```
+
+# Lesson 23. Our 1st Gradle Task
+
+We can access task via project as a property:
+
+```groovy
+task hi
+
+project.hi.doLast {
+  println "Hello"
+}
+```
+
+# Lesson 24. Configuring Tasks
+
+# Lesson 25. Introduction to dependsOn
+
+It is used for sequencing tasks. 
 
 
 
