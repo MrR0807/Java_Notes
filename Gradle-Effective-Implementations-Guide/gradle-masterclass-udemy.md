@@ -219,3 +219,26 @@ Instead of listing task/tasks, we can use clojure. Clojure should return a Task 
 ```groovy
 println "${project.tasks.findAll { task -> task.name.startsWith('doStep2') }}"
 ```
+
+# Lesson 27. Using dependsOn in conditional logic
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
