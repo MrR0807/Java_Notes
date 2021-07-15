@@ -210,6 +210,8 @@ task doThree {
 
 
 doOne.dependsOn = [doTwo, doThree]
+or
+doOne.dependsOn doTwo, doThree
 ```
 
 # Lesson 26. Filtering Tasks with dependsOn
@@ -222,8 +224,15 @@ println "${project.tasks.findAll { task -> task.name.startsWith('doStep2') }}"
 
 # Lesson 27. Using dependsOn in conditional logic
 
+```groovy
+doOne.dependsOn doTwo, tasks.findAll { task -> task.name.startsWith('doThree') }
+```
 
+# Lesson 28. The Task depedency graph
 
+After configuration phase, Gradle knows all the tasks that have to be executed. And this is done by building a direct acyclic graph (you cannot have circular dependencies).
+
+# Lesson 29. Hooking into the task Graph
 
 
 
