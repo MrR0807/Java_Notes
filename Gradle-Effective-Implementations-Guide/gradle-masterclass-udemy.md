@@ -179,36 +179,39 @@ project.hi.doLast {
 
 It is used for sequencing tasks. 
 
+We can have a list of ``dependsOn``:
+
+```groovy
+task doFinish (dependsOn: [doSomething, doSomethingElse]) {
+	doLast {
+		println "Hello"
+	}
+}
+```
+
+```groovy
+task doOne {
+	doLast {
+		println "Do one"
+	}
+}
+
+task doTwo {
+	doLast {
+		println "Do two"
+	}
+}
+
+task doThree {
+	doLast {
+		println "Do three"
+	}
+}
 
 
+doOne.dependsOn = [doTwo, doThree]
+```
 
+# Lesson 26. Filtering Tasks with dependsOn
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Instead of listing task/tasks, we can use clojure. Clojure should return a Task or Collection<Task>.
