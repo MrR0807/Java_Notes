@@ -215,3 +215,7 @@ doOne.dependsOn = [doTwo, doThree]
 # Lesson 26. Filtering Tasks with dependsOn
 
 Instead of listing task/tasks, we can use clojure. Clojure should return a Task or Collection<Task>.
+
+```groovy
+println "${project.tasks.findAll { task -> task.name.startsWith('doStep2') }}"
+```
