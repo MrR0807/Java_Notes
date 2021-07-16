@@ -274,13 +274,34 @@ Java plugin also adds conviention. A good example of that is project layout (src
 
 # Lesson 32. 1st Java program
 
+# Lesson 33. Starting to use Gradle with Java
 
+# Lesson 34. 3rd party dependencies
 
+You can browse Project API where you'll find repositories and dependencies methods. There you can browse ```DependencyHandler``` and ```RepositoryHandler``` for more APIs.
 
+# Lesson 35. Building our 1st Java application
 
+# Lesson 36. Assembling our Java application
 
+Gradle does not provide runnable Jar out of the box. We have to configure that ourselves.
 
+jar {
+    println archiveBaseName.get()
+    archiveBaseName.set('hello')
+    println archiveBaseName.get()
+    manifest {
+        attributes 'Main-Class' : 'lt.test.Hello'
+    }
 
+    println "manifest attributes: $manifest.attributes"
+}
+
+Because Manifest file is just a text file, ```attributes``` property task a simple ```Map```, hence we can include whatever we want. Furthermore, that is why in documentation there isn't any definied key values.
+
+# Lesson 37. Assembling our Java application
+
+Out of the box, depedencies are not included.
 
 
 
