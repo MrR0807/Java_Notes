@@ -234,7 +234,71 @@ After configuration phase, Gradle knows all the tasks that have to be executed. 
 
 # Lesson 29. Hooking into the task Graph
 
-We can access Gradle Task Graph via - ```groovy logger.info "$project.gradle.taskGraph"```
+We can access Gradle Task Graph via - ```logger.info "$project.gradle.taskGraph"```. The class returned by this method implements ```TaskExecutionGraph```. It has several interesting methods like ```afterTask (Closure closure)``` and ```beforeTask (Closure closure)```.
+
+Get a Task list.
+	
+```groovy
+project.gradle.taskGraph.whenReady {
+  logger.info "$project.gradle.taskGraph.allTasks"	
+}
+```
+
+```whenReady``` is required, because otherwise, ```allTasks``` property might be accessed before tasks were configured.
+
+Having access to the task graph can give you dynamic configuration capabilities, like setting a specific property if some task is on the graph like:
+
+```groovy
+project.gradle.taskGraph.whenReady { taskGraph -> 
+  if (taskGraph.hasTask(doStep2) {
+	project.version = "1.0"
+  else {
+	project.version = "1.0-SNAPSHOT"
+  }
+}
+```
+
+# Lesson 30. Introduction to Plugins
+
+Gradle core is quite minimal regarding "useful" functionality. Gradle relies on plugins like java, java-library, etc.
+
+# Lesson 31. Applying Plugins
+
+When java plugin is added, a lot of different tasks are added. Not only tasks, but properties and other domain specific objects. Some example of tasks:
+* clean 
+* compileJava
+* testClasses
+* jar
+
+Java plugin also adds conviention. A good example of that is project layout (src/main/java, src/main/resources etc).
+
+# Lesson 32. 1st Java program
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
