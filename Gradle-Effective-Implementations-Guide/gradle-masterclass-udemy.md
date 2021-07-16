@@ -234,7 +234,7 @@ After configuration phase, Gradle knows all the tasks that have to be executed. 
 
 # Lesson 29. Hooking into the task Graph
 
-
+We can access Gradle Task Graph via - ```groovy logger.info "$project.gradle.taskGraph"```
 
 
 
