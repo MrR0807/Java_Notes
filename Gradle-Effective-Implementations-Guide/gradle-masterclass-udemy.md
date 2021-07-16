@@ -301,7 +301,32 @@ Because Manifest file is just a text file, ```attributes``` property task a simp
 
 # Lesson 37. Assembling our Java application
 
-Out of the box, depedencies are not included.
+Out of the box, depedencies are not included into the jar, hence we need to add them manually:
+
+```groovy
+
+jar {
+    manifest {
+        attributes 'Main-Class' : 'lt.test.Hello'
+    }
+
+    from {
+        project.configurations.runtimeClasspath.collect {File file -> project.zipTree(file)}
+    }
+}
+```
+
+# My Notes
+
+To get a list of possible configurations and their respective dependencies:
+```groovy
+task testMe {
+    project.configurations.forEach(c -> { 
+	println c.name
+        println c.dependencies
+    })
+}
+```
 
 
 
