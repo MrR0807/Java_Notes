@@ -328,10 +328,117 @@ task testMe {
 }
 ```
 
+# Lesson 38. Building a Java Web application
 
+Lesson about ``war`` generation.
 
+```groovy
 
+compileJava {
+    sourceCompatibility = '16'
+    targetCompatibility = '16'
+}
+```
 
+```compileOnly``` equals to Maven's ```provided```.
+
+There is a ``war`` plugin - ``war``.
+
+# Lesson 39. Deploying our Java Web application using Gradle
+
+To copy war to Tomcat, we'll use ``class Copy``. When we assign a type of class, we essentially "extend" that class (this is just my interpretation):
+
+```groovy
+task copyDocs (type: Copy) {
+	from "scr/main/doc"
+	into "build/target/doc"
+}
+```
+
+```groovy
+ext.tomcatWebapps = 'C:/software/tomcatfolder/'
+
+task deployToTomcat (type: Copy, dependsOn: 'war') {
+	from war.archivePath
+	into "$tomcatWebapps"
+}
+```
+
+# Lesson 40. What are transitive dependencies
+
+Transitive dependencies - dependencies that are dependencies of your direct dependencies.
+
+# Lesson 41. Analysing Dependencies
+
+```shell
+$ gradle -q dependencies
+```
+
+Outputs all dependencies.
+
+To exclude transitive dependency:
+
+```groovy
+
+implementation ('org.springframework:spring-webmvc:4.0.3.RELEASE') {
+	exclude group: 'commons-logging', module: 'commons-logging'
+}
+```
+
+# Lesson 42. Dependency Reports
+
+``project-report`` plugin helps create dependency reports.
+
+# Lesson 43. What is a Multi-Project build?
+
+Multi-project has a root project and then it's sub-projects. Each sub-project, can have other sub-projects. We can have also, projects depending on one another.
+
+# Lesson 44. Our 1st Multi-Project build
+
+If you run tasks on root-project, it will run on all sub-projects. For example, if you run ``build`` task it will build all projects. However, if you run only ``sub-project`` task, it will run only for that sub-project.
+
+# Lesson 45. Setting-Up our Multi-Project Build
+
+``settings.gradle`` is mandatory in multi-project build.
+
+```groovy
+
+subprojects {
+	apply plugin: 'java'
+	
+	group = 'com.example.hello'
+	version = '0.0.1-SNAPSHOT'
+	
+	sourceCompatibility = 1.8
+	targetCompatibility = 1.8
+	
+	repositories {
+		mavenCentral()
+	}
+}
+```
+
+# Lesson 46. Setting-Up our Project Dependencies
+
+```groovy
+# Configure specific project. Let's configure specific depedencies
+project(':other') {
+	dependencies {
+		implementation 'org.apache.commons:commons-math3:3.2'
+	}
+}
+
+project ('and-other') {
+	dependencies {
+		# This shows that 'and-other' depends on 'other' project
+		implementation project (':other')
+	}
+}
+```
+
+# Lesson 47. Implementation and API Scopes
+
+``implemenation`` scope was introduced so transitive dependencies between sub-projects do not leak. In other words if A subproject depends on B subproject, and B subproject has dependencies with ``implementation spring-whatever`` then this dependency will not be reachable for A subproject. To solve this, include ``java-library`` plugin in subproject and make transitive dependency ``api`` instead of ``implementation``. 
 
 
 
