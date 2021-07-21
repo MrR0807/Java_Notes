@@ -444,10 +444,98 @@ project ('and-other') {
 
 ![image](https://user-images.githubusercontent.com/24605837/126510970-b501724f-5d70-4069-a13f-24c700c22e0c.png)
 
+In the project, opening ```settings.gradle``` shows:
+
+```groovy
+include 'academy-utils'
+include 'academy-web'
+include 'academy-audit-inteface'
+...
+
+# theName is setup in gradle.properties file
+rootProject.name = theName
+
+# Renaming buildFileName for easier navigation between subproject gradle files. If you have a lot of subprojects, each will have a build.gradle, which leads
+# to confusing development when you open several build.gradle files in IDE
+rootProject.children.each { subproject -> subproject.buildFileName = "${subproject.name}.gradle" }
+```
+
+```gradle.properties```:
+
+```properties
+theGroup=com.denofprogramming
+theName=academy
+theVersion=0.0.2-SNAPSHOT
+theSourceCompatibility=1.0
+```
+
+# Lesson 49. Overview of a Multi-Project Web application
+
+# Lesson 50. Building the Multi-Project Web application
+
+```academy-web.gradle```
+
+```groovy
+plugins {
+	id 'war'
+}
+
+ext.tomcatHome = 'C:/somepath'
+ext.tomcatWebapps = "$tomcatHome/webapps"
+
+war {
+	archiveName = 'academy-web.war'
+}
+
+task deployToTomcat (type: Copy, dependsOn: 'build') {
+	from war
+	into "$tomcatWebapps"
+}
+
+dependencies {
+	implementation 'org.springframework:spring-webmvc:4.0.3.RELEASE'
+	implementation 'javax.servlet:javax.servlet-api:3.0.1"
+}
+```
+
+If we'd run ``gradle -q dependencies`` we'd get a list of dependencies that were not declared in given build file. These dependencies come from root project's ```gradle.build```:
+
+```groovy
+
+subprojects {
+	
+	apply plugin: 'java-library'
+	
+	description = 'Teaching Gradle''
+	group = theGroup
+	version = theVersion
+	
+	sourceCompatibility = theSourceCompatibility
+	targetCompatibility = theSourceCompatibility
+	
+	repositories {
+		mavenCentral()
+	}
+	
+	dependencies {
+		testImplementation 'somedependency'
+	}
+}
 
 
+project(':academy-audit') {
+	dependencies {
+		api project(':academy-audit-interface')
+	}
+}
+
+... and so on ...
+```
 
 
+# Lesson 51. FindBugs with Gradle
+
+```apply plugin: 'findbugs'```
 
 
 
