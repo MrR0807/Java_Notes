@@ -440,6 +440,9 @@ project ('and-other') {
 
 ``implemenation`` scope was introduced so transitive dependencies between sub-projects do not leak. In other words if A subproject depends on B subproject, and B subproject has dependencies with ``implementation spring-whatever`` then this dependency will not be reachable for A subproject. To solve this, include ``java-library`` plugin in subproject and make transitive dependency ``api`` instead of ``implementation``. 
 
+# Lesson 48. Introduction to a Multi-Project Web application
+
+![image](https://user-images.githubusercontent.com/24605837/126510970-b501724f-5d70-4069-a13f-24c700c22e0c.png)
 
 
 
