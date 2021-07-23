@@ -537,8 +537,29 @@ project(':academy-audit') {
 
 ```apply plugin: 'findbugs'```
 
+Just talks about plugin, all can be found in the documentation.
 
+# Lesson 52. PMD with gradle
 
+```apply plugin: 'pmd'```
+
+This is essentially sonarqube.
+
+# Lesson 53. Deploy Web Application
+
+Just simple stuff. Generates war file and copies to running Tomcat server.
+
+# Lesson 54. Introduction to using Kotlin as Gradle DSL
+
+Very light content. Nothing important.
+
+# Lesson 55. Using Kotlin DSL with our Console Application
+
+# Lesson 56.
+
+# Lesson 57.
+
+# Lesson 58.
 
 
 
