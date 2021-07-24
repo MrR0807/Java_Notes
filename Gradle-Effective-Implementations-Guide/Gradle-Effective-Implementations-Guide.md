@@ -3933,11 +3933,40 @@ include('common', 'services:sample', 'web')
 
 Next, we will create a ``build.gradle`` file in the root directory. We will apply the Java plugin for each subproject and add a ``testCompile`` dependency on the JUnit libraries. This configuration is applied to each subproject in our build. Our ``:services:sample`` project has a dependency on the ``common`` project. We will configure this dependency in the project configuration of ``:services:sample``. We will use the ``project()`` method to define this inter-project dependency. Our web project uses classes from both ``:common`` and ``:services:sample`` projects. We only have to define the dependency on the ``:services:sample`` project. Gradle will automatically add the dependencies for this project to the ``:web`` project. In our project, this means that the ``:common`` project is also added as a transitive project dependency and we can use the ``Logger`` class from this project in our ``SampleServlet`` class. We will add another external dependency for the servlet API to our ``:web`` project and also apply the ``jar`` plugin to our ``:web`` project.
 
+```java
+public class Logger {
+
+    public static void log(final String message) {
+        System.out.println("LOG: " + message);
+    }
+}
+```
+
+```java
+public interface SampleService {
+    String sayHello();
+}
+```
+
+```java
+import sample.gradle.util.Logger;
+import sample.gradle.api.SampleService;
+
+public class SampleImpl implements SampleService {
+
+    public String sayHello() {
+        Logger.log("sayHello()");
+        return "Gradle sample.";
+    }
+}
+```
+
+Spring boot.
+   
+```java
 
 
-
-
-
+```
 
 
 
