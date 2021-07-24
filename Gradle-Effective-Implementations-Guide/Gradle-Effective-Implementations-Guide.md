@@ -3964,8 +3964,25 @@ public class SampleImpl implements SampleService {
 Spring boot.
    
 ```java
+@RestController
+public class HelloController {
 
+    private final SampleService sampleService = new SampleImpl();
 
+    @GetMapping("/")
+    public String index() {
+        Logger.log("index was called");
+        return sampleService.sayHello();
+    }
+}
+   
+@SpringBootApplication
+public class Main {
+
+    public static void main(String[] args) {
+        SpringApplication.run(Main.class, args);
+    }
+}
 ```
 
 
