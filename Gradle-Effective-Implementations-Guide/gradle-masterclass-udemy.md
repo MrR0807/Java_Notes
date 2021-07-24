@@ -553,30 +553,4 @@ Just simple stuff. Generates war file and copies to running Tomcat server.
 
 Very light content. Nothing important.
 
-# Lesson 55. Using Kotlin DSL with our Console Application
-
-# Lesson 56.
-
-# Lesson 57.
-
-# Lesson 58.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+The rest of the lessons are just reading documentation. Nothing of interest.
