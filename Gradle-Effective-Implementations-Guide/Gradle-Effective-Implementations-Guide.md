@@ -4350,7 +4350,282 @@ To get quality metrics for our code base, we can use JDepend. JDepend traverses 
 
 # Chapter 10. Writing Custom Tasks and Plugins
 
+## Creating a custom task
 
+When we create a new task in a build and specify a task with the type property, we actually configure an existing task. The existing task is called **enhanced task** in Gradle. For example, the Copy task type is an **enhanced task**. We will configure the task in our build file, but the implementation of the Copy task is in a separate class file.
+
+### Creating a custom task in the build file
+
+First, let's see how to create a task to display the current Gradle version in our build by simply adding a new task with a simple action. We have seen these types of tasks earlier in other sample build files.
+
+```groovy
+task info(description: 'Show Gradle version') << {
+    println "Current Gradle version: $project.gradle.gradleVersion"
+}
+```
+
+Now, we are going to create a new task definition in our build file and make it an enhanced task. We will create a new class in our build file and this class extends ``org.gradle.api.DefaultTask``. We will write an implementation for the class by adding a new method. To indicate that the method is the action of the class, we will use the ``@TaskAction`` annotation.
+
+After we have defined our task class, we can use it in our build file. We will add a task to the ``tasks`` project container and use the ``type`` property to reference our new task class.
+
+```groovy
+/**
+* New class that defines a Gradle task.
+*/
+class InfoTask extends DefaultTask {
+     /**
+     * Method that has the logic for the task.
+     * We tell this to Gradle with the @TaskAction annotation.
+     */
+    @TaskAction
+    def info() {
+    // Show current Gradle version.
+        println "Current Gradle version:$project.gradle.gradleVersion"
+    }
+}
+```
+
+```groovy
+// Define new task in our Gradle build file
+// with name info and of type InfoTask.
+// InfoTask implementation is at the top.
+task info(type: InfoTask)
+```
+
+Next, we will run our build file with the info task. In the following output, we can see our current Gradle version:
+
+```shell
+$ gradle info
+:info
+Current Gradle version:2.10
+```
+
+To customize our simple task, we can add properties to our task. We can assign values to these properties when we configure the task in our build file.
+
+For our sample task, we will first add a ``prefix`` property. This property is used when we print the Gradle version instead of the 'Current Gradle version' text. We give it a default value, so when we use the task and don't set the property value, we still get a meaningful prefix. We can mark our property as optional because of the default value, with the ``@Optional`` annotation. This way we have documented that our property doesn't need to be configured when we use the task.
+
+```groovy
+/**
+* New class that defines a Gradle task.
+*/
+class InfoTask extends DefaultTask {
+    /**
+    * An optional property for our task.
+    */
+    @Optional
+    String prefix = 'Current Gradle version'
+    /**
+    * Method that has the logic for the task.
+    * We tell this to Gradle with the @TaskAction annotation.
+    */
+    @TaskAction
+    def info() {
+    // Show current Gradle version.
+        println "$prefix: $project.gradle.gradleVersion"
+    }
+}
+```
+
+```groovy
+// Define new task in our Gradle build file
+// with name info and of type InfoTask.
+// InfoTask implementation is at the top.
+// We give the optional property prefix a value.
+task info(type: InfoTask) {
+    prefix = 'Running Gradle'
+}
+```
+
+Now, if we run our build file, we can see our new prefix value in the output:
+
+```shell
+$ gradle info
+:info
+Running Gradle: 2.10
+```
+
+## Using incremental build support
+
+We know Gradle supports incremental builds. This means that Gradle can check whether a task has any dependencies for input or output on files, directories, and properties. If none of these have changed since the last build, the task is not executed.
+
+We have seen how to use the ``inputs`` and ``outputs`` properties of tasks that we have created so far. To indicate the properties of our new enhanced tasks that are input and output properties, the ones used by Gradle's incremental support, we must add certain annotations to our class definition.
+
+In a previous chapter, we created a task that reads a XML source file and converts the contents to a text file. Let's create a new enhanced task for this functionality. We will use the ``@InputFile`` annotation for the property that holds the value for the source XML file. The ``@OutputFile`` annotation is assigned to the property that holds the output file, as follows:
+
+```groovy
+class ConvertTask extends DefaultTask {
+    /**
+     * Input file for this task and by
+     * using the @InputFile annotation we
+     * tell Gradle the file can be used
+     * for determining incremental build support.
+     */
+    @InputFile
+    File source
+    /**
+     * Output file for this task and by
+     * using the @OutputFile annotation we
+     * tell Gradle the file can be used
+     * for determining incremental build support.
+     */
+    @OutputFile
+    File output
+    /**
+     * Method with the real implementation of the task.
+     * We convert the source file and save the output.
+     */
+    @TaskAction
+    void convert() {
+        def xml = new XmlSlurper().parse(source)
+        output.withPrintWriter { writer ->
+            xml.person.each { person ->
+                writer.println "${person.name},${person.email}"
+            }
+        }
+        println "Converted ${source.name} to ${output.name}"
+    }
+}
+```
+
+```groovy
+// Configure task for this build
+task convert(type: ConvertTask) {
+    source = file("src/people.xml")
+    output = file("$buildDir/convert-output.txt")
+}
+```
+
+Now, we can invoke the convert task in our build file:
+
+```shell
+$ gradle convert
+```
+
+The following table shows the annotations that we can use to indicate the input and output properties of our enhanced task:
+
+![chapter-10-custom-task-annotations-1.PNG](pictures/chapter-10-custom-task-annotations-1.PNG)
+
+![chapter-10-custom-task-annotations-2.PNG](pictures/chapter-10-custom-task-annotations-2.PNG)
+
+## Creating a task in the project source directory
+
+In the previous section, we defined and used our own enhanced task in the same build file. Now we are going to extract the class definition from the build file and put it in a separate file. We are going to place the file in the ``buildSrc`` project source directory.
+
+Let's move our ``InfoTask`` to the ``buildSrc`` directory of our project. We will first create the ``buildSrc/src/main/groovy/sample`` directory. We will create an ``InfoTask.groovy`` file in this directory, with the following code:
+
+```groovy
+package sample
+
+import org.gradle.api.DefaultTask
+import org.gradle.api.tasks.TaskAction
+
+class InfoTask extends DefaultTask {
+    /**
+    * Task property can be changed by user of this task.
+    */
+    String prefix = 'Current Gradle version'
+    /**
+    * Method with actual implementation for this task.
+    */
+    @TaskAction
+    def info() {
+        println "$prefix: $project.gradle.gradleVersion"
+    }
+}
+```
+
+Notice that we must add ``import`` statements for the classes of the Gradle API. These imports are implicitly added to a build script by Gradle; but if we define the task outside the build script, we must add the ``import`` statements ourselves.
+
+In our project build file, we have to only create a new ``info`` task of the ``InfoTask`` type. Notice that we must use the package name to identify our ``InfoTask`` class or add an import ``sample.InfoTask`` statement:
+
+```groovy
+// Define new task of type sample.InfoTask.
+task info(type: sample.InfoTask) {
+    // Set task property/
+    prefix = "Running Gradle"
+}
+```
+
+### Writing tests
+
+As the ``buildSrc`` directory is similar to any other Java/Groovy project, we can also create tests for our task.
+
+If we want to access a ``Project`` object in our test class, we can use the ``org.gradle.testfixtures.ProjectBuilder`` class. With this class, we can configure a ``Project`` object and use it in our test case. We can optionally configure the name, parent, and project directory before using the ``build()`` method to create a new Project object. We can use the ``Project`` object, for example, to add a new task with the type of our new enhanced task and see if there are any errors. ``ProjectBuilder`` is meant for low-level testing. The actual tasks are not executed.
+
+```groovy
+package sample
+
+import org.junit.*
+import org.gradle.api.*
+import org.gradle.testfixtures.ProjectBuilder
+
+class InfoTaskTest {
+    
+    @Test
+    void createTaskInProject() {
+        final Task newTask = createInfoTask()
+        assert newTask instanceof InfoTask
+    }
+    
+    @Test
+    void propertyValueIsSet() {
+        final Task newTask = createInfoTask()
+        newTask.configure {
+            prefix = 'Test'
+        }
+        assert newTask.prefix == 'Test'
+    }
+    private Task createInfoTask() {
+        // We cannot use new InfoTask() to create a new instance,
+        // but we must use the Project.task() method.
+        final Project project = ProjectBuilder.builder().build()
+        project.task('info', type: InfoTask)
+    }
+}
+```
+
+In our build.gradle file in the buildSrc directory, we must add a Maven repository and the dependency on the JUnit libraries using the following lines of code:
+
+```groovy
+repositories {
+    jcenter()
+}
+dependencies {
+    testCompile 'junit:junit:4.12'
+}
+```
+
+## Creating a task in a standalone project
+
+To make a task reusable for other projects, we must have a way to distribute the task. Also, other projects that want to use the task must be able to find our task. We will see how to publish our task in a repository and how other projects can use the task in their projects.
+
+*Note*.
+
+This is a very far fetched scenario which most likely will never come true. Will come back if needed.
+
+## Creating a custom plugin
+
+Will come back if needed.
+
+# Chapter 11. Gradle in the Enterprise
+
+Will come back if needed.
+
+## Using Jenkins
+
+Will come back if needed.
+
+## Using JetBrains TeamCity
+
+Will come back if needed.
+
+## Using Atlassian Bamboo
+
+Will come back if needed.
+
+# Chapter 12. IDE Support
+
+Not interested.
 
 
 
