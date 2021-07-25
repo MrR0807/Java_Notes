@@ -4318,7 +4318,7 @@ Not interested currently. Adding if I want to come back.
 
 Not interested. Not going to use it.
 
-# Maintaining Code Quality
+# Chapter 9. Maintaining Code Quality
 
 ## Using the Checkstyle plugin
 
