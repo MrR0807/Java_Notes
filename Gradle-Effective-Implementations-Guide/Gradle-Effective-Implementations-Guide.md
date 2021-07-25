@@ -3985,6 +3985,331 @@ public class Main {
 }
 ```
 
+```groovy
+subprojects {
+    apply plugin: 'java'
+    
+    repositories {
+        mavenCentral()
+    }
+    
+    dependencies {
+        testCompile 'junit:junit:4.8.12'
+    }
+}
+project(':services:sample') {
+    dependencies {
+        // Dependency on the common project classes.
+        compile project(':common')
+    }
+}
+project(':web') {
+    
+    apply plugin: 'war'
+    
+    dependencies {
+        // Dependency on the sample classes.
+        compile project(':services:sample')
+        compile 'javax.servlet:servlet-api:2.5'
+    }
+}
+```
+
+*Note*. Instead of using ```war```, I'll be using ```jar``` and Spring Boot to launch an application.
+
+```groovy
+plugins {
+    id 'java'
+    //This is required because Gradle doesn't allow subprojects to have plugins closure, and with apply plugin syntax it does not work
+    //hence I have to define this in root project with apply false and then use plugin wherever applicable
+    id 'org.springframework.boot' version '2.5.0' apply false
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE' apply false
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+subprojects {
+    apply plugin: 'java'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
+
+project(':services') {
+    dependencies {
+        implementation project(":common")
+    }
+}
+
+project(':web') {
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    dependencies {
+        implementation project(":common")
+        implementation project(':services')
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    }
+}
+```
+
+*Note.*
+The new plugins {...} syntax cannot be used within a allprojects {...} or subprojects {...} closure. Hence, I have to resort to old convention.
+
+To run from command line, use ```application``` plugin:
+
+```groovy
+plugins {
+    id 'java'
+    id 'application'
+    //This is required because Gradle doesn't allow subprojects to have plugins closure, and with apply plugin syntax it does not work
+    //hence I have to define this in root project with apply false and then use plugin wherever applicable
+    id 'org.springframework.boot' version '2.5.0' apply false
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE' apply false
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+subprojects {
+    apply plugin: 'java'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
+
+project(':services') {
+    dependencies {
+        implementation project(":common")
+    }
+}
+
+project(':web') {
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'application'
+
+    dependencies {
+        implementation project(":common")
+        implementation project(':services')
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    }
+
+    application {
+        mainClass = 'sample.gradle.Main'
+    }
+}
+```
+
+```shell
+gradle :web:run
+```
+
+# TODO. After playing around more with Gradle
+
+To create a runnable Jar:
+```groovy
+
+```
+
+
+We can also have project dependencies based on a configuration in a project. Suppose we define a separate JAR artifact with only the ``SampleService`` class in the ``:services:sample`` project. We can add this as a separate dependency to our :web project. In the following example build file, we will create a new JAR file with the ``SampleService`` class and then use this as a lib dependency in the :web project:
+
+```groovy
+subprojects {
+    apply plugin: 'java'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testCompile 'junit:junit:4.8.2'
+    }
+}
+
+project(':services:sample') {
+    
+    configurations {
+        api
+    }
+
+    task apiJar(type: Jar) {
+        baseName = 'api'
+        dependsOn classes
+        from sourceSets.main.output
+        include 'sample/gradle/api/SampleService.class'
+    }
+
+    artifacts {
+        api apiJar
+    }
+
+    dependencies {
+        compile project(':common')
+    }
+}
+
+project(':web') {
+    apply plugin: 'war'
+    
+    dependencies {
+        compile project(path: ':services:sample', configuration: 'api')
+        compile project(':services:sample')
+        compile 'javax.servlet:servlet-api:2.5'
+    }
+}
+```
+
+## Using partial builds
+
+Due to the lib dependencies between projects, we can execute partial builds in Gradle. This means that we don't have to be in the root directory of our project to build the necessary projects. We can change to a project directory and invoke the build task from there and Gradle will build all the necessary projects first and then the current project.
+
+Let's change to the services/sample directory, invoke the build task from there, and check the output:
+
+```shell
+$ cd services/sample
+sample $ gradle build
+:common:compileJava
+:common:processResources UP-TO-DATE
+:common:classes
+:common:jar
+:services:sample:compileJava
+:services:sample:processResources UP-TO-DATE
+:services:sample:classes
+:services:sample:jar
+:services:sample:assemble
+:services:sample:compileTestJava
+:services:sample:processTestResources UP-TO-DATE
+:services:sample:testClasses
+:services:sample:test
+:services:sample:check
+:services:sample:build
+BUILD SUCCESSFUL
+Total time: 1.676 secs
+```
+
+The :common project is built before our ``:services:sample`` project. If we don't want the projects that we are dependent on to be built, we must use the ``--no-rebuild`` (or ``-a``) command-line argument. Gradle will then skip the building the projects that our project depends on and will use cached versions of the dependencies.
+
+When we use the -a argument while invoking the build task, we get the following output:
+
+```shell
+sample $ gradle -a build
+:services:sample:compileJava UP-TO-DATE
+:services:sample:processResources UP-TO-DATE
+:services:sample:classes UP-TO-DATE
+:services:sample:jar UP-TO-DATE
+:services:sample:assemble UP-TO-DATE
+:services:sample:compileTestJava UP-TO-DATE
+:services:sample:processTestResources UP-TO-DATE
+:services:sample:testClasses UP-TO-DATE
+:services:sample:test UP-TO-DATE
+:services:sample:check UP-TO-DATE
+:services:sample:build UP-TO-DATE
+BUILD SUCCESSFUL
+Total time: 0.638 secs
+```
+
+If we invoke the ``build`` task on our ``:services:sample`` project, the ``:common`` project is also built. However, there is a catch as only the jar task of the ``:common`` project is executed. Normally, the build task also runs tests and executes the check task. Gradle will skip these tasks only if the project is built as a lib dependency.
+
+If we want to execute the tests and checks for the dependency projects, we must execute the ``buildNeeded`` task. Gradle will then perform a complete build of all the dependent projects. Let's execute the ``buildNeeded`` task from the ``services/sample`` directory and look at the output:
+
+```shell
+sample $ gradle buildNeeded
+:common:compileJava UP-TO-DATE
+:common:processResources UP-TO-DATE
+:common:classes UP-TO-DATE
+:common:jar UP-TO-DATE
+:common:assemble UP-TO-DATE
+:common:compileTestJava UP-TO-DATE
+:common:processTestResources UP-TO-DATE
+:common:testClasses UP-TO-DATE
+:common:test UP-TO-DATE
+:common:check UP-TO-DATE
+:common:build UP-TO-DATE
+:common:buildNeeded UP-TO-DATE
+:services:sample:compileJava UP-TO-DATE
+:services:sample:processResources UP-TO-DATE
+:services:sample:classes UP-TO-DATE
+:services:sample:jar UP-TO-DATE
+:services:sample:assemble UP-TO-DATE
+:services:sample:compileTestJava UP-TO-DATE
+:services:sample:processTestResources UP-TO-DATE
+:services:sample:testClasses UP-TO-DATE
+:services:sample:test UP-TO-DATE
+:services:sample:check UP-TO-DATE
+:services:sample:build UP-TO-DATE
+:services:sample:buildNeeded UP-TO-DATE
+BUILD SUCCESSFUL
+Total time: 0.651 secs
+```
+
+**If we have made changes to our ``:services:sample`` project, we may also want projects that are dependent on the sample project to be built. We can use this to make sure that we have not broken any code that depends on our project.** Gradle has a ``buildDependents`` task to do this. For example, let's execute this task from our ``:services:sample`` project, our ``:web`` project is also built as it has a dependency on the ``:services:sample`` project. We will get the following output when we execute the ``buildDependents`` task:
+
+```shell
+sample $ gradle buildDependents
+:common:compileJava UP-TO-DATE
+:common:processResources UP-TO-DATE
+:common:classes UP-TO-DATE
+:common:jar UP-TO-DATE
+:services:sample:compileJava UP-TO-DATE
+:services:sample:processResources UP-TO-DATE
+:services:sample:classes UP-TO-DATE
+:services:sample:apiJar
+:services:sample:jar UP-TO-DATE
+:web:compileJava
+:web:processResources UP-TO-DATE
+:web:classes
+:web:war
+:web:assemble
+:web:compileTestJava UP-TO-DATE
+:web:processTestResources UP-TO-DATE
+:web:testClasses UP-TO-DATE
+:web:test UP-TO-DATE
+:web:check UP-TO-DATE
+:web:build
+:web:buildDependents
+:services:sample:assemble UP-TO-DATE
+:services:sample:compileTestJava UP-TO-DATE
+:services:sample:processTestResources UP-TO-DATE
+:services:sample:testClasses UP-TO-DATE
+:services:sample:test UP-TO-DATE
+:services:sample:check UP-TO-DATE
+:services:sample:build UP-TO-DATE
+:services:sample:buildDependents
+BUILD SUCCESSFUL
+Total time: 0.709 secs
+```
+
+## Using the Jetty plugin
+
+This has been deprecated hence the information is useless.
+
+# Chapter 8. Mixed Languages
+
 
 
 
