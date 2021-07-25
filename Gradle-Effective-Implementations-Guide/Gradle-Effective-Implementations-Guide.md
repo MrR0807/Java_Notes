@@ -4310,6 +4310,46 @@ This has been deprecated hence the information is useless.
 
 # Chapter 8. Mixed Languages
 
+## Using the Groovy plugin
+
+Not interested currently. Adding if I want to come back.
+
+## Using the Scala plugin
+
+Not interested. Not going to use it.
+
+# Maintaining Code Quality
+
+## Using the Checkstyle plugin
+
+If we are working on a Java project, and we apply the Java plugin to our project, we will get an empty task, named ``check``. This is a dependency task for the ``build`` task. This means that when we execute the ``build`` task, the ``check`` task is executed as well.
+
+In this chapter, we will see that most plugins will add one or more tasks as a dependency task to the ``check`` task. This means that we can apply a plugin to our project, and when we invoke the ``check`` or ``build`` task, the extra tasks of the plugin are executed automatically.
+
+**Also, the ``check`` task is dependent on the ``test`` task. Gradle will always make sure that the ``test`` task is executed before the ``check`` task, so we know that all source files and test source files are compiled, and tests are run before the code is checked.**
+
+*Note*. Author talks about the plugin itself, which right now is not useful. If I ever want to use it, I'll come back to this section.
+
+## Using the PMD plugin
+
+*Note*.
+
+Sonar will run CheckStyle, FindBugs and PMD, as well as a few other "plugins" such as Cobertura (code coverage) by default for Java projects.
+
+To use PMD with Gradle, we have to apply the PMD plugin to our build. After we have added the plugin, we have the ``pmdMain`` and ``pmdTest`` tasks already installed. These tasks will run PMD rules for the ``main`` and ``test`` source sets. If we have a custom source set, then the plugin adds a ``pmd<SourceSet>`` task as well. These tasks are also dependency tasks of the ``check`` task. So if we invoke the ``check`` task, all the pmd tasks are executed as well.
+
+## Using the FindBugs plugin
+
+FindBugs is another library that we can use to analyze our source code. To use FindBugs in our Gradle builds, we will simply have to apply the findbugs plugin.
+
+To use FindBugs in our Gradle builds, we will simply have to apply the findbugs plugin.
+
+## Using the JDepend plugin
+
+To get quality metrics for our code base, we can use JDepend. JDepend traverses the generated class files in our project and generates design quality metrics. To use JDepend, we will simply have to apply the jdepend plugin in our project. This will add jdependMain and jdependTest tasks.
+
+# Chapter 10. Writing Custom Tasks and Plugins
+
 
 
 
