@@ -26,3 +26,14 @@ Multi project:
 - Package war and start tomcat;
 - Add additional source sets and configurations;
 - Manage dependencies between projects;
+
+
+# No Project
+
+## Copy files
+
+## Rename files
+
+## Zip files
+
+## Unzip files
