@@ -32,6 +32,16 @@ Multi project:
 
 ## Copy files
 
+```shell
+├── build.gradle
+├── file-1
+├── file-2
+├── folder-1
+└── folder-2
+```
+
+
+
 ## Rename files
 
 ## Zip files
