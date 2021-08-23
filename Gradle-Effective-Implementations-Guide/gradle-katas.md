@@ -40,7 +40,28 @@ Multi project:
 └── folder-2
 ```
 
+```groovy
+task copyTask(type: Copy) {
+	println "Copying files..."
+	from("$projectDir/file-1")
+	into("$projectDir/folder-1")
 
+	finalizedBy 'printTree', 'deleteFile'
+}
+
+task printTree(type: Exec) {
+	println 'Printing tree'
+	println copyTask.destinationDir
+	commandLine 'tree'
+}
+
+task deleteFile(type: Delete) {
+	println 'Deleting'
+	delete fileTree("$copyTask.destinationDir").matching {
+		include "**"
+	}
+}
+```
 
 ## Rename files
 
