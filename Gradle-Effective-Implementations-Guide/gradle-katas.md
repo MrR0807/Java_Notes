@@ -65,6 +65,28 @@ task deleteFile(type: Delete) {
 
 ## Rename files
 
+```groovy
+task renameFile (type: Copy) {
+  println "Renaming..."
+	from("$projectDir/file-1")
+	into("$projectDir")
+	rename {
+		"new-name"
+	}
+}
+```
+
+Or:
+
+```groovy
+task renameFile {
+	doLast {
+		def f = new File("$projectDir/file-1")
+		f.renameTo("new-name")
+	}
+}
+```
+
 ## Zip files
 
 ## Unzip files
