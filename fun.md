@@ -1,4 +1,4 @@
-# Production code in one my workplaces
+# Terrible production code examples
 
 ```
 public class EventStats {
