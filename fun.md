@@ -69,7 +69,6 @@ public class EventStats {
 
 
 ```
-@TestOwner(teams = {Team.NOTIFICATIONS})
 public class EventStatsTest {
 
 	@Test
